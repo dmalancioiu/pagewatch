@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../trigger/index.ts"],
-  "sourcesContent": ["export { screenshotMonitorTask } from './tasks/screenshot-monitor'\nexport { sendAlertDigestTask }   from './tasks/send-alert-digest'\nexport { runSingleUrlTask }      from './tasks/run-single-url'\n"],
-  "mappings": ";;;;;;;;;;;;;;;;;;;AAAA;",
-  "names": []
-}

@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../trigger/lib/supabase.ts"],
-  "sourcesContent": ["import { createClient } from \"@supabase/supabase-js\";\n\nexport function createAdminSupabase() {\n  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;\n  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;\n\n  if (!url || !key) {\n    throw new Error(\"Missing Supabase admin env vars\");\n  }\n\n  return createClient(url, key, {\n    auth: {\n      autoRefreshToken: false,\n      persistSession: false\n    }\n  });\n}\n"],
-  "mappings": ";;;;;;;;;;AAAA;AAEO,SAAS,sBAAsB;AACpC,QAAM,MAAM,QAAQ,IAAI;AACxB,QAAM,MAAM,QAAQ,IAAI;AAExB,MAAI,CAAC,OAAO,CAAC,KAAK;AAChB,UAAM,IAAI,MAAM,iCAAiC;AAAA,EACnD;AAEA,SAAO,aAAa,KAAK,KAAK;AAAA,IAC5B,MAAM;AAAA,MACJ,kBAAkB;AAAA,MAClB,gBAAgB;AAAA,IAClB;AAAA,EACF,CAAC;AACH;AAdgB;",
-  "names": []
-}

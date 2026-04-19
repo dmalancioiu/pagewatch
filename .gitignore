@@ -1,14 +1,42 @@
-node_modules
-.next
-out
-dist
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# build outputs
+dist/
+build/
+
+# environment variables
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# system
 .DS_Store
+
+# typescript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# coverage
+coverage/
+
+# trigger runtime (only if it's generated, NOT config)
+.trigger/
