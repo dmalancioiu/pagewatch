@@ -1,0 +1,470 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, :root {
+  height: 100%;
+}
+
+/* ─── Theme tokens ─── */
+:root, [data-theme="dark"] {
+  --bg-page:      #0a0a0a;
+  --bg-sidebar:   #0c0c0c;
+  --bg-card:      #111111;
+  --bg-card-alt:  #141414;
+  --border:       rgba(255,255,255,0.07);
+  --border-light: rgba(255,255,255,0.055);
+  --text-primary: #ffffff;
+  --text-muted:   rgba(255,255,255,0.45);
+  --text-dim:     rgba(255,255,255,0.28);
+  --text-faint:   rgba(255,255,255,0.18);
+}
+
+[data-theme="light"] {
+  --bg-page:      #f5f7fa;
+  --bg-sidebar:   #ffffff;
+  --bg-card:      #ffffff;
+  --bg-card-alt:  #f8fafc;
+  --border:       rgba(0,0,0,0.09);
+  --border-light: rgba(0,0,0,0.07);
+  --text-primary: #0f172a;
+  --text-muted:   rgba(15,23,42,0.6);
+  --text-dim:     rgba(15,23,42,0.42);
+  --text-faint:   rgba(15,23,42,0.28);
+}
+
+body {
+  @apply bg-slate-50 text-slate-950 antialiased;
+}
+
+* {
+  @apply border-border;
+}
+
+/* ─── Landing page: grid background ─── */
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  background-size: 50px 50px;
+  background-image:
+    linear-gradient(to right,  rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 80%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ─── Glassmorphism ─── */
+.glass-panel {
+  background: rgba(17,21,30,0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.05);
+}
+
+.glass-pill {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px -4px rgba(0,0,0,0.5);
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+  background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.3);
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(79,70,229,0.4), inset 0 1px 1px rgba(255,255,255,0.4);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
+}
+
+/* ─── Animated conic-gradient border for Pro pricing card ─── */
+@keyframes borderSpin {
+  100% { transform: rotate(360deg); }
+}
+
+.pro-card-wrapper {
+  position: relative;
+  border-radius: 1rem;
+  background: #11151e;
+  padding: 1px;
+  overflow: hidden;
+}
+.pro-card-wrapper::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, rgba(99,102,241,0.8), transparent 30%);
+  animation: borderSpin 4s linear infinite;
+  z-index: 0;
+}
+.pro-card-content {
+  position: relative;
+  background: #0f131a;
+  border-radius: calc(1rem - 1px);
+  z-index: 1;
+  height: 100%;
+}
+
+/* ─── FAQ accordion ─── */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary .chevron { transition: transform 0.2s ease; }
+details[open] > summary .chevron { transform: rotate(180deg); }
+
+/* ─── Dashboard: active nav item glow ─── */
+.nav-active {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #080c14; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ════════════════════════════════════════════════════════════════
+   LANDING PAGE v2 — PageWatch redesign
+   Accent: #00ff88 (electric green)
+   Background: #0a0a0a
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Dot grid hero background ─── */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 100%);
+}
+
+/* ─── Scroll reveal ─── */
+[data-animate] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity  0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-animate][data-visible] {
+  opacity: 1;
+  transform: translateY(0);
+}
+[data-delay-1] { transition-delay: 80ms;  }
+[data-delay-2] { transition-delay: 160ms; }
+[data-delay-3] { transition-delay: 240ms; }
+[data-delay-4] { transition-delay: 320ms; }
+[data-delay-5] { transition-delay: 400ms; }
+
+/* ─── Landing CTA buttons ─── */
+.btn-neon {
+  background: #00ff88;
+  color: #0a0a0a;
+  font-weight: 600;
+  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.btn-neon:hover {
+  background: #2dffaa;
+  box-shadow: 0 0 24px rgba(0,255,136,0.35), 0 4px 16px rgba(0,0,0,0.4);
+  transform: translateY(-1px);
+}
+.btn-neon:active { transform: translateY(0); }
+
+.btn-wire {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.62);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.btn-wire:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.9);
+}
+
+/* ─── Bento card hover ─── */
+.bento-card {
+  transition:
+    border-color 0.22s ease,
+    transform    0.22s ease,
+    box-shadow   0.22s ease;
+}
+.bento-card:hover {
+  border-color: rgba(255,255,255,0.13) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px -8px rgba(0,0,0,0.6);
+}
+
+/* ─── Pro pricing card — neon conic border ─── */
+.pro-card-neon {
+  position: relative;
+  border-radius: 1rem;
+  padding: 1px;
+  overflow: hidden;
+  background: #111;
+}
+.pro-card-neon::before {
+  content: "";
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: conic-gradient(transparent, rgba(0,255,136,0.55), transparent 30%);
+  animation: borderSpin 4s linear infinite;
+  z-index: 0;
+}
+.pro-card-neon-inner {
+  position: relative;
+  background: #0d0d0d;
+  border-radius: calc(1rem - 1px);
+  z-index: 1;
+  height: 100%;
+}
+
+/* ─── Hero animations ─── */
+@keyframes heroUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.hero-1 { animation: heroUp 0.55s cubic-bezier(0.22,1,0.36,1) both; }
+.hero-2 { animation: heroUp 0.55s cubic-bezier(0.22,1,0.36,1) 0.10s both; }
+.hero-3 { animation: heroUp 0.55s cubic-bezier(0.22,1,0.36,1) 0.20s both; }
+.hero-4 { animation: heroUp 0.55s cubic-bezier(0.22,1,0.36,1) 0.32s both; }
+.hero-5 { animation: heroUp 0.70s cubic-bezier(0.22,1,0.36,1) 0.52s both; }
+
+/* ─── Floating alert slide-in ─── */
+@keyframes alertSlide {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.alert-slide { animation: alertSlide 0.5s cubic-bezier(0.22,1,0.36,1) 1.3s both; }
+
+/* ─── Scan line on mockup ─── */
+@keyframes scan {
+  0%   { top: 8%;  opacity: 0.5; }
+  90%  { opacity: 0.4; }
+  100% { top: 92%; opacity: 0;   }
+}
+.scan-line {
+  animation: scan 3.5s ease-in-out 2s infinite;
+}
+
+/* ─── Mockup ambient glow pulse ─── */
+@keyframes glowPulse {
+  0%,100% { box-shadow: 0 0 60px rgba(0,255,136,0.05), 0 40px 80px -20px rgba(0,0,0,0.9); }
+  50%     { box-shadow: 0 0 90px rgba(0,255,136,0.10), 0 40px 80px -20px rgba(0,0,0,0.9); }
+}
+.mockup-glow { animation: glowPulse 6s ease-in-out infinite; }
+
+/* ─── Diff region pulse ─── */
+@keyframes diffPulse {
+  0%,100% { background-color: rgba(255,68,68,0.06); }
+  50%     { background-color: rgba(255,68,68,0.10); }
+}
+.diff-region { animation: diffPulse 3s ease-in-out infinite; }
+
+/* ─── Neon text glow ─── */
+.text-neon { color: #00ff88; }
+.text-neon-glow {
+  color: #00ff88;
+  text-shadow: 0 0 20px rgba(0,255,136,0.4);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DASHBOARD UI
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Sidebar nav items ─── */
+.dash-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-left: 2px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  text-decoration: none;
+}
+.dash-nav-item:hover {
+  background: rgba(128,128,128,0.07);
+  color: var(--text-primary);
+}
+.dash-nav-item.active {
+  background: rgba(0,255,136,0.07);
+  color: #00ff88;
+  border-left-color: #00ff88;
+}
+
+/* ─── Dashboard cards ─── */
+.dash-card {
+  background: var(--bg-card, #111111);
+  border: 1px solid var(--border, rgba(255,255,255,0.07));
+  border-radius: 16px;
+}
+.dash-card-hover {
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+  cursor: pointer;
+}
+.dash-card-hover:hover {
+  border-color: rgba(128,128,128,0.2);
+  background-color: var(--bg-card-alt, #141414);
+}
+
+/* ─── Alert diff thumbnail ─── */
+.diff-thumb {
+  background: rgba(255,50,50,0.08);
+  border: 1px solid rgba(255,68,68,0.15);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.diff-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(255,50,50,0.06) 6px,
+    rgba(255,50,50,0.06) 7px
+  );
+}
+
+/* ─── Severity badges ─── */
+.badge-critical { color: #ff5555; background: rgba(255,68,68,0.12); border: 1px solid rgba(255,68,68,0.22); }
+.badge-high     { color: #ff9944; background: rgba(255,130,68,0.10); border: 1px solid rgba(255,130,68,0.2); }
+.badge-medium   { color: #ffcc44; background: rgba(255,200,68,0.08); border: 1px solid rgba(255,200,68,0.18); }
+.badge-low      { color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
+
+/* ─── Status dot ─── */
+.status-ok      { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.5); }
+.status-alert   { background: #ff4444; box-shadow: 0 0 6px rgba(255,68,68,0.5); }
+.status-pending { background: rgba(255,255,255,0.25); }
+
+/* ─── Onboarding progress bar (green) ─── */
+.ob-progress {
+  background: #00ff88;
+  box-shadow: 0 0 10px rgba(0,255,136,0.4);
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Schedule card (onboarding / add URL) ─── */
+.schedule-card {
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.schedule-card:hover {
+  border-color: rgba(0,255,136,0.3);
+  background: rgba(0,255,136,0.03);
+}
+.schedule-card.selected {
+  border-color: rgba(0,255,136,0.45);
+  background: rgba(0,255,136,0.07);
+}
+
+/* ─── Threshold slider custom ─── */
+input[type='range'].neon-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  outline: none;
+}
+input[type='range'].neon-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #00ff88;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  transition: box-shadow 0.15s ease;
+}
+input[type='range'].neon-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 16px rgba(0,255,136,0.7);
+}
+input[type='range'].neon-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #00ff88;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+}
+
+/* ─── Dashboard input style ─── */
+.dash-input {
+  width: 100%;
+  background: rgba(128,128,128,0.04);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: var(--text-primary, white);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-input::placeholder { color: var(--text-faint, rgba(255,255,255,0.22)); }
+.dash-input:focus {
+  border-color: rgba(0,255,136,0.35);
+  box-shadow: 0 0 0 3px rgba(0,255,136,0.08);
+}
+
+/* ─── Light landing page nav / buttons ─── */
+.light-nav-link {
+  color: rgba(15,23,42,0.55);
+}
+.light-nav-link:hover {
+  color: #0f172a;
+}
+
+.light-btn-wire {
+  border-color: rgba(0,0,0,0.08);
+  color: rgba(15,23,42,0.55);
+  background: transparent;
+}
+.light-btn-wire:hover {
+  background: #f5f7fa;
+  color: #0f172a;
+}
+
+/* ─── Theme-aware row hover ─── */
+.dash-row:hover {
+  background: rgba(128,128,128,0.04);
+}
+
+/* ─── Light theme: text-white override ─── */
+[data-theme="light"] .text-white {
+  color: var(--text-primary) !important;
+}
+
+/* ─── Light theme: dot-grid (dark dots on light bg) ─── */
+[data-theme="light"] .dot-grid {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.09) 1px, transparent 1px);
+}

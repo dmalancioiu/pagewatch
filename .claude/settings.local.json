@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Read(//c/Program Files/nodejs//**)",
+      "Bash(npm list:*)",
+      "Read(//d/Projects//**)",
+      "Read(//d//**)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const sdk = require\\('@trigger.dev/sdk'\\); console.log\\(Object.keys\\(sdk\\).join\\(','\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:15]\\)\")",
+      "Bash(node -e \"const pkg = require\\('./node_modules/@trigger.dev/sdk/package.json'\\); const exp = pkg.exports || {}; console.log\\(Object.keys\\(exp\\).slice\\(0,20\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const content=fs.readFileSync\\('app/dashboard/alerts/page.tsx','utf8'\\); const lines=content.split\\('\\\\n'\\); lines.forEach\\(\\(l,i\\)=>{ if\\(l.includes\\('&'\\) || l.includes\\('amp;'\\)\\) console.log\\(i+1, l\\) }\\)\")"
+    ]
+  }
+}

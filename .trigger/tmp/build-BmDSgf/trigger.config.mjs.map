@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../trigger.config.ts"],
+  "sourcesContent": ["import { defineConfig } from \"@trigger.dev/sdk/v3\";\nimport { playwright } from \"@trigger.dev/build/extensions/playwright\";\n\nexport default defineConfig({\n  project: \"proj_femgaoshhlqbobegyjpv\",\n  runtime: \"node\",\n  logLevel: \"info\",\n  maxDuration: 300,\n  dirs: [\"./trigger\"],\n  build: {},\n});\nexport const resolveEnvVars = undefined;"],
+  "mappings": ";;;;;;;;;AAAA;AAGA,IAAO,yBAAQ,aAAa;AAAA,EAC1B,SAAS;AAAA,EACT,SAAS;AAAA,EACT,UAAU;AAAA,EACV,aAAa;AAAA,EACb,MAAM,CAAC,WAAW;AAAA,EAClB,OAAO,CAAC;AACV,CAAC;AACM,IAAM,iBAAiB;",
+  "names": []
+}

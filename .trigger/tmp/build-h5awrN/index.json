@@ -1,0 +1,51 @@
+{
+  "configPath": "D:\\Projects\\vibe-agent-saas\\.trigger\\tmp\\build-h5awrN\\trigger.config.mjs",
+  "customConditions": [
+  ],
+  "prompts": [
+  ],
+  "queues": [
+  ],
+  "runtime": "node",
+  "runtimeVersion": "22.12.0",
+  "tasks": [
+    {
+      "entryPoint": "D:\\Projects\\vibe-agent-saas\\.trigger\\tmp\\build-h5awrN\\screenshot-monitor.mjs",
+      "filePath": "trigger/tasks/screenshot-monitor.ts",
+      "id": "screenshot-monitor",
+      "maxDuration": 600,
+      "schedule": {
+        "cron": "0 * * * *",
+        "timezone": "UTC"
+      },
+      "triggerSource": "schedule"
+    },
+    {
+      "entryPoint": "D:\\Projects\\vibe-agent-saas\\.trigger\\tmp\\build-h5awrN\\send-alert-digest.mjs",
+      "filePath": "trigger/tasks/send-alert-digest.ts",
+      "id": "send-alert-digest",
+      "maxDuration": 120,
+      "schedule": {
+        "cron": "0 8 * * *",
+        "timezone": "UTC"
+      },
+      "triggerSource": "schedule"
+    },
+    {
+      "entryPoint": "D:\\Projects\\vibe-agent-saas\\.trigger\\tmp\\build-h5awrN\\index.mjs",
+      "filePath": "trigger/index.ts",
+      "id": "run-single-url",
+      "maxDuration": 120
+    }
+  ],
+  "timings": {
+    "trigger/index.ts": 8.689699999999903,
+    "trigger/lib/analyze-diff-with-ai.ts": 10.666699999999992,
+    "trigger/lib/supabase.ts": 2.570900000000165,
+    "trigger/lib/take-screenshot.ts": 2.2592000000001917,
+    "trigger/tasks/run-single-url.ts": 2.4635000000000673,
+    "trigger/tasks/screenshot-monitor.ts": 825.4028000000001,
+    "trigger/tasks/send-alert-digest.ts": 8.08439999999996
+  },
+  "workerEntryPoint": "D:\\Projects\\vibe-agent-saas\\.trigger\\tmp\\build-h5awrN\\dev-run-worker.mjs"
+}
