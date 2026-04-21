@@ -8,7 +8,6 @@ import type { CheckFrequency, MonitoredUrlMode } from '@/lib/types/database.type
 interface AddUrlModalProps {
   workspaceId: string
   onClose:     () => void
-  /** Called after URL is created — receives the new URL id so the first-screenshot flow can start */
   onCreated?:  (urlId: string) => void
 }
 
@@ -46,21 +45,12 @@ function hourLabel(h: number): string {
   return h < 12 ? `${h}:00 AM` : `${h - 12}:00 PM`
 }
 
-function sensitivityLabel(pct: number): string {
-  if (pct <= 2)  return 'Catches very subtle changes like text edits or small price updates'
-  if (pct <= 5)  return 'Catches meaningful changes — a good default for most pages'
-  if (pct <= 10) return 'Fires on noticeable content or layout changes'
-  if (pct <= 19) return 'Only fires on significant visual changes'
-  return 'Only fires on major page overhauls or full redesigns'
-}
-
 export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProps) {
   const [url,         setUrl]         = useState('')
   const [mode,        setMode]        = useState<MonitoredUrlMode>('watch')
   const [freq,        setFreq]        = useState<CheckFrequency>('daily')
   const [checkHour,   setCheckHour]   = useState<number>(9)
   const [description, setDescription] = useState('')
-  const [threshold,   setThreshold]   = useState(5)
   const [fullPage,    setFullPage]    = useState(true)
   const [error,       setError]       = useState<string | null>(null)
   const [isPending,   start]          = useTransition()
@@ -81,7 +71,7 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
           name:              derivedName,
           check_frequency:   freq,
           check_hour:        showTimePicker ? checkHour : null,
-          threshold_pct:     isWatch ? threshold : 5,
+          threshold_pct:     5,
           watch_description: isWatch && description.trim() ? description.trim() : null,
           full_page:         fullPage,
           mode,
@@ -101,32 +91,34 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         className="w-full max-w-lg rounded-2xl overflow-hidden"
         style={{
-          background: '#0f0f0f',
-          border:     '1px solid rgba(255,255,255,0.09)',
-          boxShadow:  '0 32px 80px rgba(0,0,0,0.8)',
+          background: '#FFFFFF',
+          border:     '1px solid #E5E7EB',
+          boxShadow:  '0 20px 60px rgba(0,0,0,0.15)',
         }}
       >
         {/* Header */}
         <div
           className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ borderBottom: '1px solid #F3F4F6' }}
         >
           <div>
-            <h2 className="text-base font-semibold text-white">Add a URL to watch</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.38)' }}>
-              We'll screenshot it on schedule and alert you when it changes.
+            <h2 className="text-base font-semibold" style={{ color: '#111827' }}>Add a monitor</h2>
+            <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
+              We'll screenshot this page on a schedule and alert you when it changes.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/[0.06]"
-            style={{ color: 'rgba(255,255,255,0.35)' }}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: '#9CA3AF' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -135,9 +127,9 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
         {/* Body */}
         <div className="px-6 py-5 space-y-6 max-h-[74vh] overflow-y-auto">
 
-          {/* ── Step 1: URL + mode ── */}
+          {/* Step 1: URL + mode */}
           <div className="space-y-3">
-            {/* URL input with favicon */}
+            {/* URL input */}
             <div className="relative">
               {favicon && (
                 <img
@@ -154,20 +146,20 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                 placeholder="https://acme.com/pricing"
                 autoFocus
-                className="dash-input font-mono w-full"
+                className="dash-input font-mono"
                 style={{ paddingLeft: favicon ? '2.25rem' : undefined }}
               />
             </div>
             {domain && (
-              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                Monitoring <span style={{ color: '#00ff88' }}>{domain}</span>
+              <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
+                Monitoring <span style={{ color: '#15803D' }}>{domain}</span>
               </p>
             )}
 
             {/* Watch / Archive toggle */}
             <div
               className="flex rounded-xl overflow-hidden p-1 gap-1"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+              style={{ background: '#F3F4F6', border: '1px solid #E5E7EB' }}
             >
               <ModeButton
                 active={mode === 'watch'}
@@ -183,13 +175,13 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
               />
             </div>
             {mode === 'archive' && (
-              <p className="text-xs px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="text-xs px-1" style={{ color: '#9CA3AF' }}>
                 Screenshots will be saved on schedule but no diff or alert will be generated.
               </p>
             )}
           </div>
 
-          {/* ── Step 2: Schedule ── */}
+          {/* Step 2: Schedule */}
           <div>
             <SectionLabel>Schedule</SectionLabel>
             <div className="space-y-2">
@@ -201,18 +193,22 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
                   className={`schedule-card w-full text-left flex items-center justify-between${freq === s.id ? ' selected' : ''}`}
                 >
                   <div>
-                    <p className="text-sm font-medium"
-                       style={{ color: freq === s.id ? '#00ff88' : 'rgba(255,255,255,0.75)' }}>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: freq === s.id ? '#15803D' : '#374151' }}
+                    >
                       {s.label}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
                       {s.sub}
                     </p>
                   </div>
                   {freq === s.id && (
-                    <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                         style={{ background: '#00ff88' }}>
-                      <Check className="w-2.5 h-2.5" style={{ color: '#0a0a0a' }} />
+                    <div
+                      className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: '#16A34A' }}
+                    >
+                      <Check className="w-2.5 h-2.5" style={{ color: '#FFFFFF' }} />
                     </div>
                   )}
                 </button>
@@ -222,22 +218,18 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
             {showTimePicker && (
               <div
                 className="mt-3 flex items-center gap-3 px-4 py-3 rounded-xl"
-                style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid rgba(0,255,136,0.14)' }}
+                style={{ background: 'rgba(22,163,74,0.04)', border: '1px solid rgba(22,163,74,0.18)' }}
               >
-                <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(0,255,136,0.7)' }} />
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#15803D' }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold mb-1" style={{ color: 'rgba(0,255,136,0.8)' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#15803D' }}>
                     Run at (UTC)
                   </p>
                   <select
                     value={checkHour}
                     onChange={(e) => setCheckHour(Number(e.target.value))}
                     className="w-full text-sm rounded-lg px-3 py-1.5 outline-none"
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      border:     '1px solid rgba(255,255,255,0.1)',
-                      color:      'white',
-                    }}
+                    style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', color: '#111827' }}
                   >
                     {Array.from({ length: 24 }, (_, h) => (
                       <option key={h} value={h}>{hourLabel(h)}</option>
@@ -248,68 +240,36 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
             )}
           </div>
 
-          {/* ── Steps 3 & 4: Watch-mode only ── */}
+          {/* Step 3: Alert focus (watch mode only) */}
           {isWatch && (
-            <>
-              {/* Step 3: What to watch */}
-              <div>
-                <SectionLabel optional>Optional: focus your alerts</SectionLabel>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={`Describe what you want to be alerted about. Leave blank to alert on any visual change.\n\nExamples: "Alert me if the pricing changes" · "Notify me if the hero headline is different"`}
-                  className="w-full text-sm rounded-xl px-3.5 py-3 outline-none resize-none leading-relaxed"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border:     '1px solid rgba(255,255,255,0.09)',
-                    color:      'rgba(255,255,255,0.75)',
-                  }}
-                />
-                <p className="text-[11px] mt-1.5 px-0.5" style={{ color: 'rgba(255,255,255,0.28)' }}>
-                  Our AI will read your description and only alert you when something relevant changes.
-                </p>
-              </div>
-
-              {/* Step 4: Sensitivity slider */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <SectionLabel>Sensitivity</SectionLabel>
-                  <span
-                    className="text-sm font-bold px-2.5 py-0.5 rounded-lg"
-                    style={{ color: '#00ff88', background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.18)' }}
-                  >
-                    ≥{threshold}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  className="neon-slider"
-                  min={1} max={30} step={1}
-                  value={threshold}
-                  onChange={(e) => setThreshold(Number(e.target.value))}
-                />
-                <div className="flex justify-between mt-1">
-                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>Low — subtle</span>
-                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.22)' }}>High — major only</span>
-                </div>
-                <p className="text-xs mt-2 px-0.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.38)' }}>
-                  {sensitivityLabel(threshold)}
-                </p>
-              </div>
-            </>
+            <div>
+              <SectionLabel optional>What matters on this page?</SectionLabel>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={`Describe what you want to be alerted about. Leave blank to alert on any visual change.\n\nExamples: "Alert me if the pricing changes" · "Notify me if the hero headline is different"`}
+                className="dash-input resize-none leading-relaxed"
+                style={{ borderRadius: '10px' }}
+              />
+              <p className="text-[11px] mt-1.5 px-0.5" style={{ color: '#9CA3AF' }}>
+                Our AI will use your description to filter out irrelevant changes and only alert you when it matters.
+              </p>
+            </div>
           )}
 
-          {/* Full-page toggle (always visible) */}
+          {/* Full-page toggle */}
           <div
             className="flex items-center justify-between px-4 py-3 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
           >
             <div className="flex items-center gap-2.5">
-              <Globe className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }} />
+              <Globe className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#9CA3AF' }} />
               <div>
-                <p className="text-sm font-medium text-white">{fullPage ? 'Full page' : 'Visible area only'}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.32)' }}>
+                <p className="text-sm font-medium" style={{ color: '#374151' }}>
+                  {fullPage ? 'Full page' : 'Visible area only'}
+                </p>
+                <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>
                   {fullPage ? 'Captures the entire scrollable page' : 'Captures only the viewport (above the fold)'}
                 </p>
               </div>
@@ -318,19 +278,21 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
               type="button"
               aria-pressed={fullPage}
               onClick={() => setFullPage((v) => !v)}
-              className="relative h-6 w-11 rounded-full transition-colors flex-shrink-0"
-              style={{ background: fullPage ? '#00ff88' : 'rgba(255,255,255,0.12)' }}
+              className="relative h-5 w-9 rounded-full transition-colors flex-shrink-0"
+              style={{ background: fullPage ? '#16A34A' : '#D1D5DB' }}
             >
               <span
-                className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all"
-                style={{ left: fullPage ? '1.375rem' : '0.125rem' }}
+                className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all shadow-sm"
+                style={{ left: fullPage ? '1.125rem' : '0.125rem' }}
               />
             </button>
           </div>
 
           {error && (
-            <p className="text-xs px-3 py-2.5 rounded-xl"
-               style={{ color: '#ff8080', background: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.18)' }}>
+            <p
+              className="text-xs px-3 py-2.5 rounded-xl"
+              style={{ color: '#B91C1C', background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.18)' }}
+            >
               {error}
             </p>
           )}
@@ -339,19 +301,24 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
         {/* Footer */}
         <div
           className="flex items-center justify-end gap-3 px-6 py-4"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ borderTop: '1px solid #F3F4F6' }}
         >
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded-xl transition-colors hover:text-white/70"
-            style={{ color: 'rgba(255,255,255,0.4)' }}
+            className="px-4 py-2 text-sm rounded-lg transition-colors"
+            style={{ color: '#6B7280' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#374151')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#6B7280')}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!url.trim() || isPending}
-            className="btn-neon flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#16A34A', color: '#FFFFFF' }}
+            onMouseEnter={(e) => { if (!isPending && url.trim()) e.currentTarget.style.background = '#15803D' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#16A34A' }}
           >
             {isPending ? 'Adding…' : (
               <>{mode === 'archive' ? 'Start archiving' : 'Start watching'} <ArrowRight className="w-3.5 h-3.5" /></>
@@ -363,15 +330,15 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
   )
 }
 
-// ── Small helpers ──────────────────────────────────────────────────────────
+/* ─── Small helpers ─── */
 
 function SectionLabel({ children, optional }: { children: React.ReactNode; optional?: boolean }) {
   return (
     <label className="block text-xs font-semibold uppercase tracking-wider mb-2.5"
-           style={{ color: 'rgba(255,255,255,0.38)' }}>
+           style={{ color: '#9CA3AF' }}>
       {children}
       {optional && (
-        <span style={{ color: 'rgba(255,255,255,0.2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: '0.35rem' }}>
+        <span style={{ color: '#D1D5DB', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: '0.35rem' }}>
           (optional)
         </span>
       )}
@@ -390,9 +357,10 @@ function ModeButton({
       onClick={onClick}
       className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all"
       style={{
-        background: active ? 'rgba(0,255,136,0.08)' : 'transparent',
-        color:      active ? '#00ff88' : 'rgba(255,255,255,0.4)',
-        border:     active ? '1px solid rgba(0,255,136,0.2)' : '1px solid transparent',
+        background: active ? '#FFFFFF' : 'transparent',
+        color:      active ? '#15803D' : '#6B7280',
+        border:     active ? '1px solid rgba(22,163,74,0.25)' : '1px solid transparent',
+        boxShadow:  active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
       }}
     >
       {icon}

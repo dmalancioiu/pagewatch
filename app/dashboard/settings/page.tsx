@@ -12,67 +12,54 @@ function Section({
   children,
   danger,
 }: {
-  icon: React.ReactNode
-  title: string
+  icon:     React.ReactNode
+  title:    string
   children: React.ReactNode
-  danger?: boolean
+  danger?:  boolean
 }) {
   return (
     <div
-      className="rounded-2xl overflow-hidden"
-      style={{
-        border:     danger ? '1px solid rgba(255,68,68,0.15)' : '1px solid rgba(255,255,255,0.07)',
-        background: danger ? 'rgba(255,50,50,0.02)' : 'rgba(255,255,255,0.02)',
-      }}
+      className="dash-card overflow-hidden"
+      style={danger ? { borderColor: 'rgba(185,28,28,0.25)', background: 'rgba(185,28,28,0.02)' } : {}}
     >
       <div
-        className="flex items-center gap-2.5 px-6 py-4"
+        className="flex items-center gap-2.5 px-5 py-3.5"
         style={{
-          borderBottom: danger ? '1px solid rgba(255,68,68,0.1)' : '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(255,255,255,0.015)',
+          borderBottom: danger ? '1px solid rgba(185,28,28,0.12)' : '1px solid #F3F4F6',
+          background: danger ? 'rgba(185,28,28,0.03)' : '#F8FAFC',
         }}
       >
-        <span style={{ color: danger ? '#ff7070' : 'rgba(255,255,255,0.4)' }}>{icon}</span>
+        <span style={{ color: danger ? '#DC2626' : '#9CA3AF' }}>{icon}</span>
         <span
           className="text-sm font-semibold"
-          style={{ color: danger ? '#ff7070' : 'white' }}
+          style={{ color: danger ? '#B91C1C' : '#374151' }}
         >
           {title}
         </span>
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-5">{children}</div>
     </div>
   )
 }
 
 /* ─── Read-only field ─── */
-function Field({
-  label,
-  value,
-  hint,
-}: {
-  label: string
-  value: string
-  hint?: string
-}) {
+function Field({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
-      <label className="block text-xs font-semibold uppercase tracking-wider mb-2"
-             style={{ color: 'rgba(255,255,255,0.35)' }}>
+      <label
+        className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+        style={{ color: '#9CA3AF' }}
+      >
         {label}
       </label>
       <div
-        className="w-full px-4 py-3 rounded-xl text-sm font-mono"
-        style={{
-          background: 'rgba(255,255,255,0.03)',
-          border:     '1px solid rgba(255,255,255,0.07)',
-          color:      'rgba(255,255,255,0.7)',
-        }}
+        className="w-full px-4 py-2.5 rounded-lg text-sm font-mono"
+        style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', color: '#374151' }}
       >
         {value}
       </div>
       {hint && (
-        <p className="mt-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.28)' }}>{hint}</p>
+        <p className="mt-1.5 text-xs" style={{ color: '#9CA3AF' }}>{hint}</p>
       )}
     </div>
   )
@@ -99,16 +86,16 @@ export default async function SettingsPage() {
   const emailFreq    = (emailChannel?.config as any)?.frequency ?? 'daily'
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-5 max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Settings</h1>
-        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.38)' }}>
+        <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#111827' }}>Settings</h1>
+        <p className="text-sm mt-0.5" style={{ color: '#6B7280' }}>
           Workspace, notifications, and account preferences.
         </p>
       </div>
 
-      {/* ── Workspace ───────────────────────────────────── */}
+      {/* Workspace */}
       <Section icon={<Building2 className="w-4 h-4" />} title="Workspace">
         <div className="space-y-4">
           <Field label="Workspace name" value={workspace.name ?? '—'} />
@@ -125,38 +112,33 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── Notifications ───────────────────────────────── */}
+      {/* Notifications */}
       <Section icon={<Bell className="w-4 h-4" />} title="Notifications">
-        <div className="space-y-5">
-          {/* Email status */}
+        <div className="space-y-4">
           <div
             className="flex items-center justify-between p-4 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
           >
             <div>
-              <p className="text-sm font-medium text-white">Email alerts</p>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="text-sm font-medium" style={{ color: '#374151' }}>Email alerts</p>
+              <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
                 {emailChannel ? `Sending to ${emailAddr}` : 'Not configured'}
               </p>
             </div>
             <span
-              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5"
               style={
                 emailChannel?.is_active
-                  ? { color: '#00ff88', background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.18)' }
-                  : { color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }
+                  ? { color: '#15803D', background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }
+                  : { color: '#9CA3AF', background: '#F3F4F6', border: '1px solid #E5E7EB' }
               }
             >
               {emailChannel?.is_active ? (
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Active
-                </span>
+                <><CheckCircle2 className="w-3 h-3" /> Active</>
               ) : 'Inactive'}
             </span>
           </div>
 
-          {/* Frequency */}
           {emailChannel && (
             <Field
               label="Alert frequency"
@@ -164,24 +146,19 @@ export default async function SettingsPage() {
             />
           )}
 
-          {/* Slack */}
           <div
             className="flex items-center gap-3 p-4 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}
+            style={{ background: '#F9FAFB', border: '1px dashed #E5E7EB' }}
           >
-            <Slack className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }} />
+            <Slack className="w-4 h-4 flex-shrink-0" style={{ color: '#D1D5DB' }} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Slack notifications
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Available on the Pro plan
-              </p>
+              <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>Slack notifications</p>
+              <p className="text-xs mt-0.5" style={{ color: '#D1D5DB' }}>Available on the Pro plan</p>
             </div>
             <a
               href="/dashboard/billing"
               className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-              style={{ color: '#00ff88', background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.14)' }}
+              style={{ color: '#15803D', background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }}
             >
               Upgrade →
             </a>
@@ -189,51 +166,46 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── Plan & billing ─────────────────────────────── */}
+      {/* Plan & billing */}
       <Section icon={<CreditCard className="w-4 h-4" />} title="Plan &amp; billing">
         <div className="space-y-4">
-          {/* Current plan */}
           <div
             className="flex items-center justify-between p-4 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
           >
             <div>
-              <p className="text-sm font-medium text-white">Free plan</p>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                Up to 3 URLs · Daily checks · Email alerts
+              <p className="text-sm font-medium" style={{ color: '#374151' }}>Free plan</p>
+              <p className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
+                Up to 3 monitors · Daily checks · Email alerts
               </p>
             </div>
             <a
               href="/#pricing"
               className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-              style={{
-                background: 'rgba(0,255,136,0.08)',
-                color:      '#00ff88',
-                border:     '1px solid rgba(0,255,136,0.2)',
-                boxShadow:  '0 0 12px rgba(0,255,136,0.08)',
-              }}
+              style={{ background: '#16A34A', color: '#FFFFFF' }}
             >
               Upgrade to Pro →
             </a>
           </div>
 
-          {/* Limits */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'URLs',       used: 3, max: 3  },
-              { label: 'Checks/mo',  used: 90, max: 90 },
-              { label: 'Retention',  used: null, display: '30 days' },
+              { label: 'Monitors',   used: 3,  max: 3,  display: null      },
+              { label: 'Checks/mo',  used: 90, max: 90, display: null      },
+              { label: 'Retention',  used: null, max: null, display: '30 days' },
             ].map((item) => (
               <div
                 key={item.label}
                 className="p-3 rounded-xl"
-                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
+                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-1"
-                   style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-wider mb-1"
+                  style={{ color: '#9CA3AF' }}
+                >
                   {item.label}
                 </p>
-                <p className="text-lg font-bold text-white leading-none">
+                <p className="text-lg font-bold leading-none" style={{ color: '#111827' }}>
                   {item.display ?? `${item.used}/${item.max}`}
                 </p>
               </div>
@@ -242,7 +214,7 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── Account ─────────────────────────────────────── */}
+      {/* Account */}
       <Section icon={<User className="w-4 h-4" />} title="Account">
         <div className="space-y-4">
           <Field label="Email address" value={user?.email ?? '—'} />
@@ -254,25 +226,21 @@ export default async function SettingsPage() {
         </div>
       </Section>
 
-      {/* ── Danger zone ─────────────────────────────────── */}
+      {/* Danger zone */}
       <Section icon={<AlertTriangle className="w-4 h-4" />} title="Danger zone" danger>
         <div className="space-y-4">
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <p className="text-sm" style={{ color: '#6B7280' }}>
             Deleting your workspace permanently removes all monitored URLs, screenshots, and alert
             history. This action cannot be undone.
           </p>
           <button
             disabled
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all opacity-40 cursor-not-allowed"
-            style={{
-              background: 'rgba(255,68,68,0.08)',
-              color:      '#ff7070',
-              border:     '1px solid rgba(255,68,68,0.18)',
-            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed"
+            style={{ background: 'rgba(185,28,28,0.06)', color: '#B91C1C', border: '1px solid rgba(185,28,28,0.2)' }}
           >
             Delete workspace
           </button>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          <p className="text-xs" style={{ color: '#9CA3AF' }}>
             Contact <a href="mailto:support@pagewatch.dev" className="underline">support@pagewatch.dev</a> to request account deletion.
           </p>
         </div>

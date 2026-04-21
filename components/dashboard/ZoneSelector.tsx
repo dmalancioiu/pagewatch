@@ -15,7 +15,7 @@ interface Props {
 
 // Cycle through these for zone borders / labels
 const ZONE_COLORS = [
-  '#00ff88', '#4d8dff', '#ff884d', '#cc44ff', '#44e5ff', '#ffd644',
+  '#2563EB', '#16A34A', '#D97706', '#9333EA', '#0891B2', '#DC2626',
 ]
 
 function zoneColor(i: number) {
@@ -210,8 +210,8 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
           className="absolute pointer-events-none"
           style={{
             ...previewStyle,
-            border:     '2px dashed #00ff88',
-            background: 'rgba(0,255,136,0.08)',
+            border:     '2px dashed #2563EB',
+            background: 'rgba(37,99,235,0.1)',
             boxSizing:  'border-box',
           }}
         />
@@ -225,13 +225,13 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
           <div
             className="px-4 py-2.5 rounded-xl text-sm font-medium"
             style={{
-              background: 'rgba(0,0,0,0.65)',
-              border:     '1px dashed rgba(0,255,136,0.4)',
-              color:      'rgba(0,255,136,0.8)',
+              background: 'rgba(0,0,0,0.6)',
+              border:     '1px dashed rgba(255,255,255,0.3)',
+              color:      'rgba(255,255,255,0.85)',
               backdropFilter: 'blur(4px)',
             }}
           >
-            Click and drag to define a tracking zone
+            Click and drag to define a focus zone
           </div>
         </div>
       )}

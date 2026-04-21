@@ -3,9 +3,9 @@ import Link from 'next/link'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrls } from '@/lib/actions/websites'
 import { createServerClient } from '@/lib/supabase/server'
-import { Globe, ArrowRight, Pause } from 'lucide-react'
+import { Globe, ArrowRight, Pause, AlertCircle, Clock, Archive } from 'lucide-react'
 
-export const metadata = { title: 'URLs — PageWatch' }
+export const metadata = { title: 'Monitors — PageWatch' }
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'Never'
@@ -16,12 +16,6 @@ function timeAgo(iso: string | null): string {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
-}
-
-const FREQ_COLORS: Record<string, { color: string; bg: string }> = {
-  hourly: { color: '#00ff88',  bg: 'rgba(0,255,136,0.08)'  },
-  daily:  { color: '#aabbff',  bg: 'rgba(120,140,255,0.08)' },
-  weekly: { color: 'rgba(255,255,255,0.45)', bg: 'rgba(255,255,255,0.05)' },
 }
 
 export default async function UrlsPage() {
@@ -42,54 +36,57 @@ export default async function UrlsPage() {
     countMap.set(a.monitored_url_id, (countMap.get(a.monitored_url_id) ?? 0) + 1)
   }
 
+  const activeCount = urls.filter((u: any) => u.is_active).length
+  const pausedCount = urls.filter((u: any) => !u.is_active).length
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>Monitored URLs</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            {urls.filter((u: any) => u.is_active).length} active · {urls.filter((u: any) => !u.is_active).length} paused
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: '#111827' }}>Monitors</h1>
+          <p className="text-sm mt-0.5" style={{ color: '#6B7280' }}>
+            {activeCount} active{pausedCount > 0 ? ` · ${pausedCount} paused` : ''}
           </p>
         </div>
-        <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
-          Use the <span style={{ color: '#00ff88' }}>+ Add URL</span> button in the sidebar.
-        </p>
       </div>
 
       {/* Empty state */}
       {urls.length === 0 ? (
-        <div className="dash-card flex flex-col items-center py-28 text-center">
+        <div className="dash-card flex flex-col items-center py-24 text-center">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-            style={{ background: 'rgba(0,255,136,0.08)', border: '1px solid rgba(0,255,136,0.15)' }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+            style={{ background: '#F0FDF4', border: '1px solid rgba(22,163,74,0.2)' }}
           >
-            <Globe className="w-6 h-6" style={{ color: '#00ff88' }} />
+            <Globe className="w-5 h-5" style={{ color: '#16A34A' }} />
           </div>
-          <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Nothing to watch yet.</h2>
-          <p className="text-sm max-w-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-            Add the pages you want to monitor. We&apos;ll take full-page screenshots on your schedule
+          <h2 className="text-base font-semibold mb-1" style={{ color: '#111827' }}>No monitors yet</h2>
+          <p className="text-sm max-w-sm mb-6" style={{ color: '#6B7280' }}>
+            Add the pages you want to watch. We'll take screenshots on your schedule
             and alert you when something visually changes.
           </p>
-          <p className="text-sm" style={{ color: 'rgba(0,255,136,0.8)' }}>
-            Click &ldquo;+ Add URL&rdquo; in the sidebar to get started.
+          <p className="text-sm font-medium" style={{ color: '#16A34A' }}>
+            Click "Add monitor" in the sidebar to get started.
           </p>
         </div>
       ) : (
-        /* URL table */
+        /* Monitor table */
         <div className="dash-card overflow-hidden" style={{ padding: 0 }}>
           {/* Table header */}
           <div
             className="grid items-center px-5 py-3"
             style={{
-              gridTemplateColumns: '1fr 80px 80px 80px 60px 40px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--border)',
+              gridTemplateColumns: '1fr 90px 100px 80px 36px',
+              borderBottom: '1px solid #F3F4F6',
+              background: '#F8FAFC',
             }}
           >
-            {['Page', 'Schedule', 'Threshold', 'Last check', 'Alerts', ''].map((h) => (
-              <span key={h} className="text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: 'var(--text-dim)' }}>
+            {['Page', 'Schedule', 'Last check', 'Alerts', ''].map((h) => (
+              <span
+                key={h}
+                className="text-[10px] font-semibold uppercase tracking-wider"
+                style={{ color: '#9CA3AF' }}
+              >
                 {h}
               </span>
             ))}
@@ -98,8 +95,8 @@ export default async function UrlsPage() {
           {/* Rows */}
           {urls.map((url: any) => {
             const openCount = countMap.get(url.id) ?? 0
-            const freqStyle = FREQ_COLORS[url.check_frequency] ?? FREQ_COLORS.daily
             const isPaused  = !url.is_active
+            const isArchive = url.mode === 'archive'
 
             let domain = url.url
             try { domain = new URL(url.url).hostname } catch {}
@@ -107,109 +104,95 @@ export default async function UrlsPage() {
             return (
               <div
                 key={url.id}
-                className="grid items-center px-5 py-3.5 group transition-colors dash-row"
+                className="grid items-center px-5 py-3.5 group dash-row transition-colors"
                 style={{
-                  gridTemplateColumns: '1fr 80px 80px 80px 60px 40px',
-                  borderBottom: '1px solid var(--border)',
-                  cursor: 'pointer',
-                  opacity: isPaused ? 0.65 : 1,
+                  gridTemplateColumns: '1fr 90px 100px 80px 36px',
+                  borderBottom: '1px solid #F3F4F6',
+                  opacity: isPaused ? 0.6 : 1,
                 }}
               >
-                {/* Page name */}
+                {/* Page name + status */}
                 <div className="flex items-center gap-3 min-w-0 pr-4">
                   {isPaused ? (
-                    <Pause className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'var(--text-dim)' }} />
+                    <Pause className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#D1D5DB' }} />
+                  ) : openCount > 0 ? (
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 status-alert" />
                   ) : (
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{
-                        background: openCount > 0 ? '#ff4444' : url.last_checked_at ? '#00ff88' : 'var(--text-faint)',
-                        boxShadow:  openCount > 0 ? '0 0 5px rgba(255,68,68,0.5)' : url.last_checked_at ? '0 0 5px rgba(0,255,136,0.4)' : 'none',
-                      }}
-                    />
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 status-ok" />
                   )}
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Link
                         href={`/dashboard/urls/${url.id}`}
-                        className="text-sm font-medium hover:text-neon truncate block transition-colors"
-                        style={{ color: 'var(--text-primary)' }}
+                        className="text-sm font-medium truncate block transition-colors hover:underline"
+                        style={{ color: '#111827' }}
                       >
                         {url.name}
                       </Link>
                       {isPaused && (
                         <span
-                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
-                          style={{ color: 'var(--text-dim)', background: 'var(--border)', border: '1px solid var(--border)' }}
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
+                          style={{ color: '#9CA3AF', background: '#F3F4F6', border: '1px solid #E5E7EB' }}
                         >
                           Paused
                         </span>
                       )}
+                      {isArchive && (
+                        <span
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 flex items-center gap-1"
+                          style={{ color: '#6B7280', background: '#F3F4F6', border: '1px solid #E5E7EB' }}
+                        >
+                          <Archive className="w-2.5 h-2.5" />
+                          Archive
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[11px] font-mono truncate" style={{ color: 'var(--text-dim)' }}>
+                    <p className="text-[11px] font-mono truncate" style={{ color: '#9CA3AF' }}>
                       {domain}
                     </p>
                   </div>
                 </div>
 
                 {/* Schedule */}
-                <span
-                  className="text-[11px] font-semibold px-2 py-1 rounded-lg w-fit"
-                  style={{
-                    color:       isPaused ? 'var(--text-dim)' : freqStyle.color,
-                    background:  isPaused ? 'var(--border)'   : freqStyle.bg,
-                  }}
-                >
-                  {url.check_frequency.charAt(0).toUpperCase() + url.check_frequency.slice(1)}
-                </span>
-
-                {/* Threshold */}
-                <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                  ≥{url.threshold_pct}%
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3 flex-shrink-0" style={{ color: '#D1D5DB' }} />
+                  <span className="text-xs capitalize" style={{ color: '#6B7280' }}>
+                    {url.check_frequency}
+                  </span>
+                </div>
 
                 {/* Last check */}
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span className="text-xs" style={{ color: '#6B7280' }}>
                   {timeAgo(url.last_checked_at)}
                 </span>
 
-                {/* Alert count / paused */}
-                {isPaused ? (
-                  <span className="text-xs" style={{ color: 'var(--text-faint)' }}>—</span>
+                {/* Alert count */}
+                {isPaused || isArchive ? (
+                  <span className="text-xs" style={{ color: '#D1D5DB' }}>—</span>
                 ) : openCount > 0 ? (
                   <span
-                    className="text-xs font-bold px-2 py-0.5 rounded-md w-fit"
-                    style={{ color: '#ff7070', background: 'rgba(255,68,68,0.12)', border: '1px solid rgba(255,68,68,0.2)' }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md w-fit"
+                    style={{ color: '#B91C1C', background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.2)' }}
                   >
+                    <AlertCircle className="w-3 h-3" />
                     {openCount}
                   </span>
                 ) : (
-                  <span className="text-xs" style={{ color: 'var(--text-faint)' }}>—</span>
+                  <span className="text-xs" style={{ color: '#D1D5DB' }}>—</span>
                 )}
 
-                {/* Actions */}
+                {/* Arrow */}
                 <Link
                   href={`/dashboard/urls/${url.id}`}
-                  className="flex items-center justify-center w-7 h-7 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                  style={{ background: 'var(--border)' }}
+                  className="flex items-center justify-center w-7 h-7 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  style={{ background: '#F3F4F6' }}
                 >
-                  <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                  <ArrowRight className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
                 </Link>
               </div>
             )
           })}
         </div>
-      )}
-
-      {/* Footer note */}
-      {urls.length > 0 && (
-        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.22)' }}>
-          Screenshots run on each URL's check schedule.{' '}
-          <Link href="/dashboard/schedules" className="underline hover:text-white/50 transition-colors">
-            Trigger a manual run
-          </Link>{' '}
-          to check immediately.
-        </p>
       )}
     </div>
   )

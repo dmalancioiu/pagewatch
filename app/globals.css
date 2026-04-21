@@ -6,35 +6,25 @@ html, body, :root {
   height: 100%;
 }
 
-/* ─── Theme tokens ─── */
-:root, [data-theme="dark"] {
-  --bg-page:      #0a0a0a;
-  --bg-sidebar:   #0c0c0c;
-  --bg-card:      #111111;
-  --bg-card-alt:  #141414;
-  --border:       rgba(255,255,255,0.07);
-  --border-light: rgba(255,255,255,0.055);
-  --text-primary: #ffffff;
-  --text-muted:   rgba(255,255,255,0.45);
-  --text-dim:     rgba(255,255,255,0.28);
-  --text-faint:   rgba(255,255,255,0.18);
-}
-
-[data-theme="light"] {
-  --bg-page:      #f5f7fa;
-  --bg-sidebar:   #ffffff;
-  --bg-card:      #ffffff;
-  --bg-card-alt:  #f8fafc;
-  --border:       rgba(0,0,0,0.09);
-  --border-light: rgba(0,0,0,0.07);
-  --text-primary: #0f172a;
-  --text-muted:   rgba(15,23,42,0.6);
-  --text-dim:     rgba(15,23,42,0.42);
-  --text-faint:   rgba(15,23,42,0.28);
+/* ─── Design tokens (light theme only) ─── */
+:root {
+  --bg-page:      #F6F7F9;
+  --bg-sidebar:   #FFFFFF;
+  --bg-card:      #FFFFFF;
+  --bg-card-alt:  #F8FAFC;
+  --border:       #E5E7EB;
+  --border-light: #F3F4F6;
+  --text-primary: #111827;
+  --text-muted:   #6B7280;
+  --text-dim:     #9CA3AF;
+  --text-faint:   #D1D5DB;
+  --accent:       #16A34A;
+  --accent-bg:    rgba(22,163,74,0.07);
+  --accent-border:rgba(22,163,74,0.22);
 }
 
 body {
-  @apply bg-slate-50 text-slate-950 antialiased;
+  @apply bg-[#F6F7F9] text-[#111827] antialiased;
 }
 
 * {
@@ -69,7 +59,7 @@ body {
   box-shadow: 0 4px 24px -4px rgba(0,0,0,0.5);
 }
 
-/* ─── Buttons ─── */
+/* ─── Landing buttons ─── */
 .btn-primary {
   background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
   box-shadow: 0 1px 2px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.3);
@@ -127,17 +117,11 @@ details > summary::-webkit-details-marker { display: none; }
 details > summary .chevron { transition: transform 0.2s ease; }
 details[open] > summary .chevron { transform: rotate(180deg); }
 
-/* ─── Dashboard: active nav item glow ─── */
-.nav-active {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-}
-
 /* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #080c14; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
 /* ════════════════════════════════════════════════════════════════
    LANDING PAGE v2 — PageWatch redesign
@@ -277,163 +261,11 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 }
 .diff-region { animation: diffPulse 3s ease-in-out infinite; }
 
-/* ─── Neon text glow ─── */
+/* ─── Neon text glow (landing only) ─── */
 .text-neon { color: #00ff88; }
 .text-neon-glow {
   color: #00ff88;
   text-shadow: 0 0 20px rgba(0,255,136,0.4);
-}
-
-/* ════════════════════════════════════════════════════════════════
-   DASHBOARD UI
-   ════════════════════════════════════════════════════════════════ */
-
-/* ─── Sidebar nav items ─── */
-.dash-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  border-left: 2px solid transparent;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  text-decoration: none;
-}
-.dash-nav-item:hover {
-  background: rgba(128,128,128,0.07);
-  color: var(--text-primary);
-}
-.dash-nav-item.active {
-  background: rgba(0,255,136,0.07);
-  color: #00ff88;
-  border-left-color: #00ff88;
-}
-
-/* ─── Dashboard cards ─── */
-.dash-card {
-  background: var(--bg-card, #111111);
-  border: 1px solid var(--border, rgba(255,255,255,0.07));
-  border-radius: 16px;
-}
-.dash-card-hover {
-  transition: border-color 0.18s ease, background-color 0.18s ease;
-  cursor: pointer;
-}
-.dash-card-hover:hover {
-  border-color: rgba(128,128,128,0.2);
-  background-color: var(--bg-card-alt, #141414);
-}
-
-/* ─── Alert diff thumbnail ─── */
-.diff-thumb {
-  background: rgba(255,50,50,0.08);
-  border: 1px solid rgba(255,68,68,0.15);
-  border-radius: 8px;
-  position: relative;
-  overflow: hidden;
-}
-.diff-thumb::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 6px,
-    rgba(255,50,50,0.06) 6px,
-    rgba(255,50,50,0.06) 7px
-  );
-}
-
-/* ─── Severity badges ─── */
-.badge-critical { color: #ff5555; background: rgba(255,68,68,0.12); border: 1px solid rgba(255,68,68,0.22); }
-.badge-high     { color: #ff9944; background: rgba(255,130,68,0.10); border: 1px solid rgba(255,130,68,0.2); }
-.badge-medium   { color: #ffcc44; background: rgba(255,200,68,0.08); border: 1px solid rgba(255,200,68,0.18); }
-.badge-low      { color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
-
-/* ─── Status dot ─── */
-.status-ok      { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.5); }
-.status-alert   { background: #ff4444; box-shadow: 0 0 6px rgba(255,68,68,0.5); }
-.status-pending { background: rgba(255,255,255,0.25); }
-
-/* ─── Onboarding progress bar (green) ─── */
-.ob-progress {
-  background: #00ff88;
-  box-shadow: 0 0 10px rgba(0,255,136,0.4);
-  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* ─── Schedule card (onboarding / add URL) ─── */
-.schedule-card {
-  cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.02);
-  border-radius: 12px;
-  padding: 14px 16px;
-  transition: border-color 0.18s ease, background 0.18s ease;
-}
-.schedule-card:hover {
-  border-color: rgba(0,255,136,0.3);
-  background: rgba(0,255,136,0.03);
-}
-.schedule-card.selected {
-  border-color: rgba(0,255,136,0.45);
-  background: rgba(0,255,136,0.07);
-}
-
-/* ─── Threshold slider custom ─── */
-input[type='range'].neon-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 4px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 2px;
-  outline: none;
-}
-input[type='range'].neon-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  background: #00ff88;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
-  transition: box-shadow 0.15s ease;
-}
-input[type='range'].neon-slider::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 16px rgba(0,255,136,0.7);
-}
-input[type='range'].neon-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  background: #00ff88;
-  border-radius: 50%;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
-}
-
-/* ─── Dashboard input style ─── */
-.dash-input {
-  width: 100%;
-  background: rgba(128,128,128,0.04);
-  border: 1px solid var(--border, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-size: 0.875rem;
-  color: var(--text-primary, white);
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.dash-input::placeholder { color: var(--text-faint, rgba(255,255,255,0.22)); }
-.dash-input:focus {
-  border-color: rgba(0,255,136,0.35);
-  box-shadow: 0 0 0 3px rgba(0,255,136,0.08);
 }
 
 /* ─── Light landing page nav / buttons ─── */
@@ -454,17 +286,148 @@ input[type='range'].neon-slider::-moz-range-thumb {
   color: #0f172a;
 }
 
-/* ─── Theme-aware row hover ─── */
-.dash-row:hover {
-  background: rgba(128,128,128,0.04);
-}
-
-/* ─── Light theme: text-white override ─── */
-[data-theme="light"] .text-white {
-  color: var(--text-primary) !important;
-}
-
-/* ─── Light theme: dot-grid (dark dots on light bg) ─── */
+/* ─── Light landing: dot-grid ─── */
 [data-theme="light"] .dot-grid {
   background-image: radial-gradient(circle, rgba(0,0,0,0.09) 1px, transparent 1px);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DASHBOARD UI — Light theme
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─── Sidebar nav items ─── */
+.dash-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6B7280;
+  transition: background 0.12s ease, color 0.12s ease;
+  text-decoration: none;
+}
+.dash-nav-item:hover {
+  background: #F3F4F6;
+  color: #111827;
+}
+.dash-nav-item.active {
+  background: rgba(22,163,74,0.08);
+  color: #15803D;
+  font-weight: 600;
+}
+
+/* ─── Dashboard cards ─── */
+.dash-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+}
+.dash-card-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+.dash-card-hover:hover {
+  border-color: #D1D5DB;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* ─── Alert diff thumbnail ─── */
+.diff-thumb {
+  background: rgba(220,38,38,0.06);
+  border: 1px solid rgba(220,38,38,0.14);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ─── Severity badges (light bg) ─── */
+.badge-critical { color: #B91C1C; background: rgba(185,28,28,0.08); border: 1px solid rgba(185,28,28,0.2); }
+.badge-high     { color: #C2410C; background: rgba(194,65,12,0.08);  border: 1px solid rgba(194,65,12,0.18); }
+.badge-medium   { color: #B45309; background: rgba(180,83,9,0.08);   border: 1px solid rgba(180,83,9,0.18); }
+.badge-low      { color: #6B7280; background: rgba(107,114,128,0.08); border: 1px solid rgba(107,114,128,0.15); }
+
+/* ─── Status dot ─── */
+.status-ok      { background: #16A34A; }
+.status-alert   { background: #DC2626; }
+.status-pending { background: #D1D5DB; }
+.status-paused  { background: #D1D5DB; }
+
+/* ─── Onboarding progress bar ─── */
+.ob-progress {
+  background: #16A34A;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Schedule / option card (onboarding / add URL) ─── */
+.schedule-card {
+  cursor: pointer;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.schedule-card:hover {
+  border-color: #D1D5DB;
+  background: #F9FAFB;
+}
+.schedule-card.selected {
+  border-color: rgba(22,163,74,0.4);
+  background: rgba(22,163,74,0.04);
+}
+
+/* ─── Dashboard input ─── */
+.dash-input {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-input::placeholder { color: #9CA3AF; }
+.dash-input:focus {
+  border-color: rgba(22,163,74,0.4);
+  box-shadow: 0 0 0 3px rgba(22,163,74,0.08);
+}
+
+/* ─── Theme-aware row hover ─── */
+.dash-row:hover {
+  background: #F9FAFB;
+}
+
+/* ─── Range input (clean light) ─── */
+input[type='range'].clean-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #E5E7EB;
+  border-radius: 2px;
+  outline: none;
+}
+input[type='range'].clean-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #16A34A;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+input[type='range'].clean-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #16A34A;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }

@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Monitor, LayoutDashboard, Bell, Globe, Settings, Plus, LogOut, Zap, Sun, Moon } from 'lucide-react'
+import { Monitor, LayoutDashboard, Bell, Globe, Settings, Plus, LogOut, ArrowUpRight } from 'lucide-react'
 import { useDashboard } from './DashboardShell'
 
 const NAV = [
-  { href: '/dashboard',          label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard',          label: 'Overview',  icon: LayoutDashboard, exact: true },
   { href: '/dashboard/alerts',   label: 'Alerts',    icon: Bell },
-  { href: '/dashboard/urls',     label: 'URLs',      icon: Globe },
+  { href: '/dashboard/urls',     label: 'Monitors',  icon: Globe },
   { href: '/dashboard/settings', label: 'Settings',  icon: Settings },
 ]
 
@@ -19,9 +19,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
-  const pathname                       = usePathname()
-  const { openAddUrl, theme, toggleTheme } = useDashboard()
-  const isLight = theme === 'light'
+  const pathname        = usePathname()
+  const { openAddUrl }  = useDashboard()
 
   const initials = userEmail
     ? userEmail.slice(0, 2).toUpperCase()
@@ -29,71 +28,59 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 w-56 flex flex-col z-40 select-none"
+      className="fixed inset-y-0 left-0 w-58 flex flex-col z-40 select-none"
       style={{
-        background:  isLight ? '#ffffff' : '#0c0c0c',
-        borderRight: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.06)',
+        width: '232px',
+        background: '#FFFFFF',
+        borderRight: '1px solid #E5E7EB',
       }}
     >
       {/* Logo */}
       <div
         className="h-14 flex items-center gap-2.5 px-4 flex-shrink-0"
-        style={{ borderBottom: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.055)' }}
+        style={{ borderBottom: '1px solid #F3F4F6' }}
       >
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: '#00ff88' }}
+          style={{ background: '#16A34A' }}
         >
-          <Monitor className="w-4 h-4" style={{ color: '#0a0a0a' }} />
+          <Monitor className="w-4 h-4" style={{ color: '#FFFFFF' }} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold tracking-tight leading-none" style={{ color: 'var(--text-primary, white)' }}>PageWatch</p>
+          <p className="text-sm font-semibold tracking-tight leading-none" style={{ color: '#111827' }}>
+            PageWatch
+          </p>
           {domain && (
-            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-dim, rgba(255,255,255,0.3))' }}>
+            <p className="text-[10px] mt-0.5 truncate" style={{ color: '#9CA3AF' }}>
               {domain}
             </p>
           )}
         </div>
-        {/* Theme toggle */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="p-1.5 rounded-lg transition-colors flex-shrink-0"
-          style={{
-            background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
-            color:      isLight ? 'rgba(0,0,0,0.5)'  : 'rgba(255,255,255,0.45)',
-          }}
-          title={isLight ? 'Switch to dark mode' : 'Switch to light mode'}
-        >
-          {isLight ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-        </button>
       </div>
 
-      {/* Add URL button */}
-      <div className="px-3 pt-3 pb-1">
+      {/* Add monitor button */}
+      <div className="px-3 pt-3 pb-2">
         <button
           onClick={openAddUrl}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all"
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all"
           style={{
-            background: '#00ff88',
-            color: '#0a0a0a',
+            background: '#16A34A',
+            color: '#FFFFFF',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#2dffaa'
-            e.currentTarget.style.boxShadow = '0 0 16px rgba(0,255,136,0.3)'
+            e.currentTarget.style.background = '#15803D'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = '#00ff88'
-            e.currentTarget.style.boxShadow = 'none'
+            e.currentTarget.style.background = '#16A34A'
           }}
         >
           <Plus className="w-3.5 h-3.5" />
-          Add URL
+          Add monitor
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-1 space-y-0.5 overflow-y-auto">
         {NAV.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href)
           return (
@@ -104,34 +91,28 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
               {label}
-              {label === 'Alerts' && (
-                /* alert count badge — server passes count via DOM, no prop needed */
-                <span id="sidebar-alert-count" />
-              )}
             </Link>
           )
         })}
       </nav>
 
-      {/* Plan badge */}
+      {/* Upgrade card */}
       {plan === 'free' && (
         <div
           className="mx-3 mb-3 p-3 rounded-xl"
-          style={{ background: 'rgba(0,255,136,0.05)', border: '1px solid rgba(0,255,136,0.12)' }}
+          style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <Zap className="w-3.5 h-3.5" style={{ color: '#00ff88' }} />
-            <span className="text-xs font-semibold" style={{ color: '#00ff88' }}>Free plan</span>
-          </div>
-          <p className="text-[11px] mb-2.5" style={{ color: 'var(--text-muted)' }}>
-            3 URLs · daily checks
+          <p className="text-xs font-semibold mb-0.5" style={{ color: '#374151' }}>Free plan</p>
+          <p className="text-[11px] mb-2.5" style={{ color: '#9CA3AF' }}>
+            3 monitors · daily checks
           </p>
           <Link
             href="/dashboard/settings#billing"
-            className="block text-center text-[11px] font-semibold py-1.5 rounded-lg transition-all"
-            style={{ background: 'rgba(0,255,136,0.15)', color: '#00ff88' }}
+            className="flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-lg transition-colors"
+            style={{ background: '#16A34A', color: '#FFFFFF' }}
           >
-            Upgrade to Pro →
+            Upgrade
+            <ArrowUpRight className="w-3 h-3" />
           </Link>
         </div>
       )}
@@ -139,33 +120,34 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       {/* User */}
       <div
         className="p-3 flex-shrink-0"
-        style={{ borderTop: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.055)' }}
+        style={{ borderTop: '1px solid #F3F4F6' }}
       >
         <div
-          className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg group transition-colors"
-          style={{ ['--hover-bg' as any]: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)')}
+          className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg group transition-colors cursor-default"
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#F9FAFB')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
           <div
             className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
             style={{
-              background: 'rgba(0,255,136,0.15)',
-              color: '#00ff88',
-              border: '1px solid rgba(0,255,136,0.2)',
+              background: '#F0FDF4',
+              color: '#16A34A',
+              border: '1px solid rgba(22,163,74,0.2)',
             }}
           >
             {initials}
           </div>
-          <p className="flex-1 text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+          <p className="flex-1 text-xs truncate" style={{ color: '#6B7280' }}>
             {userEmail}
           </p>
           <form action="/api/auth/signout" method="post">
             <button
               type="submit"
               title="Sign out"
-              className="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: 'var(--text-dim)' }}
+              className="p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded"
+              style={{ color: '#9CA3AF' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#6B7280')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#9CA3AF')}
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>

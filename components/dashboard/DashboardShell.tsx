@@ -1,22 +1,16 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { AddUrlModal } from './AddUrlModal'
 import { FirstScreenshotModal } from './FirstScreenshotModal'
 
 /* ─── Context ─── */
 interface DashboardCtxValue {
-  openAddUrl:   () => void
-  theme:        'dark' | 'light'
-  toggleTheme:  () => void
+  openAddUrl: () => void
 }
 
-const DashboardCtx = createContext<DashboardCtxValue>({
-  openAddUrl:  () => {},
-  theme:       'dark',
-  toggleTheme: () => {},
-})
+const DashboardCtx = createContext<DashboardCtxValue>({ openAddUrl: () => {} })
 export const useDashboard = () => useContext(DashboardCtx)
 
 /* ─── Shell ─── */
@@ -38,21 +32,6 @@ export function DashboardShell({
   const [addOpen,    setAddOpen]    = useState(false)
   const [newUrlId,   setNewUrlId]   = useState<string | null>(null)
   const [newUrlName, setNewUrlName] = useState<string>('')
-  const [theme,      setTheme]      = useState<'dark' | 'light'>('dark')
-
-  // Persist theme choice
-  useEffect(() => {
-    const saved = localStorage.getItem('dashboard-theme') as 'dark' | 'light' | null
-    if (saved) setTheme(saved)
-  }, [])
-
-  function toggleTheme() {
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark'
-      localStorage.setItem('dashboard-theme', next)
-      return next
-    })
-  }
 
   function handleUrlCreated(urlId: string, name?: string) {
     setAddOpen(false)
@@ -65,22 +44,16 @@ export function DashboardShell({
     setAddOpen(true)
   }
 
-  const isLight = theme === 'light'
-
   return (
-    <DashboardCtx.Provider value={{ openAddUrl: () => setAddOpen(true), theme, toggleTheme }}>
-      <div
-        className="flex min-h-screen"
-        data-theme={theme}
-        style={{ background: isLight ? '#f5f7fa' : '#0a0a0a' }}
-      >
+    <DashboardCtx.Provider value={{ openAddUrl: () => setAddOpen(true) }}>
+      <div className="flex min-h-screen" style={{ background: '#F6F7F9' }}>
         <Sidebar domain={domain} userEmail={userEmail} plan={plan} />
 
         <main
           className="flex-1 min-h-screen overflow-x-hidden"
-          style={{ marginLeft: '224px' }}
+          style={{ marginLeft: '232px' }}
         >
-          <div className="max-w-6xl mx-auto px-6 py-7">
+          <div className="max-w-5xl mx-auto px-6 py-8">
             {children}
           </div>
         </main>

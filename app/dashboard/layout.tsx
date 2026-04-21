@@ -27,7 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!workspace) {
     return (
-      <div className="min-h-screen" style={{ background: '#0a0a0a' }}>
+      <div className="min-h-screen" style={{ background: '#F6F7F9' }}>
         <SetupCommand userEmail={userEmail} userName={userName} />
       </div>
     )
