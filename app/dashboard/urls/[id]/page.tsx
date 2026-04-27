@@ -119,7 +119,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
 
       <ResizableInspectorLayout
         main={
-          <div style={{ maxWidth: 1180, margin: '0 auto', width: '100%' }}>
+          <div style={{ maxWidth: 1320, margin: '0 auto', width: '100%' }}>
             <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
               <div style={{ minWidth: 0 }}>
                 <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 850, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Monitor workspace</p>
