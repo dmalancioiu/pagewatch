@@ -141,18 +141,14 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         isPaused={isPaused}
       />
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 280px',
-        alignItems: 'start',
-        minHeight: 'calc(100vh - 52px)',
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', alignItems: 'start', minHeight: 'calc(100vh - 52px)' }}>
         <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)' }}>
           <UrlDetailClient
             openAlert={openAlert}
             snapshots={enrichedSnapshots}
             alertBySnapshotId={alertBySnapshotId}
             pageUrl={urlData.url}
+            urlId={urlData.id}
             zones={urlData.zones ?? []}
           />
         </div>
