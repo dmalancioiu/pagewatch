@@ -13,6 +13,44 @@ interface ZoneDiffScore {
   changed_pixels: number
   total_pixels: number
   diff_pct: number
+  alert_score: number
+  passes_threshold: boolean
+}
+
+const SENSITIVITY_CONFIG: Record<NonNullable<Zone['sensitivity']>, { thresholdPct: number; weight: number }> = {
+  low:    { thresholdPct: 5.0, weight: 0.75 },
+  normal: { thresholdPct: 1.0, weight: 1.0 },
+  high:   { thresholdPct: 0.2, weight: 1.35 },
+}
+
+function sensitivityConfig(sensitivity: Zone['sensitivity']) {
+  return SENSITIVITY_CONFIG[sensitivity ?? 'normal']
+}
+
+function zoneAlertScore(diffPct: number, sensitivity: Zone['sensitivity']): number {
+  const { thresholdPct, weight } = sensitivityConfig(sensitivity)
+  if (diffPct <= 0) return 0
+
+  // Ratio crosses 1 when the zone passes the sensitivity threshold.
+  // log dampens huge diffs so one massive cosmetic shift doesn't dominate all context.
+  const ratio = diffPct / thresholdPct
+  const score = Math.log1p(ratio) * 34 * weight
+  return Math.max(0, Math.min(100, Number(score.toFixed(1))))
+}
+
+function aggregateAlertScore(zoneScores: ZoneDiffScore[], fallbackDiffPct: number): number {
+  if (zoneScores.length === 0) {
+    return Math.max(0, Math.min(100, Number((Math.log1p(fallbackDiffPct) * 20).toFixed(1))))
+  }
+
+  const maxZoneScore = Math.max(...zoneScores.map(z => z.alert_score))
+  const avgPassedScore = zoneScores
+    .filter(z => z.passes_threshold)
+    .reduce((sum, z, _, arr) => sum + z.alert_score / arr.length, 0)
+
+  // Bias toward the most important changed zone, with a small lift when multiple zones pass.
+  const multiZoneLift = Math.min(12, zoneScores.filter(z => z.passes_threshold).length * 3)
+  return Math.max(0, Math.min(100, Number((maxZoneScore * 0.78 + avgPassedScore * 0.22 + multiZoneLift).toFixed(1))))
 }
 
 /**
@@ -70,8 +108,6 @@ function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: numb
   }
 }
 
-// ── Ad / tracking domains to block ──────────────────────────────────────────
-// Reduces screenshot noise and speeds up page loads
 const BLOCKED_DOMAINS = [
   'doubleclick.net',
   'googlesyndication.com',
@@ -101,44 +137,24 @@ const BLOCKED_DOMAINS = [
   'mixpanel.com',
 ]
 
-// ── Overlay selectors ────────────────────────────────────────────────────────
-
-/**
- * Specific selectors to try clicking first (known consent / close buttons).
- * Ordered from most-specific to least-specific.
- */
 const CLICK_SELECTORS = [
-  // OneTrust
   '#onetrust-accept-btn-handler',
   '.onetrust-close-btn-handler',
-  // Cookiebot
   '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
   '#CybotCookiebotDialogBodyButtonAccept',
-  // TrustArc
   '#truste-consent-button',
-  // Axeptio
   '.axeptio_btn_acceptAll',
-  // Osano
   '.osano-cm-accept-all',
   '.osano-cm-dismiss',
-  // Quantcast / CMP2
   '.qc-cmp2-summary-buttons button:last-child',
-  // Didomi
   '#didomi-notice-agree-button',
-  // usercentrics
   '[data-testid="uc-accept-all-button"]',
-  // Generic "X" / close on fixed banners
   '[class*="cookie-banner"] [class*="close"]',
   '[class*="consent-banner"] [class*="close"]',
   '[id*="cookie-banner"] [class*="close"]',
 ]
 
-/**
- * Elements to hide via CSS after click-dismissal.
- * Covers chat widgets, surviving cookie banners, and generic named patterns.
- */
 const CSS_HIDE_SELECTORS = [
-  // ── Cookie / consent banners ────────────────────────────────────────────
   '#onetrust-banner-sdk',
   '#onetrust-consent-sdk',
   '#CybotCookiebotDialog',
@@ -153,7 +169,6 @@ const CSS_HIDE_SELECTORS = [
   '.cookie-bar',
   '.cookie-popup',
   '.gdpr-banner',
-  // Brief-specified selectors
   '[id*="cookie-banner"]',
   '[id*="consent-banner"]',
   '[class*="cookie-banner"]',
@@ -168,7 +183,6 @@ const CSS_HIDE_SELECTORS = [
   '[id*="consent"]',
   '[aria-label*="cookie" i]',
   '[aria-label*="consent" i]',
-  // ── Chat / support widgets ──────────────────────────────────────────────
   '#intercom-container',
   '.intercom-lightweight-app',
   '#drift-widget-container',
@@ -182,17 +196,13 @@ const CSS_HIDE_SELECTORS = [
   '#fc_frame',
   '#tidio-chat',
   '.tawk-min-container',
-  // ── Marketing / newsletter popups ──────────────────────────────────────
   '.klaviyo-form',
   '[class*="klaviyo"]',
   '[id*="klaviyo"]',
   '.optinmonster-optin-wrap',
-  // ── Notification / permission prompts ──────────────────────────────────
   '[class*="push-notification"]',
   '[class*="notification-prompt"]',
 ]
-
-// ── Page preparation ─────────────────────────────────────────────────────────
 
 async function preparePageForScreenshot(page: Page): Promise<void> {
   for (const selector of CLICK_SELECTORS) {
@@ -292,9 +302,7 @@ export async function processUrl(
 
     await context.route('**/*', (route) => {
       const url = route.request().url()
-      if (BLOCKED_DOMAINS.some((d) => url.includes(d))) {
-        return route.abort()
-      }
+      if (BLOCKED_DOMAINS.some((d) => url.includes(d))) return route.abort()
       return route.continue()
     })
 
@@ -333,15 +341,10 @@ export async function processUrl(
     .select()
     .single()
 
-  if (snapErr || !snapshot) {
-    throw new Error(`Failed to save snapshot: ${snapErr?.message}`)
-  }
+  if (snapErr || !snapshot) throw new Error(`Failed to save snapshot: ${snapErr?.message}`)
 
   if (mode === 'archive') {
-    await supabase
-      .from('monitored_urls')
-      .update({ last_checked_at: now.toISOString() })
-      .eq('id', monUrl.id)
+    await supabase.from('monitored_urls').update({ last_checked_at: now.toISOString() }).eq('id', monUrl.id)
     logger.info('Archive snapshot saved', { url: monUrl.url })
     return { diffPct: null, alerted: false }
   }
@@ -355,19 +358,14 @@ export async function processUrl(
     .limit(1)
     .single()
 
-  await supabase
-    .from('monitored_urls')
-    .update({ last_checked_at: now.toISOString() })
-    .eq('id', monUrl.id)
+  await supabase.from('monitored_urls').update({ last_checked_at: now.toISOString() }).eq('id', monUrl.id)
 
   if (!prevSnapshot) {
     logger.info('First snapshot recorded', { url: monUrl.url })
     return { diffPct: null, alerted: false }
   }
 
-  const { data: prevBlob, error: prevDlErr } = await supabase.storage
-    .from('screenshots')
-    .download(prevSnapshot.storage_path)
+  const { data: prevBlob, error: prevDlErr } = await supabase.storage.from('screenshots').download(prevSnapshot.storage_path)
 
   if (prevDlErr || !prevBlob) {
     logger.warn('Could not download previous screenshot — skipping diff', { url: monUrl.url })
@@ -377,6 +375,7 @@ export async function processUrl(
   let diffPct = 0
   let pageDiffPct = 0
   let zoneDiffPct: number | null = null
+  let alertScore = 0
   let diffStoragePath: string | null = null
   let prevBuffer: Buffer | null = null
   let zoneCrops: ZoneCrop[] | undefined
@@ -385,9 +384,34 @@ export async function processUrl(
   const zones: Zone[] = Array.isArray(monUrl.zones) ? monUrl.zones : []
 
   try {
-    prevBuffer      = Buffer.from(await prevBlob.arrayBuffer())
-    const prevPng   = PNG.sync.read(prevBuffer)
-    const currPng   = PNG.sync.read(screenshotBuffer)
+    prevBuffer = Buffer.from(await prevBlob.arrayBuffer())
+    const prevPng = PNG.sync.read(prevBuffer)
+    const currPng = PNG.sync.read(screenshotBuffer)
+
+    const width = Math.min(prevPng.width, currPng.width)
+    const minH = Math.min(prevPng.height, currPng.height)
+    const maxH = Math.max(prevPng.height, currPng.height)
+    const totalPixels = width * maxH
+
+    const prevSlice = new Uint8Array(width * minH * 4)
+    const currSlice = new Uint8Array(width * minH * 4)
+
+    for (let row = 0; row < minH; row++) {
+      for (let col = 0; col < width; col++) {
+        const dst = (row * width + col) * 4
+        const sp = (row * prevPng.width + col) * 4
+        const sc = (row * currPng.width + col) * 4
+        prevSlice[dst] = prevPng.data[sp]; prevSlice[dst + 1] = prevPng.data[sp + 1]
+        prevSlice[dst + 2] = prevPng.data[sp + 2]; prevSlice[dst + 3] = prevPng.data[sp + 3]
+        currSlice[dst] = currPng.data[sc]; currSlice[dst + 1] = currPng.data[sc + 1]
+        currSlice[dst + 2] = currPng.data[sc + 2]; currSlice[dst + 3] = currPng.data[sc + 3]
+      }
+    }
+
+    const diffImg = new PNG({ width, height: minH })
+    const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, width, minH, { threshold: 0.1 })
+    const extraPixels = width * (maxH - minH)
+    pageDiffPct = ((changedPixels + extraPixels) / totalPixels) * 100
 
     if (zones.length > 0) {
       zoneCrops = []
@@ -398,19 +422,25 @@ export async function processUrl(
         const zone = zones[i]
         const label = zone.label?.trim() || `Zone ${i + 1}`
         const beforeCrop = cropZone(prevPng, zone)
-        const afterCrop  = cropZone(currPng, zone)
+        const afterCrop = cropZone(currPng, zone)
         const score = diffZone(prevPng, currPng, zone)
+        const sensitivity = zone.sensitivity ?? 'normal'
+        const config = sensitivityConfig(sensitivity)
 
         if (score) {
+          const scorePct = zoneAlertScore(score.diffPct, sensitivity)
+          const passesThreshold = score.diffPct >= config.thresholdPct
           zoneChangedPixels += score.changedPixels
           zoneTotalPixels += score.totalPixels
           zoneScores.push({
             label,
             instruction: zone.instruction?.trim() || null,
-            sensitivity: zone.sensitivity ?? 'normal',
+            sensitivity,
             changed_pixels: score.changedPixels,
             total_pixels: score.totalPixels,
             diff_pct: Number(score.diffPct.toFixed(4)),
+            alert_score: scorePct,
+            passes_threshold: passesThreshold,
           })
         }
 
@@ -418,7 +448,7 @@ export async function processUrl(
           zoneCrops.push({
             label,
             instruction: zone.instruction?.trim() || undefined,
-            sensitivity: zone.sensitivity ?? 'normal',
+            sensitivity,
             before: beforeCrop,
             after: afterCrop,
           })
@@ -427,40 +457,17 @@ export async function processUrl(
 
       if (zoneCrops.length === 0) zoneCrops = undefined
       if (zoneTotalPixels > 0) zoneDiffPct = (zoneChangedPixels / zoneTotalPixels) * 100
+      alertScore = aggregateAlertScore(zoneScores, zoneDiffPct ?? pageDiffPct)
+      diffPct = zoneDiffPct ?? pageDiffPct
+    } else {
+      diffPct = pageDiffPct
+      alertScore = aggregateAlertScore([], pageDiffPct)
     }
-
-    const width       = Math.min(prevPng.width, currPng.width)
-    const minH        = Math.min(prevPng.height, currPng.height)
-    const maxH        = Math.max(prevPng.height, currPng.height)
-    const totalPixels = width * maxH
-
-    const prevSlice = new Uint8Array(width * minH * 4)
-    const currSlice = new Uint8Array(width * minH * 4)
-
-    for (let row = 0; row < minH; row++) {
-      for (let col = 0; col < width; col++) {
-        const dst = (row * width + col) * 4
-        const sp  = (row * prevPng.width + col) * 4
-        const sc  = (row * currPng.width + col) * 4
-        prevSlice[dst]     = prevPng.data[sp];     prevSlice[dst + 1] = prevPng.data[sp + 1]
-        prevSlice[dst + 2] = prevPng.data[sp + 2]; prevSlice[dst + 3] = prevPng.data[sp + 3]
-        currSlice[dst]     = currPng.data[sc];     currSlice[dst + 1] = currPng.data[sc + 1]
-        currSlice[dst + 2] = currPng.data[sc + 2]; currSlice[dst + 3] = currPng.data[sc + 3]
-      }
-    }
-
-    const diffImg       = new PNG({ width, height: minH })
-    const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, width, minH, { threshold: 0.1 })
-    const extraPixels   = width * (maxH - minH)
-    pageDiffPct = ((changedPixels + extraPixels) / totalPixels) * 100
-    diffPct = zoneDiffPct ?? pageDiffPct
 
     if (pageDiffPct > 0) {
       const diffBuffer = PNG.sync.write(diffImg)
-      const diffPath   = `diffs/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
-      const { error: diffUploadErr } = await supabase.storage
-        .from('screenshots')
-        .upload(diffPath, diffBuffer, { contentType: 'image/png' })
+      const diffPath = `diffs/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
+      const { error: diffUploadErr } = await supabase.storage.from('screenshots').upload(diffPath, diffBuffer, { contentType: 'image/png' })
       if (!diffUploadErr) diffStoragePath = diffPath
     }
   } catch (diffErr) {
@@ -468,88 +475,104 @@ export async function processUrl(
   }
 
   await supabase.from('screenshot_diffs').insert({
-    workspace_id:         monUrl.workspace_id,
-    monitored_url_id:     monUrl.id,
+    workspace_id: monUrl.workspace_id,
+    monitored_url_id: monUrl.id,
     previous_snapshot_id: prevSnapshot.id,
-    current_snapshot_id:  snapshot.id,
-    diff_pct:             diffPct,
-    diff_storage_path:    diffStoragePath,
+    current_snapshot_id: snapshot.id,
+    diff_pct: diffPct,
+    diff_storage_path: diffStoragePath,
   })
 
+  const passedZones = zoneScores.filter(z => z.passes_threshold)
   const AI_FLOOR = zoneCrops ? 0 : 0.05
+  const shouldRunAI = zoneCrops ? passedZones.length > 0 : diffPct >= AI_FLOOR
   let alerted = false
-  if (diffPct >= AI_FLOOR) {
+
+  if (shouldRunAI) {
     let shouldAlert = true
-    let aiSummary   = ''
+    let aiSummary = ''
 
     if (prevBuffer) {
       try {
         const aiResult = await analyzeWithAI({
-          beforeBuffer:     prevBuffer,
-          afterBuffer:      screenshotBuffer,
+          beforeBuffer: prevBuffer,
+          afterBuffer: screenshotBuffer,
           diffPct,
           watchDescription: monUrl.watch_description ?? null,
-          thresholdPct:     monUrl.threshold_pct ?? undefined,
+          thresholdPct: monUrl.threshold_pct ?? undefined,
           zoneCrops,
         })
         shouldAlert = aiResult.shouldAlert
-        aiSummary   = aiResult.summary
+        aiSummary = aiResult.summary
         logger.info('AI analysis complete', {
-          url:         monUrl.url,
+          url: monUrl.url,
           shouldAlert,
-          summaryLen:  aiSummary.length,
-          zoneCount:   zoneCrops?.length ?? 0,
+          summaryLen: aiSummary.length,
+          alertScore,
+          zoneCount: zoneCrops?.length ?? 0,
+          passedZoneCount: passedZones.length,
           zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
         })
       } catch (aiErr) {
         logger.warn('AI analysis error — defaulting to threshold-based alert', { url: monUrl.url, err: aiErr })
         shouldAlert = true
-        aiSummary   = `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`
+        aiSummary = `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`
       }
     }
 
     if (shouldAlert) {
       const severity =
-        diffPct >= 50 ? 'critical' : diffPct >= 25 ? 'high' : diffPct >= 10 ? 'medium' : 'low'
+        alertScore >= 85 ? 'critical' : alertScore >= 65 ? 'high' : alertScore >= 35 ? 'medium' : 'low'
 
       await supabase.from('alerts').insert({
-        workspace_id:         monUrl.workspace_id,
-        monitored_url_id:     monUrl.id,
-        alert_type:           'visual_change',
+        workspace_id: monUrl.workspace_id,
+        monitored_url_id: monUrl.id,
+        alert_type: 'visual_change',
         severity,
-        status:               'open',
-        title:                `Page changed — ${monUrl.name}`,
-        summary:              aiSummary || `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`,
-        ai_summary:           aiSummary || null,
-        diff_pct:             diffPct,
-        diff_storage_path:    diffStoragePath,
-        current_snapshot_id:  snapshot.id,
+        status: 'open',
+        title: `Page changed — ${monUrl.name}`,
+        summary: aiSummary || `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`,
+        ai_summary: aiSummary || null,
+        diff_pct: diffPct,
+        diff_storage_path: diffStoragePath,
+        current_snapshot_id: snapshot.id,
         previous_snapshot_id: prevSnapshot.id,
-        metadata:             {
+        metadata: {
           url: monUrl.url,
           threshold_pct: monUrl.threshold_pct,
+          alert_score: alertScore,
           page_diff_pct: Number(pageDiffPct.toFixed(4)),
           zone_diff_pct: zoneDiffPct != null ? Number(zoneDiffPct.toFixed(4)) : null,
+          passed_zone_count: passedZones.length,
           zone_scores: zoneScores,
         },
-        triggered_at:         now.toISOString(),
+        triggered_at: now.toISOString(),
       })
       alerted = true
-      logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), aiSuppressed: false })
+      logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), alertScore, aiSuppressed: false })
     } else {
       logger.info('Alert suppressed by AI — change not relevant to watch instructions', {
-        url:    monUrl.url,
+        url: monUrl.url,
         diffPct: diffPct.toFixed(1),
+        alertScore,
         zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
       })
     }
+  } else {
+    logger.info('Alert skipped — no zone passed sensitivity threshold', {
+      url: monUrl.url,
+      diffPct: diffPct.toFixed(1),
+      alertScore,
+      zoneScores,
+    })
   }
 
   logger.info('URL processed', {
-    url:       monUrl.url,
-    diffPct:   `${diffPct.toFixed(1)}%`,
+    url: monUrl.url,
+    diffPct: `${diffPct.toFixed(1)}%`,
     pageDiffPct: `${pageDiffPct.toFixed(1)}%`,
     zoneDiffPct: zoneDiffPct != null ? `${zoneDiffPct.toFixed(1)}%` : null,
+    alertScore,
     threshold: `${monUrl.threshold_pct}%`,
     alerted,
   })
