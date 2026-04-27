@@ -5,6 +5,7 @@ import { getSignedUrls } from '@/lib/supabase/storage'
 import { WorkspaceTopBar } from '@/components/dashboard/WorkspaceTopBar'
 import { UrlDetailClient } from './UrlDetailClient'
 import { UrlDetailSettings } from './UrlDetailSettings'
+import { ResizableInspectorLayout } from './ResizableInspectorLayout'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 
 export const metadata = { title: 'Monitor — PageWatch' }
@@ -141,8 +142,8 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         isPaused={isPaused}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', alignItems: 'start', minHeight: 'calc(100vh - 52px)' }}>
-        <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)' }}>
+      <ResizableInspectorLayout
+        main={
           <UrlDetailClient
             openAlert={openAlert}
             snapshots={enrichedSnapshots}
@@ -151,15 +152,14 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
             urlId={urlData.id}
             zones={urlData.zones ?? []}
           />
-        </div>
-
-        <aside className="inspector-panel" style={{ position: 'sticky', top: 52, maxHeight: 'calc(100vh - 52px)' }}>
+        }
+        inspector={
           <UrlDetailSettings
             url={urlData}
             latestSnapshotUrl={enrichedSnapshots[0]?.signedUrl ?? null}
           />
-        </aside>
-      </div>
+        }
+      />
     </div>
   )
 }
