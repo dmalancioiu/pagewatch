@@ -95,6 +95,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
       status: a.status,
       created_at: a.created_at,
       ai_summary: a.ai_summary,
+      metadata: a.metadata ?? null,
       beforeUrl: prevSnap ? signedUrlMap.get(prevSnap.storage_path) ?? null : null,
       afterUrl: currSnap ? signedUrlMap.get(currSnap.storage_path) ?? null : null,
       diffUrl: a.diff_storage_path ? signedUrlMap.get(a.diff_storage_path) ?? null : null,
@@ -146,11 +147,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         alignItems: 'start',
         minHeight: 'calc(100vh - 52px)',
       }}>
-        {/* Canvas column */}
-        <div
-          className="canvas-dot-bg"
-          style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)' }}
-        >
+        <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)' }}>
           <UrlDetailClient
             openAlert={openAlert}
             snapshots={enrichedSnapshots}
@@ -160,11 +157,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
           />
         </div>
 
-        {/* Inspector panel */}
-        <aside
-          className="inspector-panel"
-          style={{ position: 'sticky', top: 52, maxHeight: 'calc(100vh - 52px)' }}
-        >
+        <aside className="inspector-panel" style={{ position: 'sticky', top: 52, maxHeight: 'calc(100vh - 52px)' }}>
           <UrlDetailSettings
             url={urlData}
             latestSnapshotUrl={enrichedSnapshots[0]?.signedUrl ?? null}
