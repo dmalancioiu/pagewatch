@@ -6,6 +6,15 @@ import { PNG } from 'pngjs'
 import { analyzeWithAI, type ZoneCrop } from './analyze-diff-with-ai'
 import type { Zone } from '../../lib/types/database.types'
 
+interface ZoneDiffScore {
+  label: string
+  instruction: string | null
+  sensitivity: Zone['sensitivity']
+  changed_pixels: number
+  total_pixels: number
+  diff_pct: number
+}
+
 /**
  * Crops a rectangular region (defined as relative 0–1 coordinates) from a PNG.
  * Returns a PNG buffer of just that region.
@@ -21,6 +30,44 @@ function cropZone(png: PNG, zone: Zone): Buffer | null {
   const out = new PNG({ width: srcW, height: srcH })
   PNG.bitblt(png, out, srcX, srcY, srcW, srcH, 0, 0)
   return PNG.sync.write(out)
+}
+
+function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: number; totalPixels: number; diffPct: number } | null {
+  const srcX = Math.max(0, Math.floor(zone.x * Math.min(prevPng.width, currPng.width)))
+  const srcY = Math.max(0, Math.floor(zone.y * Math.min(prevPng.height, currPng.height)))
+  const srcW = Math.min(prevPng.width - srcX, currPng.width - srcX, Math.ceil(zone.width * Math.min(prevPng.width, currPng.width)))
+  const srcH = Math.min(prevPng.height - srcY, currPng.height - srcY, Math.ceil(zone.height * Math.min(prevPng.height, currPng.height)))
+
+  if (srcW <= 0 || srcH <= 0) return null
+
+  const prevSlice = new Uint8Array(srcW * srcH * 4)
+  const currSlice = new Uint8Array(srcW * srcH * 4)
+
+  for (let row = 0; row < srcH; row++) {
+    for (let col = 0; col < srcW; col++) {
+      const dst = (row * srcW + col) * 4
+      const sp = ((srcY + row) * prevPng.width + (srcX + col)) * 4
+      const sc = ((srcY + row) * currPng.width + (srcX + col)) * 4
+      prevSlice[dst] = prevPng.data[sp]
+      prevSlice[dst + 1] = prevPng.data[sp + 1]
+      prevSlice[dst + 2] = prevPng.data[sp + 2]
+      prevSlice[dst + 3] = prevPng.data[sp + 3]
+      currSlice[dst] = currPng.data[sc]
+      currSlice[dst + 1] = currPng.data[sc + 1]
+      currSlice[dst + 2] = currPng.data[sc + 2]
+      currSlice[dst + 3] = currPng.data[sc + 3]
+    }
+  }
+
+  const diffImg = new PNG({ width: srcW, height: srcH })
+  const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, srcW, srcH, { threshold: 0.1 })
+  const totalPixels = srcW * srcH
+
+  return {
+    changedPixels,
+    totalPixels,
+    diffPct: totalPixels > 0 ? (changedPixels / totalPixels) * 100 : 0,
+  }
 }
 
 // ── Ad / tracking domains to block ──────────────────────────────────────────
@@ -147,20 +194,7 @@ const CSS_HIDE_SELECTORS = [
 
 // ── Page preparation ─────────────────────────────────────────────────────────
 
-/**
- * Best-effort cleanup before taking a screenshot:
- *  1. Click known dismiss / accept buttons on consent dialogs
- *  2. Text-match generic accept buttons inside likely cookie containers
- *  3. Inject CSS to hide known overlay widgets that survived the clicks
- *  4. Stop all CSS animations and transitions for consistent frames
- *  5. Scroll back to the top of the page
- *  6. Final 500ms settle wait
- *
- * All steps are individually try/caught — a failure in any one step
- * does not prevent the screenshot from being taken.
- */
 async function preparePageForScreenshot(page: Page): Promise<void> {
-  // 1. Click known selectors ──────────────────────────────────────────────────
   for (const selector of CLICK_SELECTORS) {
     try {
       const el = page.locator(selector).first()
@@ -171,28 +205,23 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
     } catch { /* best-effort */ }
   }
 
-  // 2. Text-match generic accept buttons inside likely cookie containers ───────
   await page.evaluate(() => {
     const ACCEPT_RE = /^(accept all|accept cookies?|allow all|allow cookies?|i accept|i agree|agree|got it|ok)$/i
     const CONTAINERS = '[class*="cookie"],[class*="consent"],[class*="gdpr"],[id*="cookie"],[id*="consent"]'
     for (const el of document.querySelectorAll<HTMLElement>(`${CONTAINERS} button, ${CONTAINERS} a[role="button"]`)) {
       if (ACCEPT_RE.test(el.innerText.trim())) el.click()
     }
-    // Also try top-level buttons matching these labels (catches minimalist banners)
     const TOP_ACCEPT_RE = /^(accept|accept all|accept cookies?|agree|i agree|ok|got it|allow all|allow cookies?)$/i
     for (const el of document.querySelectorAll<HTMLElement>('button, a[role="button"]')) {
       if (TOP_ACCEPT_RE.test(el.innerText.trim())) {
-        // Only click fixed/sticky elements near the top or bottom (cookie bar placement)
         const style = window.getComputedStyle(el.closest('[style*="fixed"], [class*="fixed"], [class*="sticky"]') ?? el)
         if (style.position === 'fixed' || style.position === 'sticky') el.click()
       }
     }
   }).catch(() => {})
 
-  // Wait for any dismiss animations to complete
   await page.waitForTimeout(500)
 
-  // 3. DOM removal — forcibly remove remaining overlay elements ───────────────
   await page.evaluate(() => {
     const REMOVE_SELECTORS = [
       '#cookie-banner', '.cookie-banner', '.cookie-notice', '.cookie-consent',
@@ -206,7 +235,6 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
     for (const sel of REMOVE_SELECTORS) {
       try {
         document.querySelectorAll(sel).forEach((el) => {
-          // Don't nuke elements that are part of the main content layout
           const style = window.getComputedStyle(el)
           if (style.position === 'fixed' || style.position === 'sticky' ||
               el.getAttribute('role') === 'dialog' ||
@@ -218,7 +246,6 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
     }
   }).catch(() => {})
 
-  // 4. CSS: hide surviving overlays + known widgets ───────────────────────────
   await page.addStyleTag({
     content: `
       ${CSS_HIDE_SELECTORS.join(', ')} {
@@ -227,7 +254,6 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
         pointer-events: none !important;
       }
 
-      /* Freeze all animations / transitions for a stable frame */
       *, *::before, *::after {
         animation-duration: 0.001ms !important;
         animation-delay:    0.001ms !important;
@@ -235,37 +261,24 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
         transition-delay:    0.001ms !important;
       }
 
-      /* Hide scrollbar chrome */
       ::-webkit-scrollbar { display: none !important; }
       html, body { scrollbar-width: none !important; }
     `,
   }).catch(() => {})
 
-  // 5. Scroll to top ──────────────────────────────────────────────────────────
   await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {})
-
-  // 6. Final settle wait ──────────────────────────────────────────────────────
   await page.waitForTimeout(500)
 }
 
-/**
- * Takes a screenshot of a single monitored URL, diffs it against the previous
- * snapshot, saves everything to Supabase, and fires an alert if needed.
- * When mode is 'watch', the AI layer decides whether the change is alert-worthy.
- * When mode is 'archive', no diff or alert is produced — just snapshots.
- *
- * Used by both the scheduled cron task and the manual "run now" task.
- */
 export async function processUrl(
   monUrl: any,
   supabase: SupabaseClient,
   now: Date = new Date()
 ): Promise<{ diffPct: number | null; alerted: boolean }> {
   const ts       = now.toISOString().replace(/[:.]/g, '-')
-  const fullPage = monUrl.full_page !== false   // default true if column missing
+  const fullPage = monUrl.full_page !== false
   const mode     = monUrl.mode ?? 'watch'
 
-  // ── Launch browser & take screenshot ────────────────────────────────────────
   const browser = await chromium.launch()
   let screenshotBuffer: Buffer
 
@@ -277,7 +290,6 @@ export async function processUrl(
       permissions: [],
     })
 
-    // Block known ad/tracking domains to reduce noise and speed up load
     await context.route('**/*', (route) => {
       const url = route.request().url()
       if (BLOCKED_DOMAINS.some((d) => url.includes(d))) {
@@ -297,7 +309,6 @@ export async function processUrl(
     await browser.close()
   }
 
-  // ── Upload current screenshot ────────────────────────────────────────────────
   const screenshotPath = `screenshots/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
 
   const { error: uploadErr } = await supabase.storage
@@ -309,7 +320,6 @@ export async function processUrl(
     throw new Error(`Upload failed: ${uploadErr.message}`)
   }
 
-  // ── Save snapshot row ────────────────────────────────────────────────────────
   const { data: snapshot, error: snapErr } = await supabase
     .from('screenshot_snapshots')
     .insert({
@@ -327,7 +337,6 @@ export async function processUrl(
     throw new Error(`Failed to save snapshot: ${snapErr?.message}`)
   }
 
-  // ── Archive mode: no diff, no alert ─────────────────────────────────────────
   if (mode === 'archive') {
     await supabase
       .from('monitored_urls')
@@ -337,7 +346,6 @@ export async function processUrl(
     return { diffPct: null, alerted: false }
   }
 
-  // ── Fetch previous snapshot ──────────────────────────────────────────────────
   const { data: prevSnapshot } = await supabase
     .from('screenshot_snapshots')
     .select('*')
@@ -357,7 +365,6 @@ export async function processUrl(
     return { diffPct: null, alerted: false }
   }
 
-  // ── Download previous screenshot & diff ─────────────────────────────────────
   const { data: prevBlob, error: prevDlErr } = await supabase.storage
     .from('screenshots')
     .download(prevSnapshot.storage_path)
@@ -368,11 +375,13 @@ export async function processUrl(
   }
 
   let diffPct = 0
+  let pageDiffPct = 0
+  let zoneDiffPct: number | null = null
   let diffStoragePath: string | null = null
   let prevBuffer: Buffer | null = null
   let zoneCrops: ZoneCrop[] | undefined
+  let zoneScores: ZoneDiffScore[] = []
 
-  // Parse zones from the monitored URL (JSONB array or null)
   const zones: Zone[] = Array.isArray(monUrl.zones) ? monUrl.zones : []
 
   try {
@@ -380,22 +389,44 @@ export async function processUrl(
     const prevPng   = PNG.sync.read(prevBuffer)
     const currPng   = PNG.sync.read(screenshotBuffer)
 
-    // ── Build zone crops if the user defined tracking zones ──────────────────
     if (zones.length > 0) {
       zoneCrops = []
+      let zoneChangedPixels = 0
+      let zoneTotalPixels = 0
+
       for (let i = 0; i < zones.length; i++) {
         const zone = zones[i]
+        const label = zone.label?.trim() || `Zone ${i + 1}`
         const beforeCrop = cropZone(prevPng, zone)
         const afterCrop  = cropZone(currPng, zone)
+        const score = diffZone(prevPng, currPng, zone)
+
+        if (score) {
+          zoneChangedPixels += score.changedPixels
+          zoneTotalPixels += score.totalPixels
+          zoneScores.push({
+            label,
+            instruction: zone.instruction?.trim() || null,
+            sensitivity: zone.sensitivity ?? 'normal',
+            changed_pixels: score.changedPixels,
+            total_pixels: score.totalPixels,
+            diff_pct: Number(score.diffPct.toFixed(4)),
+          })
+        }
+
         if (beforeCrop && afterCrop) {
           zoneCrops.push({
-            label:  zone.label?.trim() || `Zone ${i + 1}`,
+            label,
+            instruction: zone.instruction?.trim() || undefined,
+            sensitivity: zone.sensitivity ?? 'normal',
             before: beforeCrop,
-            after:  afterCrop,
+            after: afterCrop,
           })
         }
       }
+
       if (zoneCrops.length === 0) zoneCrops = undefined
+      if (zoneTotalPixels > 0) zoneDiffPct = (zoneChangedPixels / zoneTotalPixels) * 100
     }
 
     const width       = Math.min(prevPng.width, currPng.width)
@@ -421,9 +452,10 @@ export async function processUrl(
     const diffImg       = new PNG({ width, height: minH })
     const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, width, minH, { threshold: 0.1 })
     const extraPixels   = width * (maxH - minH)
-    diffPct = ((changedPixels + extraPixels) / totalPixels) * 100
+    pageDiffPct = ((changedPixels + extraPixels) / totalPixels) * 100
+    diffPct = zoneDiffPct ?? pageDiffPct
 
-    if (diffPct > 0) {
+    if (pageDiffPct > 0) {
       const diffBuffer = PNG.sync.write(diffImg)
       const diffPath   = `diffs/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
       const { error: diffUploadErr } = await supabase.storage
@@ -435,7 +467,6 @@ export async function processUrl(
     logger.warn('Pixel comparison error — diff skipped', { url: monUrl.url, err: diffErr })
   }
 
-  // ── Save diff row ────────────────────────────────────────────────────────────
   await supabase.from('screenshot_diffs').insert({
     workspace_id:         monUrl.workspace_id,
     monitored_url_id:     monUrl.id,
@@ -445,16 +476,9 @@ export async function processUrl(
     diff_storage_path:    diffStoragePath,
   })
 
-  // ── Fire alert if any detectable change exists ──────────────────────────────
-  // When zones are defined: floor is 0 — any pixel change at all routes through
-  // Claude, which analyses only the zone crops. Without zones: 0.05% floor
-  // (essentially "any pixel difference at all") keeps noise-free.
   const AI_FLOOR = zoneCrops ? 0 : 0.05
   let alerted = false
   if (diffPct >= AI_FLOOR) {
-    // ── AI analysis layer ─────────────────────────────────────────────────────
-    // Claude decides: is this change relevant? Produces a plain-English summary.
-    // Only called when pixelmatch already confirmed the change is ≥ threshold.
     let shouldAlert = true
     let aiSummary   = ''
 
@@ -474,12 +498,13 @@ export async function processUrl(
           url:         monUrl.url,
           shouldAlert,
           summaryLen:  aiSummary.length,
+          zoneCount:   zoneCrops?.length ?? 0,
+          zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
         })
       } catch (aiErr) {
-        // If AI analysis itself throws unexpectedly, still fire the alert
         logger.warn('AI analysis error — defaulting to threshold-based alert', { url: monUrl.url, err: aiErr })
         shouldAlert = true
-        aiSummary   = `${diffPct.toFixed(1)}% of pixels changed on ${monUrl.url}`
+        aiSummary   = `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`
       }
     }
 
@@ -494,21 +519,28 @@ export async function processUrl(
         severity,
         status:               'open',
         title:                `Page changed — ${monUrl.name}`,
-        summary:              aiSummary || `${diffPct.toFixed(1)}% of pixels changed on ${monUrl.url}`,
+        summary:              aiSummary || `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`,
         ai_summary:           aiSummary || null,
         diff_pct:             diffPct,
         diff_storage_path:    diffStoragePath,
         current_snapshot_id:  snapshot.id,
         previous_snapshot_id: prevSnapshot.id,
-        metadata:             { url: monUrl.url, threshold_pct: monUrl.threshold_pct },
+        metadata:             {
+          url: monUrl.url,
+          threshold_pct: monUrl.threshold_pct,
+          page_diff_pct: Number(pageDiffPct.toFixed(4)),
+          zone_diff_pct: zoneDiffPct != null ? Number(zoneDiffPct.toFixed(4)) : null,
+          zone_scores: zoneScores,
+        },
         triggered_at:         now.toISOString(),
       })
       alerted = true
       logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), aiSuppressed: false })
     } else {
-      logger.info('Alert suppressed by AI — change not relevant to watch description', {
+      logger.info('Alert suppressed by AI — change not relevant to watch instructions', {
         url:    monUrl.url,
         diffPct: diffPct.toFixed(1),
+        zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
       })
     }
   }
@@ -516,6 +548,8 @@ export async function processUrl(
   logger.info('URL processed', {
     url:       monUrl.url,
     diffPct:   `${diffPct.toFixed(1)}%`,
+    pageDiffPct: `${pageDiffPct.toFixed(1)}%`,
+    zoneDiffPct: zoneDiffPct != null ? `${zoneDiffPct.toFixed(1)}%` : null,
     threshold: `${monUrl.threshold_pct}%`,
     alerted,
   })
