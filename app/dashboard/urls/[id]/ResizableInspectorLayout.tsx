@@ -4,20 +4,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const STORAGE_KEY = 'pagewatch.monitorInspectorWidth'
 const MIN_WIDTH = 280
-const MAX_WIDTH = 460
+const MAX_WIDTH = 440
 const DEFAULT_WIDTH = 320
-const MIN_MAIN_WIDTH = 720
+const MIN_MAIN_WIDTH = 760
+const VIEWPORT_PADDING = 32
+
+function maxInspectorWidth(viewportWidth?: number) {
+  if (!viewportWidth) return MAX_WIDTH
+  return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, viewportWidth - MIN_MAIN_WIDTH - VIEWPORT_PADDING))
+}
 
 function clamp(value: number, viewportWidth?: number) {
-  const viewportMax = viewportWidth ? Math.max(MIN_WIDTH, viewportWidth - MIN_MAIN_WIDTH) : MAX_WIDTH
-  const safeMax = Math.min(MAX_WIDTH, viewportMax)
+  const safeMax = maxInspectorWidth(viewportWidth)
   return Math.min(safeMax, Math.max(MIN_WIDTH, value))
 }
 
 export function ResizableInspectorLayout({ main, inspector }: { main: React.ReactNode; inspector: React.ReactNode }) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [dragging, setDragging] = useState(false)
-  const [isCompact, setIsCompact] = useState(false)
   const raf = useRef<number | null>(null)
 
   const applyWidth = useCallback((next: number, persist = true) => {
@@ -28,12 +32,8 @@ export function ResizableInspectorLayout({ main, inspector }: { main: React.Reac
 
   useEffect(() => {
     function syncFromViewport() {
-      const compact = window.innerWidth < 1180
-      setIsCompact(compact)
-      if (!compact) {
-        const saved = window.localStorage.getItem(STORAGE_KEY)
-        applyWidth(saved ? Number(saved) : DEFAULT_WIDTH, false)
-      }
+      const saved = window.localStorage.getItem(STORAGE_KEY)
+      applyWidth(saved ? Number(saved) : DEFAULT_WIDTH, false)
     }
 
     syncFromViewport()
@@ -42,7 +42,6 @@ export function ResizableInspectorLayout({ main, inspector }: { main: React.Reac
   }, [applyWidth])
 
   function startDrag(e: React.PointerEvent<HTMLButtonElement>) {
-    if (isCompact) return
     e.preventDefault()
     setDragging(true)
     const startX = e.clientX
@@ -67,31 +66,19 @@ export function ResizableInspectorLayout({ main, inspector }: { main: React.Reac
     window.addEventListener('pointerup', onUp)
   }
 
-  if (isCompact) {
-    return (
-      <div style={{ minHeight: 'calc(100vh - 52px)' }}>
-        <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)', minWidth: 0 }}>
-          {main}
-        </div>
-        <aside className="inspector-panel" style={{ borderTop: '1px solid #E6EAF0' }}>
-          {inspector}
-        </aside>
-      </div>
-    )
-  }
-
   return (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: `minmax(${MIN_MAIN_WIDTH}px, 1fr) ${width}px`,
+        gridTemplateColumns: `minmax(0, 1fr) ${width}px`,
         alignItems: 'start',
         minHeight: 'calc(100vh - 52px)',
         position: 'relative',
         cursor: dragging ? 'col-resize' : undefined,
+        overflowX: 'hidden',
       }}
     >
-      <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)', minWidth: MIN_MAIN_WIDTH }}>
+      <div className="canvas-dot-bg" style={{ padding: '20px 24px', minHeight: 'calc(100vh - 52px)', minWidth: 0, overflow: 'hidden' }}>
         {main}
       </div>
 
