@@ -6,7 +6,7 @@ import { DiffViewerModal } from '@/components/dashboard/DiffViewerModal'
 import type { DiffTab } from '@/components/dashboard/DiffViewerModal'
 import {
   CheckCircle2, Download, Maximize2, History, ChevronRight,
-  AlertTriangle,
+  AlertTriangle, Target, Image as ImageIcon, Eye, Activity,
 } from 'lucide-react'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 
@@ -132,6 +132,7 @@ export function UrlDetailClient({
   const groups = GROUP_ORDER.filter(l => groupMap.has(l)).map(l => ({ label: l, items: groupMap.get(l)! }))
 
   const latestSnap = snapshots[0] ?? null
+  const latestAlert = latestSnap ? alertBySnapshotId[latestSnap.id] : undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -197,7 +198,7 @@ export function UrlDetailClient({
         </div>
       )}
 
-      {/* ── Latest Screenshot Card ── */}
+      {/* ── Monitor Snapshot Summary ── */}
       {latestSnap ? (
         <div style={{
           background: 'white',
@@ -206,15 +207,15 @@ export function UrlDetailClient({
           overflow: 'hidden',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         }}>
-          {/* Card header */}
           <div style={{
-            padding: '9px 14px',
+            padding: '10px 14px',
             borderBottom: '1px solid #F3F4F6',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             background: '#FAFAFA',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>Latest Snapshot</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <ImageIcon size={13} style={{ color: '#9CA3AF' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Latest Capture</span>
               <span style={{ fontSize: 10, color: '#9CA3AF' }}>{formatDate(latestSnap.taken_at)}</span>
               {zones.length > 0 && (
                 <span style={{
@@ -222,7 +223,7 @@ export function UrlDetailClient({
                   background: 'rgba(37,99,235,0.08)', color: '#2563EB',
                   border: '1px solid rgba(37,99,235,0.18)',
                 }}>
-                  {zones.length} zone{zones.length !== 1 ? 's' : ''}
+                  {zones.length} watched zone{zones.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -232,7 +233,7 @@ export function UrlDetailClient({
                 onClick={() => openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after')}
                 style={{ padding: '4px 9px', fontSize: 11 }}
               >
-                <Maximize2 size={10} /> Fullscreen
+                <Maximize2 size={10} /> Open capture
               </button>
               {latestSnap.signedUrl && (
                 <button
@@ -247,60 +248,127 @@ export function UrlDetailClient({
             </div>
           </div>
 
-          {/* Screenshot + zone overlays */}
-          {/*
-            Natural sizing (width: 100%, height: auto) so zone % coords map 1:1
-            to the displayed image. objectFit: contain would add letterbox bars
-            and misalign the overlays.
-          */}
-          <div style={{ position: 'relative', background: '#F9FAFB', overflow: 'hidden', maxHeight: 560 }}>
-            {latestSnap.signedUrl ? (
-              <img
-                src={latestSnap.signedUrl}
-                alt="Latest screenshot"
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
-            ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 0, minHeight: 156 }}>
+            {/* Compact preview, intentionally not the main surface */}
+            <button
+              onClick={() => openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after')}
+              style={{
+                border: 'none', borderRight: '1px solid #F3F4F6',
+                background: '#F8FAFC', padding: 14, cursor: 'pointer', textAlign: 'left',
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}
+            >
               <div style={{
-                height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#9CA3AF', fontSize: 12,
+                width: '100%', height: 94, borderRadius: 7,
+                overflow: 'hidden', background: '#EEF2F7', border: '1px solid #E5E7EB',
+                position: 'relative',
               }}>
-                Screenshot loading…
+                {latestSnap.signedUrl ? (
+                  <img
+                    src={latestSnap.signedUrl}
+                    alt="Latest capture preview"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                  />
+                ) : (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+                    <ImageIcon size={16} />
+                  </div>
+                )}
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to bottom, transparent 40%, rgba(15,23,42,0.42))',
+                }} />
+                <span style={{
+                  position: 'absolute', right: 7, bottom: 6,
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 10, color: 'white', fontWeight: 700,
+                }}>
+                  <Eye size={10} /> View
+                </span>
               </div>
-            )}
+              <p style={{ fontSize: 10, color: '#9CA3AF', lineHeight: 1.45 }}>
+                Preview only. Open the capture or use the zone modal for accurate positioning.
+              </p>
+            </button>
 
-            {/* Zone overlays */}
-            {zones.map((z, i) => {
-              const color = ZONE_COLORS[i % ZONE_COLORS.length]
-              return (
-                <div
-                  key={z.id}
-                  style={{
-                    position: 'absolute',
-                    left: `${z.x * 100}%`,
-                    top: `${z.y * 100}%`,
-                    width: `${z.width * 100}%`,
-                    height: `${z.height * 100}%`,
-                    border: `2px solid ${color}`,
-                    background: `${color}18`,
-                    borderRadius: 3,
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <span style={{
-                    position: 'absolute', top: -1, left: 4,
-                    fontSize: 9, fontWeight: 700, color,
-                    background: 'white', padding: '0 3px', lineHeight: 1.4,
-                    borderRadius: 2,
+            {/* Monitor state */}
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: zones.length > 0 ? 'rgba(37,99,235,0.08)' : '#F3F4F6',
+                    color: zones.length > 0 ? '#2563EB' : '#9CA3AF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: zones.length > 0 ? '1px solid rgba(37,99,235,0.18)' : '1px solid #E5E7EB',
                   }}>
-                    {z.label || `Zone ${i + 1}`}
-                  </span>
+                    <Target size={14} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0 }}>
+                      {zones.length > 0 ? 'Watching selected zones' : 'Watching whole page'}
+                    </p>
+                    <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                      {zones.length > 0
+                        ? 'Zone drawing stays in the focused selector modal so this page stays stable.'
+                        : 'Add focus zones from the inspector to reduce layout noise.'}
+                    </p>
+                  </div>
                 </div>
-              )
-            })}
+
+                {zones.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {zones.slice(0, 6).map((z, i) => {
+                      const color = ZONE_COLORS[i % ZONE_COLORS.length]
+                      return (
+                        <span key={z.id} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '4px 8px', borderRadius: 99,
+                          fontSize: 11, fontWeight: 600,
+                          color, background: `${color}10`, border: `1px solid ${color}24`,
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+                          {z.label || `Zone ${i + 1}`}
+                        </span>
+                      )
+                    })}
+                    {zones.length > 6 && (
+                      <span style={{ fontSize: 11, color: '#9CA3AF', padding: '4px 2px' }}>+{zones.length - 6} more</span>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.6, maxWidth: 520 }}>
+                    Whole-page monitoring is useful for broad layout changes, but focus zones are better for prices, tables, status cards, or time-sensitive elements.
+                  </p>
+                )}
+              </div>
+
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                border: '1px solid #F3F4F6', borderRadius: 8, overflow: 'hidden',
+              }}>
+                {[
+                  { label: 'Checks', value: totalChecks },
+                  { label: 'Changes', value: changeEvents, color: changeEvents > 0 ? '#EF4444' : undefined },
+                  { label: 'Clean Rate', value: `${cleanRate}%`, color: cleanRate >= 90 ? '#16A34A' : undefined },
+                  { label: 'Latest Diff', value: latestAlert?.diff_pct != null ? `${Number(latestAlert.diff_pct).toFixed(1)}%` : '—' },
+                ].map((stat, i) => (
+                  <div key={stat.label} style={{
+                    padding: '9px 10px', background: i % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                    borderLeft: i > 0 ? '1px solid #F3F4F6' : undefined,
+                  }}>
+                    <p style={{ fontSize: 9, color: '#9CA3AF', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+                      {stat.label}
+                    </p>
+                    <p style={{ fontSize: 16, fontWeight: 750, color: stat.color ?? '#111827', lineHeight: 1 }}>
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* No open alert status row */}
           {!activeAlert && (
             <div style={{
               padding: '8px 14px',
@@ -318,47 +386,6 @@ export function UrlDetailClient({
           padding: '40px 24px', textAlign: 'center',
         }}>
           <p style={{ fontSize: 13, color: '#9CA3AF' }}>No screenshots yet. Run a check to capture the first snapshot.</p>
-        </div>
-      )}
-
-      {/* ── Compact Stats Strip ── */}
-      {totalChecks > 0 && (
-        <div style={{
-          background: 'white',
-          border: '1px solid #E5E7EB',
-          borderRadius: 8,
-          padding: '10px 16px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-        }}>
-          {[
-            { label: 'Checks', value: totalChecks },
-            {
-              label: 'Changes', value: changeEvents,
-              color: changeEvents > 0 ? '#EF4444' : undefined,
-            },
-            {
-              label: 'Clean Rate', value: `${cleanRate}%`,
-              color: cleanRate >= 90 ? '#16A34A' : undefined,
-            },
-            { label: 'Avg Diff', value: avgDiff ? `${avgDiff}%` : '—' },
-          ].map((stat, i) => (
-            <div
-              key={stat.label}
-              style={{
-                textAlign: 'center',
-                borderLeft: i > 0 ? '1px solid #F3F4F6' : undefined,
-                padding: '2px 0',
-              }}
-            >
-              <p style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                {stat.label}
-              </p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: stat.color ?? '#111827', lineHeight: 1, letterSpacing: '-0.02em' }}>
-                {stat.value}
-              </p>
-            </div>
-          ))}
         </div>
       )}
 
@@ -506,14 +533,12 @@ function SnapshotRow({ snap, alert, changed, onOpen, onDownload }: {
         transition: 'background 0.1s',
       }}
     >
-      {/* Status dot */}
       <div style={{
         width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
         background: changed ? '#EF4444' : '#D1D5DB',
         boxShadow: changed ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none',
       }} />
 
-      {/* Thumbnail */}
       <div style={{
         width: 64, height: 40, borderRadius: 5, overflow: 'hidden', flexShrink: 0,
         background: '#F3F4F6', border: '1px solid #E5E7EB',
@@ -527,7 +552,6 @@ function SnapshotRow({ snap, alert, changed, onOpen, onDownload }: {
         )}
       </div>
 
-      {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 2 }}>
           {formatDate(snap.taken_at)}
@@ -551,7 +575,6 @@ function SnapshotRow({ snap, alert, changed, onOpen, onDownload }: {
         </div>
       </div>
 
-      {/* Actions */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 5,
         opacity: hovered ? 1 : 0, transition: 'opacity 0.1s',
