@@ -14,6 +14,7 @@ function clamp(value: number) {
 export function ResizableInspectorLayout({ main, inspector }: { main: React.ReactNode; inspector: React.ReactNode }) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [dragging, setDragging] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const raf = useRef<number | null>(null)
 
   const applyWidth = useCallback((next: number, persist = true) => {
@@ -52,6 +53,8 @@ export function ResizableInspectorLayout({ main, inspector }: { main: React.Reac
     window.addEventListener('pointerup', onUp)
   }
 
+  const active = hovered || dragging
+
   return (
     <div style={{ minHeight: 'calc(100vh - 52px)', position: 'relative' }}>
       <div
@@ -69,30 +72,53 @@ export function ResizableInspectorLayout({ main, inspector }: { main: React.Reac
         type="button"
         aria-label="Resize inspector"
         onPointerDown={startDrag}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
           position: 'fixed',
           top: 52,
-          right: width - 5,
+          right: width - 13,
           zIndex: 60,
-          width: 10,
+          width: 24,
           height: 'calc(100vh - 52px)',
           border: 'none',
           background: 'transparent',
           cursor: 'col-resize',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <span
           style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 3,
-            height: 42,
+            width: 18,
+            height: 54,
             borderRadius: 999,
-            background: dragging ? '#2563EB' : '#D8DEE8',
+            background: active ? '#FFFFFF' : 'rgba(255,255,255,0.68)',
+            border: `1px solid ${active ? 'rgba(37,99,235,0.22)' : 'rgba(148,163,184,0.22)'}`,
+            boxShadow: active ? '0 10px 24px rgba(15,23,42,0.12)' : '0 4px 14px rgba(15,23,42,0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease',
+            transform: active ? 'scale(1.02)' : 'scale(1)',
           }}
-        />
+        >
+          <span style={{ display: 'grid', gridTemplateRows: 'repeat(3, 3px)', gap: 4 }}>
+            {[0, 1, 2].map((dot) => (
+              <span
+                key={dot}
+                style={{
+                  width: 3,
+                  height: 3,
+                  borderRadius: '50%',
+                  background: active ? '#2563EB' : '#94A3B8',
+                  opacity: active ? 0.9 : 0.58,
+                }}
+              />
+            ))}
+          </span>
+        </span>
       </button>
 
       <aside
