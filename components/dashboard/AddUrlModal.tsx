@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { X, ArrowRight, Check, Clock, Eye, Archive, Globe, Sparkles } from 'lucide-react'
+import { X, ArrowRight, Check, Clock, Eye, Archive, Globe, Sparkles, ShieldCheck } from 'lucide-react'
 import { addMonitoredUrls } from '@/lib/actions/websites'
 import type { CheckFrequency, MonitoredUrlMode } from '@/lib/types/database.types'
 
@@ -34,14 +34,14 @@ function faviconUrl(raw: string): string {
 }
 
 const SCHEDULES: { id: CheckFrequency; label: string; sub: string }[] = [
-  { id: 'hourly', label: 'Hourly', sub: 'Every 60 min — for critical pages' },
-  { id: 'daily', label: 'Daily', sub: 'Once a day — good default' },
-  { id: 'weekly', label: 'Weekly', sub: 'Once a week — for stable pages' },
+  { id: 'hourly', label: 'Hourly', sub: 'Critical pages' },
+  { id: 'daily', label: 'Daily', sub: 'Recommended' },
+  { id: 'weekly', label: 'Weekly', sub: 'Stable pages' },
 ]
 
 function hourLabel(h: number): string {
-  if (h === 0) return '12:00 AM (midnight)'
-  if (h === 12) return '12:00 PM (noon)'
+  if (h === 0) return '12:00 AM'
+  if (h === 12) return '12:00 PM'
   return h < 12 ? `${h}:00 AM` : `${h - 12}:00 PM`
 }
 
@@ -87,165 +87,114 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(15,23,42,0.42)', backdropFilter: 'blur(14px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl ring-1 ring-zinc-200 overflow-hidden flex flex-col max-h-[90vh]">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/50 shrink-0">
+      <div style={{
+        width: '100%', maxWidth: 620, maxHeight: '90vh', overflow: 'hidden',
+        background: '#FFFFFF', borderRadius: 18,
+        border: '1px solid rgba(15,23,42,0.08)',
+        boxShadow: '0 34px 100px rgba(15,23,42,0.22), 0 1px 2px rgba(15,23,42,0.08)',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid #EEF2F7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(180deg, #FFFFFF, #FBFCFF)' }}>
           <div>
-            <h2 className="text-lg font-bold text-zinc-900 tracking-tight">Initialize Monitor</h2>
-            <p className="text-xs font-medium text-zinc-500 mt-0.5">Define tracking parameters for a new target.</p>
+            <h2 style={{ fontSize: 17, fontWeight: 750, color: '#0F172A', letterSpacing: '-0.025em', margin: 0 }}>Add monitor</h2>
+            <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Choose what to watch. We’ll capture a baseline next.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} style={{ width: 31, height: 31, border: 'none', borderRadius: 9, background: '#F8FAFC', color: '#94A3B8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={17} />
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="px-6 py-6 space-y-8 overflow-y-auto">
+        <div style={{ padding: 22, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <section>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Target URL</label>
+              <div style={{ position: 'relative' }}>
+                {favicon && <img src={favicon} alt="" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, borderRadius: 4 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />}
+                <input
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                  placeholder="https://example.com/pricing"
+                  autoFocus
+                  style={{
+                    width: '100%', height: 48, borderRadius: 12,
+                    border: '1px solid #DDE3EA', background: '#FBFCFF',
+                    padding: favicon ? '0 14px 0 42px' : '0 14px',
+                    outline: 'none', fontSize: 14, color: '#0F172A',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
+                  }}
+                />
+              </div>
+              {domain && <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 7 }}>Target detected: <span style={{ color: '#475569', fontWeight: 650 }}>{domain}</span></p>}
+            </section>
 
-          {/* Target Configuration */}
-          <section className="space-y-4">
-            <div className="relative group">
-              {favicon && (
-                <img src={favicon} alt="" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-sm shadow-sm" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-              )}
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                placeholder="https://example.com/pricing"
-                autoFocus
-                className={`w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3.5 pr-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition-all font-mono ${favicon ? 'pl-12' : 'pl-4'}`}
-              />
-            </div>
+            <section>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Mode</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <button type="button" onClick={() => setMode('watch')} style={{ padding: '12px 13px', borderRadius: 13, border: `1px solid ${mode === 'watch' ? 'rgba(37,99,235,0.35)' : '#E6EAF0'}`, background: mode === 'watch' ? '#F3F7FF' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left' }}>
+                  <Eye size={16} style={{ color: mode === 'watch' ? '#2563EB' : '#94A3B8' }} />
+                  <div><p style={{ fontSize: 13, fontWeight: 720, color: '#0F172A', margin: 0 }}>Watch changes</p><p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Alert on meaningful diffs</p></div>
+                </button>
+                <button type="button" onClick={() => setMode('archive')} style={{ padding: '12px 13px', borderRadius: 13, border: `1px solid ${mode === 'archive' ? 'rgba(37,99,235,0.35)' : '#E6EAF0'}`, background: mode === 'archive' ? '#F3F7FF' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left' }}>
+                  <Archive size={16} style={{ color: mode === 'archive' ? '#2563EB' : '#94A3B8' }} />
+                  <div><p style={{ fontSize: 13, fontWeight: 720, color: '#0F172A', margin: 0 }}>Archive only</p><p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Keep snapshots, no alerts</p></div>
+                </button>
+              </div>
+            </section>
 
-            <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200/60">
-              <button
-                type="button"
-                onClick={() => setMode('watch')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${mode === 'watch' ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200' : 'text-zinc-500 hover:text-zinc-700'}`}
-              >
-                <Eye className="w-4 h-4" /> Watch for Changes
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('archive')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${mode === 'archive' ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200' : 'text-zinc-500 hover:text-zinc-700'}`}
-              >
-                <Archive className="w-4 h-4" /> Archive Only
-              </button>
-            </div>
-          </section>
-
-          {/* Schedule Configuration */}
-          <section>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-3">Schedule</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {SCHEDULES.map((s) => {
-                const isActive = freq === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setFreq(s.id)}
-                    className={`text-left p-4 rounded-xl border transition-all ${isActive ? 'bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900' : 'bg-white border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300'}`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`text-sm font-bold ${isActive ? 'text-zinc-900' : 'text-zinc-700'}`}>{s.label}</span>
-                      {isActive && <Check className="w-4 h-4 text-zinc-900" />}
-                    </div>
-                    <span className="text-[10px] text-zinc-500 leading-tight block">{s.sub}</span>
+            <section>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Schedule</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {SCHEDULES.map(s => {
+                  const isActive = freq === s.id
+                  return <button key={s.id} type="button" onClick={() => setFreq(s.id)} style={{ borderRadius: 13, border: `1px solid ${isActive ? 'rgba(37,99,235,0.38)' : '#E6EAF0'}`, background: isActive ? '#F3F7FF' : '#FFFFFF', padding: '12px 12px', textAlign: 'left', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ fontSize: 13, fontWeight: 720, color: '#0F172A' }}>{s.label}</span>{isActive && <Check size={14} style={{ color: '#2563EB' }} />}</div>
+                    <span style={{ fontSize: 11, color: '#94A3B8' }}>{s.sub}</span>
                   </button>
-                )
-              })}
-            </div>
+                })}
+              </div>
 
-            {showTimePicker && (
-              <div className="mt-4 flex items-center justify-between p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                <div className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
-                  <Clock className="w-4 h-4 text-zinc-400" /> Run Check At (UTC)
-                </div>
-                <select
-                  value={checkHour}
-                  onChange={(e) => setCheckHour(Number(e.target.value))}
-                  className="bg-white border border-zinc-200 text-zinc-900 text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-zinc-900 outline-none cursor-pointer shadow-sm"
-                >
+              {showTimePicker && <div style={{ marginTop: 10, padding: '12px 13px', borderRadius: 13, border: '1px solid #E6EAF0', background: '#FBFCFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#475569', fontSize: 12, fontWeight: 650 }}><Clock size={14} style={{ color: '#94A3B8' }} /> Run at (UTC)</div>
+                <select value={checkHour} onChange={(e) => setCheckHour(Number(e.target.value))} style={{ height: 32, minWidth: 120, border: '1px solid #DDE3EA', borderRadius: 9, background: 'white', padding: '0 9px', fontSize: 12, color: '#0F172A', outline: 'none' }}>
                   {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
                 </select>
-              </div>
-            )}
-          </section>
-
-          {/* AI Focus Configuration */}
-          {isWatch && (
-            <section>
-              <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-3">
-                <Sparkles className="w-3.5 h-3.5" /> AI Alert Instructions <span className="font-medium normal-case text-zinc-400">(Optional)</span>
-              </label>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder='E.g., "Alert me if the pricing changes" or "Notify me if the hero headline is different"'
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent transition-all resize-none"
-              />
+              </div>}
             </section>
-          )}
 
-          {/* Capture Depth Settings */}
-          <section>
-            <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-zinc-200 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                  <Globe className="w-4 h-4 text-zinc-500" />
+            {isWatch && <section>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}><Sparkles size={12} /> Watch instruction <span style={{ fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder='e.g. Alert me if pricing changes, availability changes, or the headline updates.' style={{ width: '100%', resize: 'none', borderRadius: 13, border: '1px solid #DDE3EA', background: '#FBFCFF', padding: 13, outline: 'none', fontSize: 13, lineHeight: 1.5, color: '#0F172A' }} />
+            </section>}
+
+            <section>
+              <button type="button" onClick={() => setFullPage(!fullPage)} style={{ width: '100%', border: '1px solid #E6EAF0', borderRadius: 14, background: '#FFFFFF', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', boxShadow: '0 4px 14px rgba(15,23,42,0.035)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: '#F3F7FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Globe size={16} /></div>
+                  <div><p style={{ fontSize: 13, fontWeight: 750, color: '#0F172A', margin: 0 }}>{fullPage ? 'Full page capture' : 'Viewport capture'}</p><p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{fullPage ? 'Capture the full scrollable page.' : 'Capture only the visible viewport.'}</p></div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-zinc-900">{fullPage ? 'Full Page Depth' : 'Viewport Only'}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{fullPage ? 'Captures entire scrollable document' : 'Captures only what is visible above the fold'}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFullPage(!fullPage)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 ${fullPage ? 'bg-zinc-900' : 'bg-zinc-300'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition shadow-sm ${fullPage ? 'translate-x-6' : 'translate-x-1'}`} />
+                <span style={{ width: 39, height: 23, borderRadius: 99, background: fullPage ? '#2563EB' : '#CBD5E1', position: 'relative', display: 'inline-block', flexShrink: 0 }}><span style={{ position: 'absolute', top: 3, left: fullPage ? 19 : 3, width: 17, height: 17, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(15,23,42,0.24)', transition: 'left 0.16s ease' }} /></span>
               </button>
-            </div>
-          </section>
+            </section>
 
-          {error && (
-            <div className="p-4 bg-red-50 rounded-xl border border-red-200 text-sm text-red-600 font-medium">
-              {error}
-            </div>
-          )}
-
+            {error && <div style={{ padding: 12, borderRadius: 12, background: '#FEF2F2', border: '1px solid rgba(220,38,38,0.18)', color: '#B91C1C', fontSize: 12, fontWeight: 650 }}>{error}</div>}
+          </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3 shrink-0">
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 text-sm font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!url.trim() || isPending}
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-zinc-900 text-white text-sm font-bold rounded-xl hover:bg-zinc-800 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending ? 'Deploying...' : <>{mode === 'archive' ? 'Start Archiving' : 'Deploy Monitor'} <ArrowRight className="w-4 h-4" /></>}
-          </button>
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #EEF2F7', background: '#FBFCFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#94A3B8', fontSize: 11 }}><ShieldCheck size={13} /> First screenshot starts after deploy.</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={onClose} style={{ height: 36, padding: '0 14px', border: 'none', borderRadius: 10, background: 'transparent', color: '#64748B', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleSubmit} disabled={!url.trim() || isPending} style={{ height: 36, padding: '0 16px', border: 'none', borderRadius: 10, background: '#2563EB', color: 'white', fontSize: 12, fontWeight: 760, display: 'flex', alignItems: 'center', gap: 8, cursor: !url.trim() || isPending ? 'not-allowed' : 'pointer', opacity: !url.trim() || isPending ? 0.55 : 1, boxShadow: '0 8px 18px rgba(37,99,235,0.22)' }}>
+              {isPending ? 'Deploying…' : <>{mode === 'archive' ? 'Start archive' : 'Deploy monitor'} <ArrowRight size={14} /></>}
+            </button>
+          </div>
         </div>
-
       </div>
     </div>
   )
