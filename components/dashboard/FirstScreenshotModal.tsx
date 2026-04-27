@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, AlertCircle, ArrowRight, RefreshCw, Crosshair, SkipForward, Loader2, Camera, Target, Sparkles } from 'lucide-react'
+import { CheckCircle2, AlertCircle, ArrowRight, RefreshCw, SkipForward, Loader2, Target, Sparkles, Camera } from 'lucide-react'
 import { pollFirstSnapshot, getSignedScreenshotUrl } from '@/lib/actions/screenshots'
 import { triggerManualRun } from '@/lib/actions/run-now'
 import { updateMonitoredUrl } from '@/lib/actions/websites'
@@ -21,19 +21,39 @@ type Phase = 'loading' | 'zones' | 'error'
 const POLL_INTERVAL_MS = 2_500
 const POLL_TIMEOUT_MS  = 90_000
 
-function StepPill({ active, done, label }: { active?: boolean; done?: boolean; label: string }) {
+function ProgressStepper({ phase }: { phase: Phase }) {
+  const captureDone = phase === 'zones'
+  const zonesActive = phase === 'zones'
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: active ? '#2563EB' : done ? '#16A34A' : '#94A3B8', fontSize: 11, fontWeight: 750 }}>
-      <span style={{
-        width: 18, height: 18, borderRadius: 99,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: active ? 'rgba(37,99,235,0.1)' : done ? 'rgba(22,163,74,0.1)' : '#F1F5F9',
-        border: active ? '1px solid rgba(37,99,235,0.22)' : done ? '1px solid rgba(22,163,74,0.22)' : '1px solid #E6EAF0',
-        fontSize: 10,
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: 3, borderRadius: 999,
+      background: '#F1F5F9', border: '1px solid #E6EAF0',
+    }}>
+      <div style={{
+        height: 28, padding: '0 10px', borderRadius: 999,
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: phase === 'loading' ? '#FFFFFF' : 'transparent',
+        color: phase === 'loading' ? '#2563EB' : '#16A34A',
+        fontSize: 11, fontWeight: 750,
+        boxShadow: phase === 'loading' ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
       }}>
-        {done ? '✓' : active ? '•' : ''}
-      </span>
-      {label}
+        {captureDone ? <CheckCircle2 size={13} /> : <Camera size={13} />}
+        Capture
+      </div>
+      <div style={{ width: 18, height: 1, background: captureDone ? 'rgba(37,99,235,0.35)' : '#CBD5E1' }} />
+      <div style={{
+        height: 28, padding: '0 10px', borderRadius: 999,
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: zonesActive ? '#FFFFFF' : 'transparent',
+        color: zonesActive ? '#2563EB' : '#94A3B8',
+        fontSize: 11, fontWeight: 750,
+        boxShadow: zonesActive ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
+      }}>
+        <Target size={13} />
+        Zones
+      </div>
     </div>
   )
 }
@@ -106,10 +126,7 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
               {phase === 'loading' ? `Opening ${urlName || 'the page'} in a browser.` : phase === 'zones' ? 'Draw around the parts that matter. Everything else becomes background noise.' : 'We could not complete the first capture.'}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <StepPill label="Capture" active={phase === 'loading'} done={phase === 'zones'} />
-            <StepPill label="Zones" active={phase === 'zones'} />
-          </div>
+          {phase !== 'error' && <ProgressStepper phase={phase} />}
         </div>
 
         {phase === 'loading' && (
