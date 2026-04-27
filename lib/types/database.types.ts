@@ -1,10 +1,14 @@
+export type ZoneSensitivity = 'low' | 'normal' | 'high'
+
 export interface Zone {
-  id:      string
-  x:       number   // 0–1 relative to screenshot width
-  y:       number   // 0–1 relative to screenshot height
-  width:   number   // 0–1
-  height:  number   // 0–1
-  label?:  string
+  id:           string
+  x:            number          // 0–1 relative to screenshot width
+  y:            number          // 0–1 relative to screenshot height
+  width:        number          // 0–1
+  height:       number          // 0–1
+  label?:       string
+  instruction?: string          // per-zone watch instruction for Claude
+  sensitivity?: ZoneSensitivity // diff sensitivity override for this zone
 }
 
 export type AlertType     = 'visual_change'

@@ -1,42 +1,13 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import { Globe, Pause, Archive, Eye, Sparkles, AlertTriangle } from 'lucide-react'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrls } from '@/lib/actions/websites'
 import { createServerClient } from '@/lib/supabase/server'
-import { Globe, ArrowRight, Pause, Clock, Archive, Eye, Sparkles, AlertTriangle, CheckCircle2, Plus } from 'lucide-react'
 import { AddMonitorButton } from '@/components/dashboard/AddMonitorButton'
+import { MonitorRow } from '@/components/dashboard/MonitorRow'
 
 export const metadata = { title: 'Monitors — PageWatch' }
 
-const SF = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif'
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return 'Never'
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'Just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
-function severity(pct: number | null): { label: string; color: string; bg: string } {
-  if (!pct || pct < 5) return { label: 'Minor', color: '#6E6E73', bg: '#F0F0F5' }
-  if (pct < 15) return { label: 'Moderate', color: '#FF9500', bg: 'rgba(255,149,0,0.1)' }
-  if (pct < 30) return { label: 'Significant', color: '#FF6B00', bg: 'rgba(255,107,0,0.1)' }
-  return { label: 'Critical', color: '#FF3B30', bg: 'rgba(255,59,48,0.1)' }
-}
-
-function isStale(url: any): boolean {
-  if (!url.is_active || !url.last_checked_at) return false
-  const elapsed = Date.now() - new Date(url.last_checked_at).getTime()
-  const threshold =
-    url.check_frequency === 'hourly' ? 3 * 3600000
-    : url.check_frequency === 'weekly' ? 9 * 86400000
-    : 28 * 3600000
-  return elapsed > threshold
-}
 
 export default async function UrlsPage() {
   const workspace = await getWorkspace()
@@ -66,9 +37,7 @@ export default async function UrlsPage() {
 
   const lastAlertMap = new Map<string, any>()
   for (const a of lastAlertRows ?? []) {
-    if (!lastAlertMap.has(a.monitored_url_id)) {
-      lastAlertMap.set(a.monitored_url_id, a)
-    }
+    if (!lastAlertMap.has(a.monitored_url_id)) lastAlertMap.set(a.monitored_url_id, a)
   }
 
   const activeCount = urls.filter((u: any) => u.is_active).length
@@ -77,183 +46,123 @@ export default async function UrlsPage() {
   const alertingCount = urls.filter((u: any) => (openCountMap.get(u.id) ?? 0) > 0).length
 
   return (
-    <div style={{ fontFamily: SF, display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
+    <div className="dash-page" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 48 }}>
 
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 36 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.025em', lineHeight: 1 }}>
+          <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>
             Monitors
           </h1>
-          <p style={{ fontSize: 13, color: alertingCount > 0 ? '#FF3B30' : '#6E6E73', marginTop: 6, letterSpacing: '-0.01em' }}>
-            {urls.length === 0
-              ? 'No monitors yet.'
-              : alertingCount > 0
-              ? `${alertingCount} monitor${alertingCount !== 1 ? 's' : ''} need${alertingCount === 1 ? 's' : ''} review.`
-              : `${activeCount} active, ${pausedCount} paused. All clear.`}
-          </p>
+          {urls.length > 0 && (
+            <p style={{ fontSize: 11, color: alertingCount > 0 ? '#EF4444' : '#6B7280', marginTop: 2 }}>
+              {alertingCount > 0
+                ? `${alertingCount} monitor${alertingCount !== 1 ? 's' : ''} need${alertingCount === 1 ? 's' : ''} review`
+                : `${activeCount} active · ${pausedCount} paused · all clear`}
+            </p>
+          )}
         </div>
         <AddMonitorButton />
       </div>
 
-      {/* ── Stat Pills ── */}
+      {/* Stat pills */}
       {urls.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <StatPill label={`${activeCount} Active`} color="#16A34A" bg="rgba(22,163,74,0.08)" dot />
-          {pausedCount > 0 && <StatPill label={`${pausedCount} Paused`} color="#8E8E93" bg="#F0F0F5" icon={<Pause style={{ width: 10, height: 10 }} />} />}
-          {alertingCount > 0 && <StatPill label={`${alertingCount} Need review`} color="#FF3B30" bg="rgba(255,59,48,0.08)" icon={<AlertTriangle style={{ width: 10, height: 10 }} />} />}
-          {archiveCount > 0 && <StatPill label={`${archiveCount} Archive`} color="#8E8E93" bg="#F0F0F5" icon={<Archive style={{ width: 10, height: 10 }} />} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <StatPill label={`${activeCount} Active`} color="#16A34A" bg="rgba(22,163,74,0.08)" border="rgba(22,163,74,0.18)" dot />
+          {pausedCount > 0 && (
+            <StatPill label={`${pausedCount} Paused`} color="#6B7280" bg="rgba(107,114,128,0.07)" border="rgba(107,114,128,0.15)"
+              icon={<Pause size={9} />} />
+          )}
+          {alertingCount > 0 && (
+            <StatPill label={`${alertingCount} Need review`} color="#EF4444" bg="rgba(239,68,68,0.07)" border="rgba(239,68,68,0.18)"
+              icon={<AlertTriangle size={9} />} />
+          )}
+          {archiveCount > 0 && (
+            <StatPill label={`${archiveCount} Archive`} color="#6B7280" bg="rgba(107,114,128,0.07)" border="rgba(107,114,128,0.15)"
+              icon={<Archive size={9} />} />
+          )}
         </div>
       )}
 
-      {/* ── Empty State ── */}
+      {/* Empty state */}
       {urls.length === 0 ? (
         <div style={{
-          background: 'white', borderRadius: 20, border: '0.5px dashed rgba(0,0,0,0.12)',
+          background: 'white', borderRadius: 10, border: '1px dashed #E5E7EB',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '72px 24px', textAlign: 'center',
+          padding: '64px 24px', textAlign: 'center',
         }}>
-          <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(22,163,74,0.08)', border: '0.5px solid rgba(22,163,74,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-            <Globe style={{ width: 24, height: 24, color: '#16A34A' }} />
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: 'rgba(37,99,235,0.07)', border: '1px solid rgba(37,99,235,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+          }}>
+            <Globe size={20} style={{ color: '#2563EB' }} />
           </div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.02em', marginBottom: 8 }}>No monitors yet</h2>
-          <p style={{ fontSize: 13, color: '#6E6E73', maxWidth: 320, lineHeight: 1.65, marginBottom: 24 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+            No monitors yet
+          </h2>
+          <p style={{ fontSize: 12, color: '#6B7280', maxWidth: 300, lineHeight: 1.65, marginBottom: 20 }}>
             Add public URLs to watch. We'll screenshot on your schedule and use AI to explain any visual changes.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 28, textAlign: 'left' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, textAlign: 'left' }}>
             {[
-              { icon: <Eye style={{ width: 12, height: 12, color: '#5856D6' }} />, text: 'Watch mode — diff + alert on any change' },
-              { icon: <Archive style={{ width: 12, height: 12, color: '#8E8E93' }} />, text: 'Archive mode — screenshot only, no alerts' },
-              { icon: <Sparkles style={{ width: 12, height: 12, color: '#16A34A' }} />, text: 'AI explains every change in plain English' },
+              { icon: <Eye size={11} style={{ color: '#7C3AED' }} />, text: 'Watch mode — diff + alert on any change' },
+              { icon: <Archive size={11} style={{ color: '#6B7280' }} />, text: 'Archive mode — screenshot only, no alerts' },
+              { icon: <Sparkles size={11} style={{ color: '#2563EB' }} />, text: 'AI explains every change in plain English' },
             ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 {item.icon}
-                <span style={{ fontSize: 12, color: '#6E6E73' }}>{item.text}</span>
+                <span style={{ fontSize: 11, color: '#6B7280' }}>{item.text}</span>
               </div>
             ))}
           </div>
           <AddMonitorButton />
         </div>
       ) : (
-        /* ── Monitor List ── */
-        <div style={{ background: 'white', borderRadius: 16, border: '0.5px solid rgba(0,0,0,0.08)', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
-
-          {/* Column Headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 100px 180px 60px', padding: '9px 20px', background: '#FAFAFA', borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
-            {['Monitor', 'Mode', 'Schedule', 'Last Check', 'Last Change', ''].map(h => (
-              <span key={h} style={{ fontSize: 9, fontWeight: 700, color: '#C7C7CC', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+        /* Monitor list */
+        <div style={{
+          background: 'white', border: '1px solid #E5E7EB',
+          borderRadius: 8, overflow: 'hidden',
+        }}>
+          {/* Column headers */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '24px 1fr 80px 80px 80px 140px 28px',
+            padding: '8px 14px',
+            background: '#FAFAFA',
+            borderBottom: '1px solid #F3F4F6',
+          }}>
+            {['', 'Monitor', 'Mode', 'Schedule', 'Last Check', 'Last Change', ''].map((h, i) => (
+              <span key={i} style={{
+                fontSize: 9, fontWeight: 700, color: '#D1D5DB',
+                textTransform: 'uppercase', letterSpacing: '0.06em',
+              }}>
+                {h}
+              </span>
             ))}
           </div>
 
           {urls.map((url: any, idx: number) => {
-            const isPaused = !url.is_active
-            const isArchive = url.mode === 'archive'
             const openCount = openCountMap.get(url.id) ?? 0
             const lastAlert = lastAlertMap.get(url.id)
-            const stale = isStale(url)
-            const sv = lastAlert ? severity(lastAlert.diff_pct) : null
-            let domain = url.url
-            try { domain = new URL(url.url).hostname } catch {}
-
             return (
-              <Link
+              <MonitorRow
                 key={url.id}
-                href={`/dashboard/urls/${url.id}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 80px 80px 100px 180px 60px',
-                  alignItems: 'center',
-                  padding: '13px 20px',
-                  borderBottom: idx < urls.length - 1 ? '0.5px solid rgba(0,0,0,0.05)' : 'none',
-                  textDecoration: 'none',
-                  background: 'white',
-                  opacity: isPaused ? 0.55 : 1,
+                isLast={idx === urls.length - 1}
+                showLastChange
+                url={{
+                  id: url.id,
+                  name: url.name,
+                  url: url.url,
+                  is_active: url.is_active,
+                  mode: url.mode,
+                  check_frequency: url.check_frequency,
+                  last_checked_at: url.last_checked_at,
+                  openAlertCount: openCount,
+                  lastAlertDiffPct: lastAlert?.diff_pct ?? null,
+                  lastAlertSummary: lastAlert?.ai_summary ?? null,
                 }}
-                className="dashboard-monitor-row"
-              >
-                {/* Monitor info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, paddingRight: 12 }}>
-                  {/* Status dot */}
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                    background: isPaused ? '#D1D1D6' : stale ? '#FF9500' : openCount > 0 ? '#FF3B30' : '#30D158',
-                    boxShadow: openCount > 0 && !isPaused ? '0 0 0 3px rgba(255,59,48,0.12)'
-                      : stale ? '0 0 0 3px rgba(255,149,0,0.12)' : 'none',
-                  }} />
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.015em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
-                      {url.name}
-                    </p>
-                    <p style={{ fontSize: 11, fontFamily: 'ui-monospace, "SF Mono", monospace', color: '#AEAEB2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {domain}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Mode */}
-                {isArchive ? (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#8E8E93', background: '#F0F0F5', padding: '3px 8px', borderRadius: 5, width: 'fit-content', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Archive style={{ width: 9, height: 9 }} /> Archive
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#5856D6', background: 'rgba(88,86,214,0.08)', padding: '3px 8px', borderRadius: 5, width: 'fit-content', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Eye style={{ width: 9, height: 9 }} /> Watch
-                  </span>
-                )}
-
-                {/* Schedule */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Clock style={{ width: 10, height: 10, color: '#D1D1D6', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: '#6E6E73', textTransform: 'capitalize', letterSpacing: '-0.01em' }}>
-                    {url.check_frequency}
-                  </span>
-                </div>
-
-                {/* Last check */}
-                <div>
-                  {isPaused ? (
-                    <span style={{ fontSize: 11, color: '#D1D1D6', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Pause style={{ width: 9, height: 9 }} /> Paused
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 12, color: stale ? '#FF9500' : '#AEAEB2', fontWeight: stale ? 600 : 400, letterSpacing: '-0.01em' }}>
-                      {timeAgo(url.last_checked_at)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Last change */}
-                <div style={{ minWidth: 0, paddingRight: 8 }}>
-                  {lastAlert ? (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                      <div style={{ flexShrink: 0, marginTop: 1 }}>
-                        {sv && (
-                          <span style={{ fontSize: 9, fontWeight: 700, color: sv.color, background: sv.bg, padding: '2px 6px', borderRadius: 4 }}>
-                            {Number(lastAlert.diff_pct ?? 0).toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                      <p style={{ fontSize: 11, color: '#6E6E73', lineHeight: 1.45, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
-                        {lastAlert.ai_summary
-                          ? lastAlert.ai_summary.split('.')[0] + '.'
-                          : 'Visual change detected.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 11, color: '#D1D1D6' }}>No changes yet</span>
-                  )}
-                </div>
-
-                {/* Open alert badge / arrow */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                  {openCount > 0 && !isPaused ? (
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#FF3B30', background: 'rgba(255,59,48,0.08)', padding: '3px 8px', borderRadius: 6 }}>
-                      {openCount}
-                    </span>
-                  ) : null}
-                  <ArrowRight style={{ width: 13, height: 13, color: '#D1D1D6', flexShrink: 0 }} />
-                </div>
-              </Link>
+              />
             )
           })}
         </div>
@@ -262,9 +171,16 @@ export default async function UrlsPage() {
   )
 }
 
-function StatPill({ label, color, bg, dot, icon }: { label: string; color: string; bg: string; dot?: boolean; icon?: React.ReactNode }) {
+function StatPill({ label, color, bg, border, dot, icon }: {
+  label: string; color: string; bg: string; border: string; dot?: boolean; icon?: React.ReactNode
+}) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, background: bg, fontSize: 11, fontWeight: 700, color, letterSpacing: '-0.01em' }}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '4px 9px', borderRadius: 6,
+      background: bg, border: `1px solid ${border}`,
+      fontSize: 11, fontWeight: 600, color,
+    }}>
       {dot ? <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} /> : icon}
       {label}
     </span>

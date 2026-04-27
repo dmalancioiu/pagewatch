@@ -2,7 +2,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { createServerClient } from '@/lib/supabase/server'
-import { BellRing, CheckCircle2, Clock, ShieldAlert, Sparkles, ArrowRight, Activity } from 'lucide-react'
+import { Bell, Activity, ChevronRight } from 'lucide-react'
+import { StatusBadge } from '@/components/dashboard/StatusBadge'
+
+export const metadata = { title: 'Alerts — PageWatch' }
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'Never'
@@ -15,99 +18,11 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function fallbackSummary(pct: number | null, urlName: string): string {
-  if (!pct) return `Visual change detected on ${urlName}.`
-  if (pct >= 50) return 'Major layout change — page structure significantly altered.'
-  if (pct >= 25) return 'Significant visual change — multiple elements shifted.'
-  if (pct >= 10) return 'Moderate change — content or styling was updated.'
-  return 'Minor change — small text or styling update.'
-}
-
-function AlertRow({ alert }: { alert: any }) {
-  const urlName = alert.monitored_urls?.name ?? alert.monitored_urls?.url ?? 'Unknown'
-  const urlRaw = alert.monitored_urls?.url ?? ''
-  const summary = alert.ai_summary || fallbackSummary(alert.diff_pct, urlName)
-  const age = timeAgo(alert.created_at)
-  const isOpen = alert.status === 'open'
-
-  let domain = urlRaw
-  try { domain = new URL(urlRaw).hostname } catch {}
-
-  return (
-    <Link
-      href={`/dashboard/urls/${alert.monitored_url_id}`}
-      style={{ display: 'block', textDecoration: 'none' }}
-      className="alert-row-link"
-    >
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', gap: 14,
-        padding: '13px 20px', borderBottom: '1px solid #F3F4F6',
-        transition: 'background 0.1s',
-        opacity: isOpen ? 1 : 0.75,
-      }}
-        className={isOpen ? 'alert-row-open' : 'alert-row-ack'}
-      >
-        {/* Status col */}
-        <div style={{ paddingTop: 3, flexShrink: 0 }}>
-          {isOpen ? (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 99,
-              background: '#FEE2E2', color: '#DC2626',
-              fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-              whiteSpace: 'nowrap'
-            }}>
-              <ShieldAlert style={{ width: 9, height: 9 }} /> Open
-            </span>
-          ) : (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 99,
-              background: '#F3F4F6', color: '#9CA3AF',
-              fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-              whiteSpace: 'nowrap'
-            }}>
-              <CheckCircle2 style={{ width: 9, height: 9 }} /> Done
-            </span>
-          )}
-        </div>
-
-        {/* Main content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{urlName}</span>
-            <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#9CA3AF' }}>{domain}</span>
-            {alert.diff_pct != null && (
-              <span style={{
-                fontSize: 10, fontWeight: 700,
-                color: isOpen ? '#DC2626' : '#9CA3AF',
-                background: isOpen ? '#FEF2F2' : '#F3F4F6',
-                padding: '1px 6px', borderRadius: 4,
-                textTransform: 'uppercase', letterSpacing: '0.04em'
-              }}>
-                {Number(alert.diff_pct).toFixed(1)}% diff
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <Sparkles style={{ width: 10, height: 10, color: isOpen ? '#FCA5A5' : '#D1D5DB', marginTop: 2, flexShrink: 0 }} />
-            <p style={{ fontSize: 12, color: isOpen ? '#374151' : '#9CA3AF', lineHeight: 1.55 }}>
-              {summary}
-            </p>
-          </div>
-        </div>
-
-        {/* Right col: time + arrow */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock style={{ width: 10, height: 10, color: '#D1D5DB' }} />
-            <span style={{ fontSize: 11, color: '#9CA3AF' }}>{age}</span>
-          </div>
-          <ArrowRight style={{ width: 13, height: 13, color: '#E5E7EB' }} />
-        </div>
-      </div>
-    </Link>
-  )
+function diffColor(pct: number | null): { color: string; bg: string } {
+  if (!pct || pct < 10) return { color: '#16A34A', bg: 'rgba(22,163,74,0.08)' }
+  if (pct < 25) return { color: '#B45309', bg: 'rgba(180,83,9,0.08)' }
+  if (pct < 50) return { color: '#C2410C', bg: 'rgba(194,65,12,0.08)' }
+  return { color: '#DC2626', bg: 'rgba(220,38,38,0.08)' }
 }
 
 export default async function AlertsPage() {
@@ -123,105 +38,172 @@ export default async function AlertsPage() {
     .order('created_at', { ascending: false })
 
   const safeAlerts = alerts ?? []
-  const openAlerts = safeAlerts.filter((a: any) => a.status === 'open')
-  const resolvedAlerts = safeAlerts.filter((a: any) => a.status !== 'open')
+  const openCount = safeAlerts.filter((a: any) => a.status === 'open').length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontSize: 13, paddingBottom: 48 }}>
+    <div className="dash-page" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 48 }}>
 
-      {/* ── Page Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>Alerts</h1>
-          <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 3 }}>
-            Visual change history across all your monitors.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', background: 'white', borderRadius: 8,
-            border: '1px solid #E5E7EB', fontSize: 12, fontWeight: 600, color: '#6B7280'
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 36 }}>
+        <h1 style={{ fontSize: 15, fontWeight: 700, color: '#111827', letterSpacing: '-0.01em' }}>
+          Alerts
+        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', background: 'white',
+            border: '1px solid #E5E7EB', borderRadius: 6,
+            fontSize: 11, fontWeight: 600, color: '#6B7280',
           }}>
-            <BellRing style={{ width: 13, height: 13, color: '#9CA3AF' }} />
+            <Bell size={11} style={{ color: '#9CA3AF' }} />
             {safeAlerts.length} total
-          </div>
-          {openAlerts.length > 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', background: '#FEF2F2', borderRadius: 8,
-              border: '1px solid rgba(220,38,38,0.2)', fontSize: 12, fontWeight: 700, color: '#DC2626'
+          </span>
+          {openCount > 0 && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', background: '#FEF2F2',
+              border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6,
+              fontSize: 11, fontWeight: 700, color: '#DC2626',
             }}>
-              <ShieldAlert style={{ width: 13, height: 13 }} />
-              {openAlerts.length} open
-            </div>
+              {openCount} open
+            </span>
           )}
         </div>
       </div>
 
-      {/* ── Empty State ── */}
+      {/* Empty state */}
       {safeAlerts.length === 0 ? (
         <div style={{
-          background: 'white', borderRadius: 16, border: '1px solid #E5E7EB',
+          background: 'white', borderRadius: 8, border: '1px solid #E5E7EB',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '72px 24px', textAlign: 'center'
+          padding: '64px 24px', textAlign: 'center',
         }}>
           <div style={{
-            width: 44, height: 44, borderRadius: 12,
+            width: 40, height: 40, borderRadius: 10,
             background: '#F3F4F6', border: '1px solid #E5E7EB',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
           }}>
-            <Activity style={{ width: 18, height: 18, color: '#D1D5DB' }} />
+            <Activity size={16} style={{ color: '#D1D5DB' }} />
           </div>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 6 }}>No alerts yet</h2>
-          <p style={{ fontSize: 12, color: '#9CA3AF', maxWidth: 280, lineHeight: 1.6 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 5 }}>No alerts yet</h2>
+          <p style={{ fontSize: 11, color: '#9CA3AF', maxWidth: 260, lineHeight: 1.6 }}>
             Once a monitored page has a visual change, the AI analysis and diff will appear here.
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Open alerts */}
-          {openAlerts.length > 0 && (
-            <div style={{ background: 'white', borderRadius: 16, border: '1px solid rgba(220,38,38,0.2)', overflow: 'hidden' }}>
-              <div style={{
-                padding: '12px 20px', borderBottom: '1px solid #FEE2E2',
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'rgba(254,242,242,0.5)'
+        /* Flat alerts table */
+        <div style={{
+          background: 'white', border: '1px solid #E5E7EB',
+          borderRadius: 8, overflow: 'hidden',
+        }}>
+          {/* Column headers */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '72px 1fr 60px 180px 70px 20px',
+            padding: '8px 14px',
+            background: '#FAFAFA',
+            borderBottom: '1px solid #F3F4F6',
+          }}>
+            {['Status', 'Monitor', 'Diff%', 'Summary', 'Time', ''].map((h, i) => (
+              <span key={i} style={{
+                fontSize: 9, fontWeight: 700, color: '#D1D5DB',
+                textTransform: 'uppercase', letterSpacing: '0.06em',
               }}>
-                <ShieldAlert style={{ width: 13, height: 13, color: '#DC2626' }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#DC2626' }}>Requires Attention</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: '#DC2626',
-                  background: '#FEE2E2', padding: '1px 7px', borderRadius: 99
-                }}>{openAlerts.length}</span>
-              </div>
-              {openAlerts.map((alert: any) => (
-                <AlertRow key={alert.id} alert={alert} />
-              ))}
-            </div>
-          )}
+                {h}
+              </span>
+            ))}
+          </div>
 
-          {/* Resolved alerts */}
-          {resolvedAlerts.length > 0 && (
-            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-              <div style={{
-                padding: '12px 20px', borderBottom: '1px solid #F3F4F6',
-                display: 'flex', alignItems: 'center', gap: 8, background: '#FAFAFA'
-              }}>
-                <CheckCircle2 style={{ width: 13, height: 13, color: '#9CA3AF' }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280' }}>Acknowledged</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 600, color: '#9CA3AF',
-                  background: '#F3F4F6', padding: '1px 7px', borderRadius: 99
-                }}>{resolvedAlerts.length}</span>
-              </div>
-              {resolvedAlerts.map((alert: any) => (
-                <AlertRow key={alert.id} alert={alert} />
-              ))}
-            </div>
-          )}
+          {safeAlerts.map((alert: any, idx: number) => {
+            const isOpen = alert.status === 'open'
+            const isLast = idx === safeAlerts.length - 1
+            const dc = diffColor(alert.diff_pct)
+            let domain = alert.monitored_urls?.url ?? ''
+            try { domain = new URL(domain).hostname } catch {}
 
+            return (
+              <Link
+                key={alert.id}
+                href={`/dashboard/urls/${alert.monitored_url_id}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '72px 1fr 60px 180px 70px 20px',
+                  alignItems: 'center',
+                  padding: '9px 14px',
+                  borderBottom: isLast ? 'none' : '1px solid #F9FAFB',
+                  textDecoration: 'none',
+                  transition: 'background 0.1s',
+                  opacity: isOpen ? 1 : 0.65,
+                }}
+                className="monitor-row"
+              >
+                {/* Status */}
+                <div>
+                  <StatusBadge variant={isOpen ? 'open' : 'acknowledged'} />
+                </div>
+
+                {/* Monitor */}
+                <div style={{ minWidth: 0, paddingRight: 8 }}>
+                  <p style={{
+                    fontSize: 12, fontWeight: 600, color: '#374151',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    marginBottom: 1,
+                  }}>
+                    {alert.monitored_urls?.name ?? 'Unknown'}
+                  </p>
+                  <p style={{
+                    fontSize: 10, color: '#9CA3AF', fontFamily: 'ui-monospace,monospace',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {domain}
+                  </p>
+                </div>
+
+                {/* Diff% */}
+                <div>
+                  {alert.diff_pct != null ? (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: dc.color, background: dc.bg,
+                      padding: '2px 6px', borderRadius: 4,
+                      display: 'inline-block',
+                    }}>
+                      {Number(alert.diff_pct).toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, color: '#D1D5DB' }}>—</span>
+                  )}
+                </div>
+
+                {/* Summary */}
+                <div style={{ minWidth: 0, paddingRight: 8 }}>
+                  {alert.ai_summary ? (
+                    <p style={{
+                      fontSize: 11, color: isOpen ? '#374151' : '#9CA3AF', lineHeight: 1.4,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical' as const,
+                      overflow: 'hidden', margin: 0,
+                    }}>
+                      {alert.ai_summary}
+                    </p>
+                  ) : (
+                    <span style={{ fontSize: 10, color: '#D1D5DB' }}>Visual change detected</span>
+                  )}
+                </div>
+
+                {/* Time */}
+                <div>
+                  <span style={{ fontSize: 10, color: '#9CA3AF' }}>{timeAgo(alert.created_at)}</span>
+                </div>
+
+                {/* Arrow */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <ChevronRight size={12} style={{ color: '#D1D5DB' }} />
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>

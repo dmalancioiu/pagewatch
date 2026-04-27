@@ -10,9 +10,9 @@ export function AddMonitorButton() {
       onClick={openAddUrl}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '8px 16px', background: '#16A34A', color: 'white',
-        borderRadius: 9, fontSize: 13, fontWeight: 600, border: 'none',
-        cursor: 'pointer', boxShadow: '0 2px 8px rgba(22,163,74,0.3)',
+        padding: '7px 14px', background: '#2563EB', color: 'white',
+        borderRadius: 7, fontSize: 12, fontWeight: 600, border: 'none',
+        cursor: 'pointer', boxShadow: '0 1px 4px rgba(37,99,235,0.25)',
         letterSpacing: '-0.01em', fontFamily: 'inherit',
       }}
     >

@@ -28,9 +28,9 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 w-58 flex flex-col z-40 select-none"
+      className="fixed inset-y-0 left-0 flex flex-col z-40 select-none"
       style={{
-        width: '232px',
+        width: '220px',
         background: '#FFFFFF',
         borderRight: '1px solid #E5E7EB',
       }}
@@ -42,7 +42,7 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       >
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: '#16A34A' }}
+          style={{ background: '#2563EB' }}
         >
           <Monitor className="w-4 h-4" style={{ color: '#FFFFFF' }} />
         </div>
@@ -64,14 +64,14 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
           onClick={openAddUrl}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all"
           style={{
-            background: '#16A34A',
+            background: '#2563EB',
             color: '#FFFFFF',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#15803D'
+            e.currentTarget.style.background = '#1D4ED8'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = '#16A34A'
+            e.currentTarget.style.background = '#2563EB'
           }}
         >
           <Plus className="w-3.5 h-3.5" />
@@ -109,7 +109,7 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
           <Link
             href="/dashboard/settings#billing"
             className="flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-lg transition-colors"
-            style={{ background: '#16A34A', color: '#FFFFFF' }}
+            style={{ background: '#2563EB', color: '#FFFFFF' }}
           >
             Upgrade
             <ArrowUpRight className="w-3 h-3" />
@@ -130,9 +130,9 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
           <div
             className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
             style={{
-              background: '#F0FDF4',
-              color: '#16A34A',
-              border: '1px solid rgba(22,163,74,0.2)',
+              background: '#EFF6FF',
+              color: '#2563EB',
+              border: '1px solid rgba(37,99,235,0.2)',
             }}
           >
             {initials}

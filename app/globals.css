@@ -18,9 +18,11 @@ html, body, :root {
   --text-muted:   #6B7280;
   --text-dim:     #9CA3AF;
   --text-faint:   #D1D5DB;
-  --accent:       #16A34A;
-  --accent-bg:    rgba(22,163,74,0.07);
-  --accent-border:rgba(22,163,74,0.22);
+  --accent:         #2563EB;
+  --accent-bg:      rgba(37,99,235,0.06);
+  --accent-border:  rgba(37,99,235,0.2);
+  --accent-cyan:    #06B6D4;
+  --accent-cyan-bg: rgba(6,182,212,0.07);
 }
 
 body {
@@ -337,8 +339,8 @@ details[open] > summary .chevron { transform: rotate(180deg); }
   color: #111827;
 }
 .dash-nav-item.active {
-  background: rgba(22,163,74,0.08);
-  color: #15803D;
+  background: #EFF6FF;
+  color: #2563EB;
   font-weight: 600;
 }
 
@@ -395,7 +397,7 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 
 /* ─── Onboarding progress bar ─── */
 .ob-progress {
-  background: #16A34A;
+  background: #2563EB;
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -413,8 +415,8 @@ details[open] > summary .chevron { transform: rotate(180deg); }
   background: #F9FAFB;
 }
 .schedule-card.selected {
-  border-color: rgba(22,163,74,0.4);
-  background: rgba(22,163,74,0.04);
+  border-color: rgba(37,99,235,0.35);
+  background: rgba(37,99,235,0.03);
 }
 
 /* ─── Dashboard input ─── */
@@ -431,8 +433,8 @@ details[open] > summary .chevron { transform: rotate(180deg); }
 }
 .dash-input::placeholder { color: #9CA3AF; }
 .dash-input:focus {
-  border-color: rgba(22,163,74,0.4);
-  box-shadow: 0 0 0 3px rgba(22,163,74,0.08);
+  border-color: rgba(37,99,235,0.4);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
 }
 
 /* ─── Theme-aware row hover ─── */
@@ -455,7 +457,7 @@ input[type='range'].clean-slider::-webkit-slider-thumb {
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #16A34A;
+  background: #2563EB;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid white;
@@ -464,9 +466,77 @@ input[type='range'].clean-slider::-webkit-slider-thumb {
 input[type='range'].clean-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: #16A34A;
+  background: #2563EB;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid white;
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
+
+/* ─── Workspace canvas dotted background ─── */
+.canvas-dot-bg {
+  background-image: radial-gradient(circle, #D1D5DB 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-color: #F6F7F9;
+}
+
+/* ─── Inspector section label ─── */
+.inspector-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+/* ─── Dashboard primary button (blue) ─── */
+.btn-dash-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #2563EB;
+  color: white;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-dash-primary:hover { background: #1D4ED8; }
+.btn-dash-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Dashboard ghost button ─── */
+.btn-dash-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  background: white;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-dash-ghost:hover { background: #F9FAFB; border-color: #D1D5DB; }
+.btn-dash-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Inspector panel scrollable container ─── */
+.inspector-panel {
+  overflow-y: auto;
+  border-left: 1px solid #E5E7EB;
+  background: #FFFFFF;
+}
+
+/* ─── Monitor row hover (workspace pages) ─── */
+.monitor-row:hover { background: #FAFAFA; }

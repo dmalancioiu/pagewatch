@@ -51,10 +51,9 @@ export function DashboardShell({
 
         <main
           className="flex-1 min-h-screen overflow-x-hidden"
-          style={{ marginLeft: '232px' }}
+          style={{ marginLeft: '220px' }}
         >
-          {/* 👇 Let it breathe! Use full width, or a much larger max width */}
-          <div className="w-full mx-auto px-6 py-8">
+          <div className="w-full">
             {children}
           </div>
         </main>
