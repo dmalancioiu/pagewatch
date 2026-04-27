@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { acknowledgeAlert } from '@/lib/actions/alerts'
 import { DiffViewerModal } from '@/components/dashboard/DiffViewerModal'
 import type { DiffTab } from '@/components/dashboard/DiffViewerModal'
@@ -84,9 +84,11 @@ function scoreForZone(alert: AlertWithUrls | undefined, zone: Zone, index: numbe
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
 function timeAgo(iso: string): string {
@@ -99,18 +101,8 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function getDateGroup(iso: string): string {
-  const diffDays = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return 'This week'
-  if (diffDays < 30) return 'This month'
-  return 'Older'
-}
-const GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'This month', 'Older']
-
 type TFilter = 'all' | 'changes' | 'clean'
-const PAGE_SIZE = 15
+const PAGE_SIZE = 8
 
 export function UrlDetailClient({ openAlert, snapshots, alertBySnapshotId, pageUrl, zones = [] }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
@@ -120,7 +112,7 @@ export function UrlDetailClient({ openAlert, snapshots, alertBySnapshotId, pageU
   const [isPending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
   const [filter, setFilter] = useState<TFilter>('all')
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [page, setPage] = useState(0)
 
   function openModal(alert: AlertWithUrls | null, snap: SnapshotWithUrl | null, tab: DiffTab) {
     setModalAlert(alert); setModalSnap(snap); setDefaultTab(tab); setModalOpen(true)
@@ -136,17 +128,10 @@ export function UrlDetailClient({ openAlert, snapshots, alertBySnapshotId, pageU
   const changeEvents = Object.keys(alertBySnapshotId).length
   const cleanRate = totalChecks > 0 ? Math.round(((totalChecks - changeEvents) / totalChecks) * 100) : 100
 
-  const filtered = snapshots.filter(s => filter === 'changes' ? !!alertBySnapshotId[s.id] : filter === 'clean' ? !alertBySnapshotId[s.id] : true)
-  const visible = filtered.slice(0, visibleCount)
-  const hasMore = filtered.length > visibleCount
-
-  const groupMap = new Map<string, SnapshotWithUrl[]>()
-  for (const s of visible) {
-    const lbl = getDateGroup(s.taken_at)
-    if (!groupMap.has(lbl)) groupMap.set(lbl, [])
-    groupMap.get(lbl)!.push(s)
-  }
-  const groups = GROUP_ORDER.filter(l => groupMap.has(l)).map(l => ({ label: l, items: groupMap.get(l)! }))
+  const filtered = useMemo(() => snapshots.filter(s => filter === 'changes' ? !!alertBySnapshotId[s.id] : filter === 'clean' ? !alertBySnapshotId[s.id] : true), [snapshots, filter, alertBySnapshotId])
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount - 1)
+  const visible = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
 
   const latestSnap = snapshots[0] ?? null
   const latestAlert = latestSnap ? alertBySnapshotId[latestSnap.id] : undefined
@@ -199,83 +184,55 @@ export function UrlDetailClient({ openAlert, snapshots, alertBySnapshotId, pageU
                     const diff = score?.diff_pct ?? null
                     const alertScore = score?.alert_score ?? null
                     return (
-                      <button
-                        key={z.id}
-                        onClick={openZoneEditor}
-                        style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(160px, 220px) 1fr auto', alignItems: 'center', gap: 16, padding: '13px 14px', border: '1px solid rgba(15,23,42,0.07)', borderRadius: 13, background: changed ? 'linear-gradient(90deg, rgba(255,255,255,1), rgba(254,242,242,0.46))' : 'linear-gradient(90deg, #FFFFFF, #FBFDFF)', boxShadow: '0 1px 2px rgba(15,23,42,0.03)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                        title="Edit this zone on the screenshot"
-                      >
+                      <button key={z.id} onClick={openZoneEditor} style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(160px, 220px) 1fr auto', alignItems: 'center', gap: 16, padding: '13px 14px', border: '1px solid rgba(15,23,42,0.07)', borderRadius: 13, background: changed ? 'linear-gradient(90deg, rgba(255,255,255,1), rgba(254,242,242,0.46))' : 'linear-gradient(90deg, #FFFFFF, #FBFDFF)', boxShadow: '0 1px 2px rgba(15,23,42,0.03)', cursor: 'pointer', textAlign: 'left', width: '100%' }} title="Edit this zone on the screenshot">
                         <div style={{ position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: 99, background: color }} />
                         <div style={{ minWidth: 0, paddingLeft: 5 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, boxShadow: `0 0 0 4px ${color}14`, flexShrink: 0 }} />
-                            <p style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{z.label || `Zone ${i + 1}`}</p>
-                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: color, boxShadow: `0 0 0 4px ${color}14`, flexShrink: 0 }} /><p style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{z.label || `Zone ${i + 1}`}</p></div>
                           <p style={{ fontSize: 10, color: '#94A3B8', marginTop: 5, textTransform: 'capitalize', fontWeight: 650 }}>{z.sensitivity ?? 'normal'} sensitivity</p>
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <p style={{ fontSize: 11, color: '#64748B', lineHeight: 1.45, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{z.instruction?.trim() || `Alert if ${z.label || `Zone ${i + 1}`} changes.`}</p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 7 }}>
-                            <span style={{ fontSize: 10, color: '#94A3B8' }}>Latest diff</span>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: changed ? '#DC2626' : '#0F172A' }}>{diff != null ? `${Number(diff).toFixed(1)}%` : '—'}</span>
-                            {alertScore != null && <span style={{ fontSize: 10, color: '#94A3B8' }}>Score {Number(alertScore).toFixed(0)}</span>}
-                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 7 }}><span style={{ fontSize: 10, color: '#94A3B8' }}>Latest diff</span><span style={{ fontSize: 11, fontWeight: 800, color: changed ? '#DC2626' : '#0F172A' }}>{diff != null ? `${Number(diff).toFixed(1)}%` : '—'}</span>{alertScore != null && <span style={{ fontSize: 10, color: '#94A3B8' }}>Score {Number(alertScore).toFixed(0)}</span>}</div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, borderRadius: 999, padding: '4px 8px', color: changed ? '#B91C1C' : '#15803D', background: changed ? 'rgba(220,38,38,0.07)' : 'rgba(22,163,74,0.08)', border: changed ? '1px solid rgba(220,38,38,0.14)' : '1px solid rgba(22,163,74,0.14)' }}>{changed ? 'Changed' : 'Clean'}</span>
-                          <span
-                            onClick={(e) => { e.stopPropagation(); openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after') }}
-                            style={{ background: '#F8FAFC', padding: '6px 8px', borderRadius: 8, fontSize: 11, color: '#2563EB', fontWeight: 750, cursor: 'pointer' }}
-                          >
-                            View diff
-                          </span>
-                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontSize: 10, fontWeight: 800, borderRadius: 999, padding: '4px 8px', color: changed ? '#B91C1C' : '#15803D', background: changed ? 'rgba(220,38,38,0.07)' : 'rgba(22,163,74,0.08)', border: changed ? '1px solid rgba(220,38,38,0.14)' : '1px solid rgba(22,163,74,0.14)' }}>{changed ? 'Changed' : 'Clean'}</span><span onClick={(e) => { e.stopPropagation(); openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after') }} style={{ background: '#F8FAFC', padding: '6px 8px', borderRadius: 8, fontSize: 11, color: '#2563EB', fontWeight: 750, cursor: 'pointer' }}>View diff</span></div>
                       </button>
                     )
                   })}
                 </div>
               ) : (
-                <div style={{ border: '1px dashed #CBD5E1', borderRadius: 14, padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', background: 'linear-gradient(180deg, #F8FAFC, #FFFFFF)' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(37,99,235,0.08)', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}><Target size={19} /></div>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 5 }}>Select what matters</p>
-                  <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6, maxWidth: 390, marginBottom: 14 }}>Draw zones for prices, status panels, tables, or content blocks. PageWatch will ignore the rest of the page.</p>
-                  <button className="btn-dash-primary" onClick={openZoneEditor} style={{ fontSize: 12, borderRadius: 9 }}><Plus size={11} /> Create focus zones</button>
-                </div>
+                <div style={{ border: '1px dashed #CBD5E1', borderRadius: 14, padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', background: 'linear-gradient(180deg, #F8FAFC, #FFFFFF)' }}><div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(37,99,235,0.08)', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}><Target size={19} /></div><p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 5 }}>Select what matters</p><p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6, maxWidth: 390, marginBottom: 14 }}>Draw zones for prices, status panels, tables, or content blocks. PageWatch will ignore the rest of the page.</p><button className="btn-dash-primary" onClick={openZoneEditor} style={{ fontSize: 12, borderRadius: 9 }}><Plus size={11} /> Create focus zones</button></div>
               )}
             </div>
-
             <div style={{ borderLeft: '1px solid #F1F5F9', background: 'linear-gradient(180deg, #F8FAFC, #FFFFFF)', padding: 16 }}>
-              <button onClick={() => openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after')} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-                <div style={{ width: '100%', height: 118, borderRadius: 13, overflow: 'hidden', background: '#EEF2F7', border: '1px solid rgba(15,23,42,0.08)', position: 'relative', boxShadow: '0 10px 28px rgba(15,23,42,0.09)' }}>
-                  {latestSnap.signedUrl ? <img src={latestSnap.signedUrl} alt="Latest capture preview" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}><ImageIcon size={16} /></div>}
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 30%, rgba(15,23,42,0.52))' }} />
-                  <span style={{ position: 'absolute', right: 9, bottom: 8, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'white', fontWeight: 800 }}><Eye size={10} /> Open capture</span>
-                </div>
-              </button>
-              <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 1, borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>
-                {[{ label: 'Checks', value: totalChecks }, { label: 'Changes', value: changeEvents, color: changeEvents > 0 ? '#DC2626' : undefined }, { label: 'Clean rate', value: `${cleanRate}%`, color: cleanRate >= 90 ? '#16A34A' : undefined }, { label: 'Latest diff', value: latestAlert?.diff_pct != null ? `${Number(latestAlert.diff_pct).toFixed(1)}%` : '—' }].map(stat => <div key={stat.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '9px 0' }}><span style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 }}>{stat.label}</span><span style={{ fontSize: 14, fontWeight: 850, color: stat.color ?? '#0F172A' }}>{stat.value}</span></div>)}
-              </div>
+              <button onClick={() => openModal(openAlert, latestSnap, openAlert ? 'compare' : 'after')} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}><div style={{ width: '100%', height: 118, borderRadius: 13, overflow: 'hidden', background: '#EEF2F7', border: '1px solid rgba(15,23,42,0.08)', position: 'relative', boxShadow: '0 10px 28px rgba(15,23,42,0.09)' }}>{latestSnap.signedUrl ? <img src={latestSnap.signedUrl} alt="Latest capture preview" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}><ImageIcon size={16} /></div>}<div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 30%, rgba(15,23,42,0.52))' }} /><span style={{ position: 'absolute', right: 9, bottom: 8, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'white', fontWeight: 800 }}><Eye size={10} /> Open capture</span></div></button>
+              <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 1, borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>{[{ label: 'Checks', value: totalChecks }, { label: 'Changes', value: changeEvents, color: changeEvents > 0 ? '#DC2626' : undefined }, { label: 'Clean rate', value: `${cleanRate}%`, color: cleanRate >= 90 ? '#16A34A' : undefined }, { label: 'Latest diff', value: latestAlert?.diff_pct != null ? `${Number(latestAlert.diff_pct).toFixed(1)}%` : '—' }].map(stat => <div key={stat.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '9px 0' }}><span style={{ fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 }}>{stat.label}</span><span style={{ fontSize: 14, fontWeight: 850, color: stat.color ?? '#0F172A' }}>{stat.value}</span></div>)}</div>
               {latestSnap.signedUrl && <button className="btn-dash-ghost" onClick={() => downloadImage(latestSnap.signedUrl!, `snap-${latestSnap.id}.png`)} style={{ width: '100%', justifyContent: 'center', marginTop: 12, fontSize: 11, borderRadius: 9 }}><Download size={10} /> Download capture</button>}
             </div>
           </div>
         </div>
       ) : <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, padding: '40px 24px', textAlign: 'center' }}><p style={{ fontSize: 13, color: '#9CA3AF' }}>No screenshots yet. Run a check to capture the first snapshot.</p></div>}
 
-      <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#FAFAFA' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><History size={13} style={{ color: '#9CA3AF' }} /><span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>History</span><span style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', background: '#F0F0F0', padding: '1px 6px', borderRadius: 99 }}>{snapshots.length}</span></div>
-          <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 6, padding: 2, gap: 1 }}>{(['all', 'changes', 'clean'] as TFilter[]).map(key => <button key={key} onClick={() => { setFilter(key); setVisibleCount(PAGE_SIZE) }} style={{ padding: '3px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600, background: filter === key ? 'white' : 'transparent', color: filter === key ? '#111827' : '#9CA3AF', border: 'none', cursor: 'pointer', boxShadow: filter === key ? '0 1px 2px rgba(0,0,0,0.08)' : 'none', textTransform: 'capitalize', transition: 'all 0.1s' }}>{key}</button>)}</div>
-        </div>
-        <div>{filtered.length === 0 ? <div style={{ padding: '28px 14px', textAlign: 'center', color: '#9CA3AF', fontSize: 12 }}>No snapshots match this filter.</div> : <>{groups.map(({ label, items }) => <div key={label}><div style={{ padding: '8px 14px 3px', fontSize: 10, fontWeight: 700, color: '#D1D5DB', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>{items.map(snap => <SnapshotRow key={snap.id} snap={snap} alert={alertBySnapshotId[snap.id]} changed={!!alertBySnapshotId[snap.id]} onOpen={() => openModal(alertBySnapshotId[snap.id] || null, snap, alertBySnapshotId[snap.id] ? 'compare' : 'after')} onDownload={() => snap.signedUrl && downloadImage(snap.signedUrl, `snap-${snap.id}.png`)} />)}</div>)}<div style={{ padding: '12px 14px', textAlign: 'center' }}>{hasMore ? <button className="btn-dash-ghost" onClick={() => setVisibleCount(c => c + PAGE_SIZE)} style={{ fontSize: 11 }}>Show more · {filtered.length - visibleCount} remaining</button> : <p style={{ fontSize: 10, color: '#D1D5DB', letterSpacing: '0.06em', textTransform: 'uppercase' }}>End of History</p>}</div></>}
-        </div>
-      </div>
+      <HistoryPanel snapshots={visible} allCount={snapshots.length} filteredCount={filtered.length} page={safePage} pageCount={pageCount} filter={filter} alertBySnapshotId={alertBySnapshotId} onFilter={(next) => { setFilter(next); setPage(0) }} onPrev={() => setPage(p => Math.max(0, p - 1))} onNext={() => setPage(p => Math.min(pageCount - 1, p + 1))} onOpen={(snap) => openModal(alertBySnapshotId[snap.id] || null, snap, alertBySnapshotId[snap.id] ? 'compare' : 'after')} />
 
       <DiffViewerModal isOpen={modalOpen} onClose={() => setModalOpen(false)} beforeUrl={modalAlert?.beforeUrl ?? null} afterUrl={modalAlert?.afterUrl ?? modalSnap?.signedUrl ?? null} diffUrl={modalAlert?.diffUrl ?? null} defaultTab={defaultTab} metadata={{ diffPct: modalAlert?.diff_pct, severity: modalAlert?.severity, timestamp: modalSnap?.taken_at ?? modalAlert?.created_at, pageUrl }} />
     </div>
   )
 }
 
-function SnapshotRow({ snap, alert, changed, onOpen, onDownload }: { snap: SnapshotWithUrl; alert: AlertWithUrls | undefined; changed: boolean; onOpen: () => void; onDownload: () => void }) {
-  const [hovered, setHovered] = useState(false)
-  return <div onClick={onOpen} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid #F9FAFB', background: hovered ? '#FAFAFA' : 'transparent', transition: 'background 0.1s' }}><div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: changed ? '#EF4444' : '#D1D5DB', boxShadow: changed ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none' }} /><div style={{ width: 64, height: 40, borderRadius: 5, overflow: 'hidden', flexShrink: 0, background: '#F3F4F6', border: '1px solid #E5E7EB' }}>{snap.signedUrl && <img src={snap.signedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }} />}</div><div style={{ flex: 1, minWidth: 0 }}><p style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 2 }}>{formatDate(snap.taken_at)}</p><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{changed ? <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.08)', padding: '1px 5px', borderRadius: 4 }}>{Number(alert!.diff_pct).toFixed(1)}% changed</span> : <span style={{ fontSize: 10, color: '#9CA3AF' }}>No changes</span>}{snap.file_size_bytes && <span style={{ fontSize: 10, color: '#D1D5DB' }}>· {Math.round(snap.file_size_bytes / 1024)} KB</span>}</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 5, opacity: hovered ? 1 : 0, transition: 'opacity 0.1s' }}>{snap.signedUrl && <button onClick={e => { e.stopPropagation(); onDownload() }} className="btn-dash-ghost" style={{ padding: '3px 7px', fontSize: 10 }} title="Download"><Download size={10} /></button>}<ChevronRight size={12} style={{ color: '#D1D5DB' }} /></div></div>
+function HistoryPanel({ snapshots, allCount, filteredCount, page, pageCount, filter, alertBySnapshotId, onFilter, onPrev, onNext, onOpen }: { snapshots: SnapshotWithUrl[]; allCount: number; filteredCount: number; page: number; pageCount: number; filter: TFilter; alertBySnapshotId: Record<string, AlertWithUrls>; onFilter: (f: TFilter) => void; onPrev: () => void; onNext: () => void; onOpen: (s: SnapshotWithUrl) => void }) {
+  return (
+    <div style={{ background: '#FFFFFF', border: '1px solid rgba(15,23,42,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 34px rgba(15,23,42,0.04)' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid #EEF2F7', background: 'linear-gradient(180deg, #FFFFFF, #FBFCFF)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ width: 31, height: 31, borderRadius: 10, background: 'rgba(15,23,42,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><History size={14} style={{ color: '#64748B' }} /></div><div><p style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', margin: 0 }}>History</p><p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{filteredCount} visible · {allCount} total captures</p></div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ display: 'flex', background: '#F1F5F9', borderRadius: 999, padding: 3, gap: 2 }}>{(['all', 'changes', 'clean'] as TFilter[]).map(key => <button key={key} onClick={() => onFilter(key)} style={{ height: 26, padding: '0 10px', borderRadius: 999, fontSize: 11, fontWeight: 720, background: filter === key ? '#FFFFFF' : 'transparent', color: filter === key ? '#0F172A' : '#94A3B8', border: 'none', cursor: 'pointer', boxShadow: filter === key ? '0 1px 3px rgba(15,23,42,0.08)' : 'none', textTransform: 'capitalize' }}>{key}</button>)}</div><span style={{ fontSize: 11, color: '#94A3B8', minWidth: 58, textAlign: 'right' }}>{page + 1} / {pageCount}</span></div>
+      </div>
+      {snapshots.length === 0 ? <div style={{ padding: 32, textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>No captures match this filter.</div> : <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>{snapshots.map(snap => <HistoryCard key={snap.id} snap={snap} alert={alertBySnapshotId[snap.id]} onOpen={() => onOpen(snap)} />)}</div>}
+      <div style={{ padding: '11px 14px', borderTop: '1px solid #EEF2F7', background: '#FBFCFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 11, color: '#94A3B8' }}>Showing {snapshots.length} captures</span><div style={{ display: 'flex', gap: 7 }}><button className="btn-dash-ghost" onClick={onPrev} disabled={page === 0} style={{ fontSize: 11, opacity: page === 0 ? 0.45 : 1 }}>Previous</button><button className="btn-dash-ghost" onClick={onNext} disabled={page >= pageCount - 1} style={{ fontSize: 11, opacity: page >= pageCount - 1 ? 0.45 : 1 }}>Next</button></div></div>
+    </div>
+  )
+}
+
+function HistoryCard({ snap, alert, onOpen }: { snap: SnapshotWithUrl; alert?: AlertWithUrls; onOpen: () => void }) {
+  const changed = !!alert
+  return <button onClick={onOpen} style={{ border: '1px solid rgba(15,23,42,0.07)', borderRadius: 13, background: '#FFFFFF', padding: 0, overflow: 'hidden', textAlign: 'left', cursor: 'pointer', boxShadow: '0 1px 2px rgba(15,23,42,0.03)' }}><div style={{ height: 82, background: '#F1F5F9', position: 'relative', overflow: 'hidden' }}>{snap.signedUrl ? <img src={snap.signedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#CBD5E1' }}><ImageIcon size={16} /></div>}<span style={{ position: 'absolute', left: 8, top: 8, width: 7, height: 7, borderRadius: '50%', background: changed ? '#EF4444' : '#CBD5E1', boxShadow: changed ? '0 0 0 3px rgba(239,68,68,0.14)' : '0 0 0 3px rgba(203,213,225,0.22)' }} /></div><div style={{ padding: '9px 10px' }}><p style={{ fontSize: 11, fontWeight: 780, color: '#0F172A', margin: 0 }}>{formatDate(snap.taken_at)}</p><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 }}><span style={{ fontSize: 10, fontWeight: 760, color: changed ? '#DC2626' : '#64748B', background: changed ? 'rgba(239,68,68,0.08)' : '#F1F5F9', padding: '2px 6px', borderRadius: 999 }}>{changed ? `${Number(alert!.diff_pct).toFixed(1)}%` : 'Clean'}</span><span style={{ fontSize: 10, color: '#94A3B8' }}>{formatTime(snap.taken_at)}</span></div></div></button>
 }
