@@ -26,31 +26,13 @@ function ProgressStepper({ phase }: { phase: Phase }) {
   const zonesActive = phase === 'zones'
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: 3, borderRadius: 999,
-      background: '#F1F5F9', border: '1px solid #E6EAF0',
-    }}>
-      <div style={{
-        height: 28, padding: '0 10px', borderRadius: 999,
-        display: 'flex', alignItems: 'center', gap: 6,
-        background: phase === 'loading' ? '#FFFFFF' : 'transparent',
-        color: phase === 'loading' ? '#2563EB' : '#16A34A',
-        fontSize: 11, fontWeight: 750,
-        boxShadow: phase === 'loading' ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
-      }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 3, borderRadius: 999, background: '#F1F5F9', border: '1px solid #E6EAF0' }}>
+      <div style={{ height: 28, padding: '0 10px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, background: phase === 'loading' ? '#FFFFFF' : 'transparent', color: phase === 'loading' ? '#2563EB' : '#16A34A', fontSize: 11, fontWeight: 750, boxShadow: phase === 'loading' ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
         {captureDone ? <CheckCircle2 size={13} /> : <Camera size={13} />}
         Capture
       </div>
       <div style={{ width: 18, height: 1, background: captureDone ? 'rgba(37,99,235,0.35)' : '#CBD5E1' }} />
-      <div style={{
-        height: 28, padding: '0 10px', borderRadius: 999,
-        display: 'flex', alignItems: 'center', gap: 6,
-        background: zonesActive ? '#FFFFFF' : 'transparent',
-        color: zonesActive ? '#2563EB' : '#94A3B8',
-        fontSize: 11, fontWeight: 750,
-        boxShadow: zonesActive ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
-      }}>
+      <div style={{ height: 28, padding: '0 10px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, background: zonesActive ? '#FFFFFF' : 'transparent', color: zonesActive ? '#2563EB' : '#94A3B8', fontSize: 11, fontWeight: 750, boxShadow: zonesActive ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
         <Target size={13} />
         Zones
       </div>
@@ -101,6 +83,7 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
   }, [phase, urlId])
 
   function navigateToUrl() {
+    onClose()
     router.push(`/dashboard/urls/${urlId}`)
     router.refresh()
   }
@@ -119,12 +102,8 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
       <div style={{ width: '100%', maxWidth: phase === 'zones' ? 980 : 560, maxHeight: '92vh', overflow: 'hidden', background: '#FFFFFF', borderRadius: 18, border: '1px solid rgba(15,23,42,0.08)', boxShadow: '0 34px 100px rgba(15,23,42,0.22), 0 1px 2px rgba(15,23,42,0.08)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #EEF2F7', background: 'linear-gradient(180deg, #FFFFFF, #FBFCFF)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 760, color: '#0F172A', margin: 0, letterSpacing: '-0.025em' }}>
-              {phase === 'loading' ? 'Capturing baseline' : phase === 'zones' ? 'Choose focus zones' : 'Capture failed'}
-            </h2>
-            <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-              {phase === 'loading' ? `Opening ${urlName || 'the page'} in a browser.` : phase === 'zones' ? 'Draw around the parts that matter. Everything else becomes background noise.' : 'We could not complete the first capture.'}
-            </p>
+            <h2 style={{ fontSize: 16, fontWeight: 760, color: '#0F172A', margin: 0, letterSpacing: '-0.025em' }}>{phase === 'loading' ? 'Capturing baseline' : phase === 'zones' ? 'Choose focus zones' : 'Capture failed'}</h2>
+            <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{phase === 'loading' ? `Opening ${urlName || 'the page'} in a browser.` : phase === 'zones' ? 'Draw around the parts that matter. Everything else becomes background noise.' : 'We could not complete the first capture.'}</p>
           </div>
           {phase !== 'error' && <ProgressStepper phase={phase} />}
         </div>
@@ -136,12 +115,8 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
               <span style={{ position: 'absolute', inset: -7, borderRadius: 28, border: '1px solid rgba(37,99,235,0.08)' }} />
             </div>
             <h3 style={{ fontSize: 17, fontWeight: 760, color: '#0F172A', marginBottom: 7 }}>Taking the first screenshot</h3>
-            <p style={{ fontSize: 13, color: '#64748B', lineHeight: 1.65, maxWidth: 410, margin: '0 auto' }}>
-              PageWatch is loading the target, removing noisy overlays, and saving the baseline you’ll use to select zones.
-            </p>
-            <div style={{ margin: '28px auto 0', width: '100%', maxWidth: 340, height: 7, borderRadius: 99, background: '#EEF2F7', overflow: 'hidden' }}>
-              <div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: 'linear-gradient(90deg, #2563EB, #38BDF8)', transition: 'width 1s ease' }} />
-            </div>
+            <p style={{ fontSize: 13, color: '#64748B', lineHeight: 1.65, maxWidth: 410, margin: '0 auto' }}>PageWatch is loading the target, removing noisy overlays, and saving the baseline you’ll use to select zones.</p>
+            <div style={{ margin: '28px auto 0', width: '100%', maxWidth: 340, height: 7, borderRadius: 99, background: '#EEF2F7', overflow: 'hidden' }}><div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: 'linear-gradient(90deg, #2563EB, #38BDF8)', transition: 'width 1s ease' }} /></div>
             <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 9 }}>{Math.round(elapsedMs / 1000)}s elapsed</p>
           </div>
         )}
@@ -151,27 +126,16 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
             <div style={{ padding: '12px 18px', borderBottom: '1px solid #EEF2F7', background: '#FBFCFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.16)', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Target size={15} /></div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 760, color: '#0F172A', margin: 0 }}>Define what PageWatch should care about</p>
-                  <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Click and drag on the screenshot. Then label each zone and add watch instructions.</p>
-                </div>
+                <div><p style={{ fontSize: 13, fontWeight: 760, color: '#0F172A', margin: 0 }}>Define what PageWatch should care about</p><p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Click and drag on the screenshot. Then label each zone and add watch instructions.</p></div>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 750, color: zones.length > 0 ? '#2563EB' : '#94A3B8', background: zones.length > 0 ? 'rgba(37,99,235,0.08)' : '#F1F5F9', border: zones.length > 0 ? '1px solid rgba(37,99,235,0.16)' : '1px solid #E6EAF0', borderRadius: 999, padding: '5px 9px' }}>
-                {zones.length} zone{zones.length !== 1 ? 's' : ''}
-              </span>
+              <span style={{ fontSize: 11, fontWeight: 750, color: zones.length > 0 ? '#2563EB' : '#94A3B8', background: zones.length > 0 ? 'rgba(37,99,235,0.08)' : '#F1F5F9', border: zones.length > 0 ? '1px solid rgba(37,99,235,0.16)' : '1px solid #E6EAF0', borderRadius: 999, padding: '5px 9px' }}>{zones.length} zone{zones.length !== 1 ? 's' : ''}</span>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, background: '#F8FAFC' }}>
-              <ZoneSelector imageUrl={signedUrl} zones={zones} onChange={setZones} />
-            </div>
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, background: '#F8FAFC' }}><ZoneSelector imageUrl={signedUrl} zones={zones} onChange={setZones} /></div>
             <div style={{ padding: '13px 18px', borderTop: '1px solid #EEF2F7', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#94A3B8', fontSize: 11 }}><Sparkles size={13} /> Zones are optional, but they make alerts much cleaner.</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={navigateToUrl} style={{ height: 36, padding: '0 13px', borderRadius: 10, border: '1px solid #E6EAF0', background: '#FFFFFF', color: '#64748B', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
-                  <SkipForward size={13} /> {zones.length > 0 ? 'Skip saving zones' : 'Watch whole page'}
-                </button>
-                <button type="button" onClick={handleSaveZones} disabled={isSaving || zones.length === 0} style={{ height: 36, padding: '0 15px', borderRadius: 10, border: 'none', background: '#2563EB', color: '#FFFFFF', fontSize: 12, fontWeight: 760, display: 'flex', alignItems: 'center', gap: 8, cursor: isSaving || zones.length === 0 ? 'not-allowed' : 'pointer', opacity: isSaving || zones.length === 0 ? 0.55 : 1, boxShadow: '0 8px 18px rgba(37,99,235,0.22)' }}>
-                  {isSaving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : <>Save zones <ArrowRight size={14} /></>}
-                </button>
+                <button type="button" onClick={navigateToUrl} style={{ height: 36, padding: '0 13px', borderRadius: 10, border: '1px solid #E6EAF0', background: '#FFFFFF', color: '#64748B', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><SkipForward size={13} /> {zones.length > 0 ? 'Skip saving zones' : 'Watch whole page'}</button>
+                <button type="button" onClick={handleSaveZones} disabled={isSaving || zones.length === 0} style={{ height: 36, padding: '0 15px', borderRadius: 10, border: 'none', background: '#2563EB', color: '#FFFFFF', fontSize: 12, fontWeight: 760, display: 'flex', alignItems: 'center', gap: 8, cursor: isSaving || zones.length === 0 ? 'not-allowed' : 'pointer', opacity: isSaving || zones.length === 0 ? 0.55 : 1, boxShadow: '0 8px 18px rgba(37,99,235,0.22)' }}>{isSaving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : <>Save zones <ArrowRight size={14} /></>}</button>
               </div>
             </div>
           </>
