@@ -3,9 +3,11 @@ import Anthropic from '@anthropic-ai/sdk'
 const NO_ALERT_MARKER = 'NO_ALERT'
 
 export interface ZoneCrop {
-  label:  string   // e.g. "Zone 1" or user-provided label
-  before: Buffer   // PNG buffer of the zone cropped from the previous screenshot
-  after:  Buffer   // PNG buffer of the zone cropped from the current screenshot
+  label:        string   // e.g. "Zone 1" or user-provided label
+  instruction?: string   // user-provided per-zone watch instruction
+  sensitivity?: 'low' | 'normal' | 'high'
+  before:       Buffer   // PNG buffer of the zone cropped from the previous screenshot
+  after:        Buffer   // PNG buffer of the zone cropped from the current screenshot
 }
 
 export interface AiAnalysisResult {
@@ -50,6 +52,13 @@ export async function analyzeWithAI(params: {
   if (hasZones) {
     // Send before/after crops for each zone as image pairs
     for (const crop of zoneCrops) {
+      const instruction = crop.instruction?.trim()
+      const sensitivity = crop.sensitivity ?? 'normal'
+      const meta = instruction
+        ? `${crop.label} — watch instruction: "${instruction}". Sensitivity: ${sensitivity}.`
+        : `${crop.label} — no custom watch instruction. Sensitivity: ${sensitivity}.`
+
+      content.push({ type: 'text', text: meta })
       content.push({ type: 'text', text: `${crop.label} — before:` })
       content.push({
         type:   'image',
@@ -78,40 +87,49 @@ export async function analyzeWithAI(params: {
   let prompt: string
 
   if (hasZones) {
-    const zoneNames = zoneCrops.map((z) => z.label).join(', ')
-    const sensitivityNote = thresholdPct != null
-      ? ` The user's sensitivity is set to ${thresholdPct}%.`
-      : ''
+    const zoneBrief = zoneCrops.map((z, i) => {
+      const instruction = z.instruction?.trim()
+      return [
+        `${i + 1}. ${z.label}`,
+        `   Sensitivity: ${z.sensitivity ?? 'normal'}`,
+        `   Watch instruction: ${instruction ? `"${instruction}"` : 'No custom instruction. Alert for meaningful visual changes in this zone.'}`,
+      ].join('\n')
+    }).join('\n')
 
-    if (watchDescription?.trim()) {
-      prompt = [
-        `The user is monitoring ${zoneCrops.length} specific zone${zoneCrops.length !== 1 ? 's' : ''} on a web page (${zoneNames}) and wants to be alerted when: "${watchDescription.trim()}"`,
-        ``,
-        `You are shown before/after image pairs for each zone.${sensitivityNote}`,
-        ``,
-        `Did anything the user specifically cares about change in any of these zones?`,
-        ``,
-        `- If YES: describe exactly what changed in one or two plain sentences, mentioning which zone if relevant.`,
-        `  Be specific (e.g. "The pricing zone changed from $29/mo to $39/mo" or "The hero zone now shows a new 'Sale' banner").`,
-        `- If NO (no relevant change in the watched zones): respond with only the word NO_ALERT.`,
-        ``,
-        `Respond with either NO_ALERT or a 1-2 sentence description. No preamble, no labels, no formatting.`,
-      ].join('\n')
-    } else {
-      prompt = [
-        `The user is monitoring ${zoneCrops.length} specific zone${zoneCrops.length !== 1 ? 's' : ''} on a web page (${zoneNames}).${sensitivityNote}`,
-        ``,
-        `You are shown before/after image pairs for each zone.`,
-        ``,
-        `Did anything visually change in any of these zones?`,
-        ``,
-        `- If YES: describe what changed in one or two plain sentences, mentioning which zone if relevant.`,
-        `  Be specific (e.g. "The price zone changed from $29 to $39" or "New text appeared in the hero zone").`,
-        `- If NO meaningful change in any zone: respond with only the word NO_ALERT.`,
-        ``,
-        `Respond with either NO_ALERT or a 1-2 sentence description. No preamble, no labels, no formatting.`,
-      ].join('\n')
-    }
+    const globalFallback = watchDescription?.trim()
+      ? `If a zone has no custom watch instruction, use this monitor-level fallback: "${watchDescription.trim()}"`
+      : `If a zone has no custom watch instruction, alert only for meaningful visual changes in that zone.`
+
+    const sensitivityNote = [
+      `Interpret zone sensitivity this way:`,
+      `- high: alert for small but visible changes that match the zone instruction.`,
+      `- normal: alert for clear content, layout, image, price, status, or text changes.`,
+      `- low: suppress minor cosmetic shifts, small timestamp updates, ad/noise changes, and tiny layout movement unless the zone instruction explicitly says to watch them.`,
+    ].join('\n')
+
+    const thresholdNote = thresholdPct != null
+      ? `The monitor-level pixel threshold is ${thresholdPct}%, but zone instructions are more important than the global threshold when deciding relevance.`
+      : `Zone instructions are the main source of truth when deciding relevance.`
+
+    prompt = [
+      `The user is monitoring specific zones on a web page. You are shown before/after image pairs for each zone.`,
+      ``,
+      `Zone rules:`,
+      zoneBrief,
+      ``,
+      globalFallback,
+      thresholdNote,
+      sensitivityNote,
+      ``,
+      `Decide whether any zone changed in a way that matches its own watch instruction.`,
+      ``,
+      `- If YES: describe exactly what changed in one or two plain sentences. Mention the zone name when useful.`,
+      `- If multiple zones changed, summarize the important changes without being verbose.`,
+      `- If NO zone changed in a relevant way, respond with only the word NO_ALERT.`,
+      ``,
+      `Ignore unrelated noise such as ads rotating, cookie banners, chat widgets, loading shimmer, tiny antialiasing differences, and timestamps unless a zone instruction explicitly asks to watch them.`,
+      `Respond with either NO_ALERT or a 1-2 sentence description. No preamble, no labels, no formatting.`,
+    ].join('\n')
   } else {
     // Full-page — original prompt logic
     const sensitivityNote = thresholdPct != null
