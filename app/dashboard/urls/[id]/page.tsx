@@ -54,6 +54,10 @@ function nextCheckAt(url: any): string {
   return `~${Math.round((next.getTime() - now.getTime()) / 3600000)}h`
 }
 
+function hostname(raw: string): string {
+  try { return new URL(raw).hostname } catch { return raw }
+}
+
 export default async function UrlDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const workspace = await getWorkspace()
   if (!workspace) redirect('/dashboard')
@@ -69,21 +73,14 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
 
   if (!urlData || urlData.workspace_id !== workspace.id) notFound()
 
-  const snapshots: any[] = (urlData.screenshot_snapshots ?? []).sort(
-    (a: any, b: any) => new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime()
-  )
-  const alerts: any[] = (urlData.alerts ?? []).sort(
-    (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )
+  const snapshots: any[] = (urlData.screenshot_snapshots ?? []).sort((a: any, b: any) => new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime())
+  const alerts: any[] = (urlData.alerts ?? []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const openAlerts = alerts.filter((a: any) => a.status === 'open')
 
   const snapshotById = new Map<string, any>()
   for (const s of snapshots) snapshotById.set(s.id, s)
 
-  const allPaths = [
-    ...snapshots.map((s: any) => s.storage_path),
-    ...alerts.map((a: any) => a.diff_storage_path),
-  ]
+  const allPaths = [...snapshots.map((s: any) => s.storage_path), ...alerts.map((a: any) => a.diff_storage_path)]
   const signedUrlMap = await getSignedUrls(allPaths)
 
   const enrichedAlerts: AlertWithUrls[] = alerts.map((a: any) => {
@@ -109,56 +106,32 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
     if (rawAlert?.current_snapshot_id) alertBySnapshotId[rawAlert.current_snapshot_id] = a
   }
 
-  const enrichedSnapshots: SnapshotWithUrl[] = snapshots.map((s: any) => ({
-    id: s.id,
-    storage_path: s.storage_path,
-    taken_at: s.taken_at,
-    file_size_bytes: s.file_size_bytes,
-    signedUrl: signedUrlMap.get(s.storage_path) ?? null,
-  }))
-
+  const enrichedSnapshots: SnapshotWithUrl[] = snapshots.map((s: any) => ({ id: s.id, storage_path: s.storage_path, taken_at: s.taken_at, file_size_bytes: s.file_size_bytes, signedUrl: signedUrlMap.get(s.storage_path) ?? null }))
   const openAlert = enrichedAlerts.find((a) => a.status === 'open') ?? null
 
   const isPaused = !urlData.is_active
   const isArchive = urlData.mode === 'archive'
-
-  const statusVariant = isPaused
-    ? 'paused'
-    : openAlerts.length > 0
-      ? 'alert'
-      : isArchive
-        ? 'archive'
-        : 'healthy'
+  const statusVariant = isPaused ? 'paused' : openAlerts.length > 0 ? 'alert' : isArchive ? 'archive' : 'healthy'
 
   return (
     <div style={{ minHeight: '100vh', background: '#F6F7F9' }}>
-      <WorkspaceTopBar
-        name={urlData.name}
-        url={urlData.url}
-        statusVariant={statusVariant}
-        lastChecked={timeAgo(urlData.last_checked_at)}
-        nextRun={nextCheckAt(urlData)}
-        urlId={urlData.id}
-        isPaused={isPaused}
-      />
+      <WorkspaceTopBar name={urlData.name} url={urlData.url} statusVariant={statusVariant} lastChecked={timeAgo(urlData.last_checked_at)} nextRun={nextCheckAt(urlData)} urlId={urlData.id} isPaused={isPaused} />
 
       <ResizableInspectorLayout
         main={
-          <UrlDetailClient
-            openAlert={openAlert}
-            snapshots={enrichedSnapshots}
-            alertBySnapshotId={alertBySnapshotId}
-            pageUrl={urlData.url}
-            urlId={urlData.id}
-            zones={urlData.zones ?? []}
-          />
+          <div style={{ maxWidth: 1180, margin: '0 auto', width: '100%' }}>
+            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 850, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Monitor workspace</p>
+                <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.08, fontWeight: 850, color: '#0F172A', letterSpacing: '-0.045em' }}>{urlData.name}</h1>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: openAlerts.length > 0 ? '#DC2626' : '#64748B' }}>{openAlerts.length > 0 ? `${openAlerts.length} open change${openAlerts.length !== 1 ? 's' : ''} waiting for review.` : `${hostname(urlData.url)} · ${urlData.zones?.length ?? 0} focus zone${(urlData.zones?.length ?? 0) !== 1 ? 's' : ''}.`}</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 999, background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 8px 24px rgba(15,23,42,0.045)', flexShrink: 0 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: statusVariant === 'alert' ? '#EF4444' : statusVariant === 'paused' ? '#94A3B8' : '#16A34A', boxShadow: statusVariant === 'alert' ? '0 0 0 4px rgba(239,68,68,0.1)' : statusVariant === 'paused' ? '0 0 0 4px rgba(148,163,184,0.12)' : '0 0 0 4px rgba(22,163,74,0.1)' }} /><span style={{ fontSize: 12, fontWeight: 750, color: '#475569', textTransform: 'capitalize' }}>{statusVariant}</span></div>
+            </div>
+            <UrlDetailClient openAlert={openAlert} snapshots={enrichedSnapshots} alertBySnapshotId={alertBySnapshotId} pageUrl={urlData.url} urlId={urlData.id} zones={urlData.zones ?? []} />
+          </div>
         }
-        inspector={
-          <UrlDetailSettings
-            url={urlData}
-            latestSnapshotUrl={enrichedSnapshots[0]?.signedUrl ?? null}
-          />
-        }
+        inspector={<UrlDetailSettings url={urlData} latestSnapshotUrl={enrichedSnapshots[0]?.signedUrl ?? null} />}
       />
     </div>
   )
