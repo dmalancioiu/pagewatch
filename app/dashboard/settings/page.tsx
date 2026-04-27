@@ -57,9 +57,9 @@ export default async function SettingsPage() {
   const emailFreq = (emailChannel?.config as any)?.frequency ?? 'daily'
 
   return (
-    <div className="canvas-dot-bg" style={{ minHeight: '100vh', padding: '26px 32px 48px' }}>
-      <div style={{ maxWidth: 980 }}>
-        <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+    <div className="canvas-dot-bg" style={{ minHeight: '100vh', padding: '30px 36px 56px' }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', width: '100%' }}>
+        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 850, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Settings</p>
             <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.08, fontWeight: 850, color: '#0F172A', letterSpacing: '-0.045em' }}>Workspace control center</h1>
@@ -68,8 +68,8 @@ export default async function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 999, background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 8px 24px rgba(15,23,42,0.045)' }}><ShieldCheck size={14} style={{ color: '#2563EB' }} /><span style={{ fontSize: 12, fontWeight: 750, color: '#475569' }}>Free workspace</span></div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 0.9fr)', gap: 16, alignItems: 'start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(300px, 0.85fr)', gap: 18, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <Section icon={<Building2 size={16} />} title="Workspace" description="Public labels and support identifiers for this workspace.">
               <div style={{ display: 'grid', gap: 14 }}>
                 <Field label="Workspace name" value={workspace.name ?? '—'} />
@@ -103,7 +103,7 @@ export default async function SettingsPage() {
             </Section>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <Section icon={<CreditCard size={16} />} title="Plan & billing" description="Current plan limits and upgrade options.">
               <div style={{ display: 'grid', gap: 14 }}>
                 <div style={{ padding: 15, borderRadius: 15, background: 'linear-gradient(180deg, #FFFFFF, #F8FAFC)', border: '1px solid #E2E8F0' }}>
