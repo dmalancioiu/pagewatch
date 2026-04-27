@@ -10,16 +10,16 @@ interface DashboardCtxValue {
   openAddUrl: () => void
 }
 
-const DashboardCtx = createContext<DashboardCtxValue>({ openAddUrl: () => {} })
+const DashboardCtx = createContext<DashboardCtxValue>({ openAddUrl: () => { } })
 export const useDashboard = () => useContext(DashboardCtx)
 
 /* ─── Shell ─── */
 interface DashboardShellProps {
-  children:    React.ReactNode
+  children: React.ReactNode
   workspaceId: string
-  domain:      string
-  userEmail:   string
-  plan?:       'free' | 'pro' | 'agency'
+  domain: string
+  userEmail: string
+  plan?: 'free' | 'pro' | 'agency'
 }
 
 export function DashboardShell({
@@ -29,8 +29,8 @@ export function DashboardShell({
   userEmail,
   plan = 'free',
 }: DashboardShellProps) {
-  const [addOpen,    setAddOpen]    = useState(false)
-  const [newUrlId,   setNewUrlId]   = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [newUrlId, setNewUrlId] = useState<string | null>(null)
   const [newUrlName, setNewUrlName] = useState<string>('')
 
   function handleUrlCreated(urlId: string, name?: string) {
@@ -53,7 +53,8 @@ export function DashboardShell({
           className="flex-1 min-h-screen overflow-x-hidden"
           style={{ marginLeft: '232px' }}
         >
-          <div className="max-w-5xl mx-auto px-6 py-8">
+          {/* 👇 Let it breathe! Use full width, or a much larger max width */}
+          <div className="w-full mx-auto px-6 py-8">
             {children}
           </div>
         </main>

@@ -10,12 +10,12 @@ interface AddUrlFormProps {
 }
 
 export function AddUrlForm({ workspaceId }: AddUrlFormProps) {
-  const [open, setOpen]       = useState(false)
-  const [url, setUrl]         = useState('')
-  const [name, setName]       = useState('')
-  const [freq, setFreq]       = useState<CheckFrequency>('daily')
+  const [open, setOpen] = useState(false)
+  const [url, setUrl] = useState('')
+  const [name, setName] = useState('')
+  const [freq, setFreq] = useState<CheckFrequency>('daily')
   const [threshold, setThreshold] = useState(5)
-  const [error, setError]     = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function deriveNameFromUrl(raw: string) {
@@ -43,9 +43,9 @@ export function AddUrlForm({ workspaceId }: AddUrlFormProps) {
       try {
         await addMonitoredUrls(workspaceId, [{
           url,
-          name:            name || deriveNameFromUrl(url),
+          name: name || deriveNameFromUrl(url),
           check_frequency: freq,
-          threshold_pct:   threshold,
+          threshold_pct: threshold,
         }])
         setUrl('')
         setName('')
@@ -62,10 +62,9 @@ export function AddUrlForm({ workspaceId }: AddUrlFormProps) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white w-fit"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-semibold hover:bg-zinc-800 transition-colors shadow-sm w-fit"
       >
-        <Plus className="w-4 h-4" />
-        Add URL
+        <Plus className="w-4 h-4" /> Add Monitor
       </button>
     )
   }
@@ -73,82 +72,85 @@ export function AddUrlForm({ workspaceId }: AddUrlFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-4"
+      className="bg-white rounded-2xl shadow-sm ring-1 ring-zinc-200 p-6 space-y-6"
     >
-      <h3 className="text-sm font-semibold text-white/80">Add a URL to monitor</h3>
+      <div className="border-b border-zinc-100 pb-4">
+        <h3 className="text-lg font-bold text-zinc-900">Initialize Monitor</h3>
+        <p className="text-sm text-zinc-500 mt-1">Configure tracking for a new URL target.</p>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-xs font-medium text-white/50 mb-1.5">URL</label>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500">Target URL</label>
           <input
             type="text"
-            placeholder="https://example.com/pricing"
+            placeholder="https://example.com"
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
             required
-            className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-accent-500/50 focus:ring-2 focus:ring-accent-500/20 font-mono"
+            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent font-mono"
           />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-white/50 mb-1.5">Display name</label>
+        <div className="space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500">Display Name</label>
           <input
             type="text"
-            placeholder="Pricing page"
+            placeholder="E.g., Pricing Page"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-accent-500/50 focus:ring-2 focus:ring-accent-500/20"
+            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
           />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-xs font-medium text-white/50 mb-1.5">Check frequency</label>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500">Schedule Frequency</label>
           <select
             value={freq}
             onChange={(e) => setFreq(e.target.value as CheckFrequency)}
-            className="w-full rounded-lg border border-white/[0.1] bg-[#0d111a] px-3 py-2.5 text-sm text-white outline-none focus:border-accent-500/50"
+            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 cursor-pointer"
           >
-            <option value="hourly">Hourly</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
+            <option value="hourly">Hourly checks</option>
+            <option value="daily">Daily checks</option>
+            <option value="weekly">Weekly checks</option>
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-white/50 mb-1.5">
-            Change threshold — {threshold}%
+        <div className="space-y-2">
+          <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500">
+            Sensitivity Threshold ({threshold}%)
           </label>
           <select
             value={threshold}
             onChange={(e) => setThreshold(Number(e.target.value))}
-            className="w-full rounded-lg border border-white/[0.1] bg-[#0d111a] px-3 py-2.5 text-sm text-white outline-none focus:border-accent-500/50"
+            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 cursor-pointer"
           >
-            <option value={2}>Sensitive — 2%</option>
+            <option value={2}>High Sensitivity — 2%</option>
             <option value={5}>Balanced — 5%</option>
-            <option value={15}>Tolerant — 15%</option>
+            <option value={15}>Low Sensitivity — 15%</option>
           </select>
         </div>
       </div>
 
       {error && (
-        <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+        <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-200 font-medium">
           {error}
         </p>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3 pt-2">
         <button
           type="submit"
           disabled={isPending || !url.trim()}
-          className="btn-primary px-5 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center px-6 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          {isPending ? 'Adding…' : 'Add URL'}
+          {isPending ? 'Deploying...' : 'Deploy Monitor'}
         </button>
         <button
           type="button"
           onClick={() => { setOpen(false); setError(null) }}
           disabled={isPending}
-          className="px-4 py-2.5 rounded-lg text-sm font-medium text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-colors"
+          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
         >
           Cancel
         </button>

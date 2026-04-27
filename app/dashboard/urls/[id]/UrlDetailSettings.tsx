@@ -2,433 +2,464 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  AlertTriangle,
-  Clock,
-  Crosshair,
-  Globe,
-  Loader2,
-  Pause,
-  Play,
-  Play as RunIcon,
-  Save,
-  Settings2,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { Settings2, Clock, Globe, Play, Pause, Trash2, Save, Loader2, Sparkles, Activity, AlertCircle, Target } from 'lucide-react'
 import { deleteMonitoredUrl, pauseMonitoredUrl, updateMonitoredUrl } from '@/lib/actions/websites'
 import { triggerManualRun } from '@/lib/actions/run-now'
-import { ZoneSelector } from '@/components/dashboard/ZoneSelector'
+import { ZoneSelectorModal } from '@/components/dashboard/ZoneSelectorModal'
 import type { CheckFrequency, Zone } from '@/lib/types/database.types'
 
-const FREQ_OPTIONS: { id: CheckFrequency; label: string; desc: string }[] = [
-  { id: 'hourly', label: 'Hourly', desc: 'Every 60 min' },
-  { id: 'daily', label: 'Daily', desc: 'Every 24 h' },
-  { id: 'weekly', label: 'Weekly', desc: 'Every 7 d' },
+const SF = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif'
+
+const FREQ_OPTIONS: { id: CheckFrequency; label: string }[] = [
+  { id: 'hourly', label: 'Hourly' },
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
 ]
 
-function hourLabel(h: number): string {
-  if (h === 0) return '12:00 AM'
-  if (h === 12) return '12:00 PM'
-  return h < 12 ? `${h}:00 AM` : `${h - 12}:00 PM`
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      fontSize: 10, fontWeight: 700, color: '#AEAEB2',
+      textTransform: 'uppercase', letterSpacing: '0.08em',
+      marginBottom: 10,
+    }}>
+      {children}
+    </p>
+  )
 }
 
-type RunState = 'idle' | 'confirming' | 'running' | 'done' | 'error'
-
-interface Props {
-  url: any
-  latestSnapshotUrl: string | null
+function Divider() {
+  return <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.06)', margin: '2px 0' }} />
 }
 
-export function UrlDetailSettings({ url, latestSnapshotUrl }: Props) {
+export function UrlDetailSettings({ url, latestSnapshotUrl }: { url: any; latestSnapshotUrl: string | null }) {
   const router = useRouter()
-
   const [freq, setFreq] = useState<CheckFrequency>(url.check_frequency)
   const [checkHour, setCheckHour] = useState<number>(url.check_hour ?? 9)
   const [description, setDescription] = useState<string>(url.watch_description ?? '')
   const [fullPage, setFullPage] = useState<boolean>(url.full_page !== false)
-  const [zones, setZones] = useState<Zone[]>(() => {
-    if (!url.zones) return []
-    if (Array.isArray(url.zones)) return url.zones as Zone[]
-    return []
-  })
+  const [zones, setZones] = useState<Zone[]>(() => Array.isArray(url.zones) ? url.zones as Zone[] : [])
   const [paused, setPaused] = useState(!url.is_active)
-  const [saved, setSaved] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState('')
-  const [runState, setRunState] = useState<RunState>('idle')
-  const [runError, setRunError] = useState<string | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-
+  const [runState, setRunState] = useState<'idle' | 'running' | 'done'>('idle')
   const [isSaving, startSave] = useTransition()
-  const [isDeleting, startDelete] = useTransition()
-  const [isPausing, startPause] = useTransition()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [zoneModalOpen, setZoneModalOpen] = useState(false)
 
-  const showTimePicker = freq === 'daily' || freq === 'weekly'
   const isArchive = url.mode === 'archive'
 
   function handleSave() {
     startSave(async () => {
       await updateMonitoredUrl(url.id, {
         check_frequency: freq,
-        check_hour: showTimePicker ? checkHour : null,
+        check_hour: freq !== 'hourly' ? checkHour : null,
         watch_description: description.trim() || null,
         full_page: fullPage,
         zones: zones.length > 0 ? zones : null,
       })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-      router.refresh()
-    })
-  }
-
-  function handlePause() {
-    startPause(async () => {
-      const newPaused = !paused
-      await pauseMonitoredUrl(url.id, newPaused)
-      setPaused(newPaused)
       router.refresh()
     })
   }
 
   async function handleRunNow() {
-    if (runState === 'confirming') {
-      setRunState('running')
-      setRunError(null)
-      try {
-        await triggerManualRun(url.id)
-        setRunState('done')
-        setTimeout(() => {
-          setRunState('idle')
-          router.refresh()
-        }, 3000)
-      } catch (err: any) {
-        setRunError(err?.message ?? 'Failed to trigger run')
-        setRunState('error')
-        setTimeout(() => setRunState('idle'), 4000)
-      }
-    } else {
-      setRunState('confirming')
+    setRunState('running')
+    try {
+      await triggerManualRun(url.id)
+      setRunState('done')
+      setTimeout(() => setRunState('idle'), 3000)
+      router.refresh()
+    } catch {
+      setRunState('idle')
     }
   }
 
-  function handleDelete() {
-    if (deleteConfirm.trim().toLowerCase() !== url.name.trim().toLowerCase()) return
-    startDelete(async () => {
-      await deleteMonitoredUrl(url.id)
-      router.push('/dashboard/urls')
-    })
-  }
-
   return (
-    <section className="dash-card overflow-hidden">
-      <div className="border-b px-5 py-4 sm:px-6" style={{ borderColor: '#F3F4F6', background: '#FCFCFD' }}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Settings2 className="h-4 w-4" style={{ color: '#9CA3AF' }} />
-              <p className="text-xs font-medium uppercase tracking-[0.16em]" style={{ color: '#9CA3AF' }}>Controls</p>
-            </div>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight" style={{ color: '#111827' }}>Manage this monitor</h2>
-            <p className="mt-1 text-sm leading-6" style={{ color: '#6B7280' }}>
-              Trigger checks, tune monitoring rules, and manage lifecycle actions without leaving the detail page.
-            </p>
+    <>
+      <div style={{
+        background: 'white', borderRadius: 16,
+        border: '0.5px solid rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+        overflow: 'hidden',
+        fontFamily: SF,
+      }}>
+
+        {/* Header */}
+        <div style={{
+          padding: '12px 16px',
+          borderBottom: '0.5px solid rgba(0,0,0,0.06)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: '#FAFAFA',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+            <Settings2 style={{ width: 13, height: 13, color: '#AEAEB2' }} />
+            Inspector
           </div>
           <button
-            type="button"
-            onClick={() => setSettingsOpen((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
-            style={{ background: settingsOpen ? '#111827' : '#FFFFFF', color: settingsOpen ? '#FFFFFF' : '#374151', border: settingsOpen ? '1px solid #111827' : '1px solid #E5E7EB' }}
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '6px 14px', background: '#16A34A', color: 'white',
+              borderRadius: 8, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+              opacity: isSaving ? 0.6 : 1,
+              boxShadow: '0 1px 4px rgba(22,163,74,0.3)',
+              letterSpacing: '-0.01em',
+            }}
           >
-            <Settings2 className="h-4 w-4" />
-            {settingsOpen ? 'Hide settings' : 'Edit settings'}
+            {isSaving ? <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" /> : <Save style={{ width: 11, height: 11 }} />}
+            Save
           </button>
         </div>
-      </div>
 
-      <div className="p-5 sm:p-6">
-        <div className="grid gap-3 lg:grid-cols-3">
-          <button
-            type="button"
-            onClick={handleRunNow}
-            disabled={runState === 'running' || runState === 'done' || paused}
-            className="rounded-2xl p-4 text-left transition-colors disabled:opacity-50"
-            style={{ background: '#FFFFFF', border: runState === 'confirming' ? '1px solid #16A34A' : '1px solid #E5E7EB' }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: runState === 'confirming' ? 'rgba(22,163,74,0.1)' : '#F9FAFB', color: runState === 'confirming' ? '#15803D' : '#6B7280', border: '1px solid #E5E7EB' }}>
-                {runState === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RunIcon className="h-4 w-4" />}
-              </div>
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: '#9CA3AF' }}>
-                {runState === 'confirming' ? 'Confirm' : 'Action'}
+        <div style={{ padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+          {/* Quick Actions */}
+          <section>
+            <SectionLabel>Quick Actions</SectionLabel>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                onClick={handleRunNow}
+                disabled={runState === 'running' || paused}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '12px 8px', borderRadius: 12,
+                  background: '#F5F5F7', border: '0.5px solid rgba(0,0,0,0.08)',
+                  cursor: (paused || runState === 'running') ? 'not-allowed' : 'pointer',
+                  color: '#1D1D1F', opacity: (paused || runState === 'running') ? 0.4 : 1,
+                  transition: 'background 0.15s',
+                  fontFamily: SF,
+                }}
+              >
+                {runState === 'running'
+                  ? <Loader2 style={{ width: 16, height: 16, color: '#16A34A' }} className="animate-spin" />
+                  : <Activity style={{ width: 16, height: 16, color: '#16A34A' }} />
+                }
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+                  {runState === 'done' ? 'Queued ✓' : 'Run Now'}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !paused
+                  setPaused(next)
+                  pauseMonitoredUrl(url.id, next).then(() => router.refresh())
+                }}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  padding: '12px 8px', borderRadius: 12,
+                  background: '#F5F5F7', border: '0.5px solid rgba(0,0,0,0.08)',
+                  cursor: 'pointer', color: '#1D1D1F',
+                  transition: 'background 0.15s',
+                  fontFamily: SF,
+                }}
+              >
+                {paused
+                  ? <Play style={{ width: 16, height: 16, color: '#30D158' }} />
+                  : <Pause style={{ width: 16, height: 16, color: '#FF9500' }} />
+                }
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+                  {paused ? 'Resume' : 'Pause'}
+                </span>
+              </button>
+            </div>
+          </section>
+
+          <Divider />
+
+          {/* Schedule */}
+          <section>
+            <SectionLabel>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Clock style={{ width: 10, height: 10 }} /> Schedule
               </span>
-            </div>
-            <p className="mt-4 text-sm font-semibold" style={{ color: '#111827' }}>
-              {runState === 'running' ? 'Queueing manual run…' : runState === 'done' ? 'Manual run queued' : runState === 'confirming' ? 'Click again to confirm' : 'Run a check now'}
-            </p>
-            <p className="mt-1 text-xs leading-5" style={{ color: runState === 'error' ? '#B91C1C' : '#6B7280' }}>
-              {runState === 'error'
-                ? runError
-                : paused
-                ? 'Resume the monitor first to trigger a manual check.'
-                : 'Useful after a deploy or content update.'}
-            </p>
-          </button>
+            </SectionLabel>
 
-          <button
-            type="button"
-            onClick={handlePause}
-            disabled={isPausing}
-            className="rounded-2xl p-4 text-left transition-colors disabled:opacity-50"
-            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: '#F9FAFB', color: '#6B7280', border: '1px solid #E5E7EB' }}>
-                {isPausing ? <Loader2 className="h-4 w-4 animate-spin" /> : paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            <div style={{ display: 'flex', background: '#EBEBEB', padding: 2, borderRadius: 9, gap: 1, marginBottom: freq !== 'hourly' ? 12 : 0 }}>
+              {FREQ_OPTIONS.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFreq(f.id)}
+                  style={{
+                    flex: 1, padding: '6px 0', borderRadius: 7,
+                    fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                    background: freq === f.id ? 'white' : 'transparent',
+                    color: freq === f.id ? '#1D1D1F' : '#8E8E93',
+                    boxShadow: freq === f.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    letterSpacing: '-0.01em',
+                    transition: 'all 0.15s',
+                    fontFamily: SF,
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {freq !== 'hourly' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: '#6E6E73', letterSpacing: '-0.01em' }}>Run hour (UTC)</span>
+                <select
+                  value={checkHour}
+                  onChange={e => setCheckHour(Number(e.target.value))}
+                  style={{
+                    fontSize: 12, color: '#1D1D1F', background: '#F5F5F7',
+                    border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 7,
+                    padding: '5px 10px', outline: 'none', fontFamily: SF,
+                  }}
+                >
+                  {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}:00</option>)}
+                </select>
               </div>
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: '#9CA3AF' }}>Status</span>
-            </div>
-            <p className="mt-4 text-sm font-semibold" style={{ color: '#111827' }}>{paused ? 'Resume monitoring' : 'Pause monitoring'}</p>
-            <p className="mt-1 text-xs leading-5" style={{ color: '#6B7280' }}>
-              {paused ? 'Re-enable scheduled checks and future alerts.' : 'Stop future checks without deleting history.'}
-            </p>
-          </button>
+            )}
+          </section>
 
-          <div className="rounded-2xl p-4" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl" style={{ background: '#F9FAFB', color: '#6B7280', border: '1px solid #E5E7EB' }}>
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: '#9CA3AF' }}>State</span>
-            </div>
-            <p className="mt-4 text-sm font-semibold" style={{ color: '#111827' }}>{saved ? 'Changes saved' : settingsOpen ? 'Editing enabled' : 'Ready to edit'}</p>
-            <p className="mt-1 text-xs leading-5" style={{ color: '#6B7280' }}>
-              {saved ? 'Settings were persisted successfully.' : 'Open the editor below to change schedule, zones, and capture rules.'}
-            </p>
-          </div>
-        </div>
+          {!isArchive && (
+            <>
+              <Divider />
 
-        {settingsOpen && (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="space-y-6">
-                <div className="rounded-2xl p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" style={{ color: '#9CA3AF' }} />
-                    <h3 className="text-sm font-semibold" style={{ color: '#111827' }}>Check frequency</h3>
+              {/* Capture Rules */}
+              <section>
+                <SectionLabel>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Globe style={{ width: 10, height: 10 }} /> Capture Rules
+                  </span>
+                </SectionLabel>
+
+                {/* Full page toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: '#1D1D1F', letterSpacing: '-0.01em' }}>Full Page Scroll</p>
+                    <p style={{ fontSize: 11, color: '#AEAEB2', marginTop: 2 }}>Capture entire page, not just viewport</p>
                   </div>
-                  <p className="mt-1 text-sm" style={{ color: '#6B7280' }}>
-                    Pick how often PageWatch captures a new screenshot for this monitor.
-                  </p>
+                  <button
+                    onClick={() => setFullPage(!fullPage)}
+                    style={{
+                      position: 'relative', width: 42, height: 24, borderRadius: 99,
+                      background: fullPage ? '#30D158' : '#E5E5EA',
+                      border: 'none', cursor: 'pointer',
+                      transition: 'background 0.2s', flexShrink: 0,
+                      boxShadow: fullPage ? '0 0 0 0.5px rgba(48,209,88,0.3)' : 'none',
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 2.5, borderRadius: '50%',
+                      width: 19, height: 19, background: 'white',
+                      left: fullPage ? 20.5 : 2.5,
+                      transition: 'left 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    {FREQ_OPTIONS.map((f) => {
-                      const active = freq === f.id
-                      return (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setFreq(f.id)}
-                          className="rounded-2xl p-4 text-left transition-colors"
-                          style={{
-                            background: active ? 'rgba(22,163,74,0.06)' : '#FCFCFD',
-                            border: active ? '1px solid rgba(22,163,74,0.26)' : '1px solid #E5E7EB',
-                          }}
-                        >
-                          <p className="text-sm font-semibold" style={{ color: active ? '#15803D' : '#111827' }}>{f.label}</p>
-                          <p className="mt-1 text-xs" style={{ color: '#6B7280' }}>{f.desc}</p>
-                        </button>
-                      )
-                    })}
-                  </div>
+                {/* Focus Zones — modal trigger */}
+                <div style={{
+                  background: '#F5F5F7', borderRadius: 12,
+                  border: '0.5px solid rgba(0,0,0,0.07)',
+                  overflow: 'hidden',
+                }}>
+                  {/* Zone preview header */}
+                  <div style={{
+                    padding: '12px 14px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 8,
+                        background: zones.length > 0 ? 'rgba(22,163,74,0.1)' : 'rgba(0,0,0,0.05)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Target style={{ width: 13, height: 13, color: zones.length > 0 ? '#16A34A' : '#AEAEB2' }} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#1D1D1F', letterSpacing: '-0.01em' }}>
+                          Focus Zones
+                        </p>
+                        <p style={{ fontSize: 10, color: '#AEAEB2', marginTop: 1 }}>
+                          {zones.length > 0 ? `${zones.length} zone${zones.length !== 1 ? 's' : ''} defined` : 'Whole page monitored'}
+                        </p>
+                      </div>
+                    </div>
 
-                  {showTimePicker && (
-                    <div className="mt-4 rounded-2xl p-4" style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                      <label className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: '#9CA3AF' }}>Run at, UTC</label>
-                      <select
-                        value={checkHour}
-                        onChange={(e) => setCheckHour(Number(e.target.value))}
-                        className="mt-3 w-full rounded-xl px-3 py-2 text-sm outline-none"
-                        style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', color: '#111827' }}
+                    {latestSnapshotUrl ? (
+                      <button
+                        onClick={() => setZoneModalOpen(true)}
+                        style={{
+                          padding: '6px 13px',
+                          background: '#16A34A', color: 'white',
+                          border: 'none', borderRadius: 8,
+                          fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          letterSpacing: '-0.01em',
+                          boxShadow: '0 1px 4px rgba(22,163,74,0.3)',
+                          fontFamily: SF,
+                        }}
                       >
-                        {Array.from({ length: 24 }, (_, h) => (
-                          <option key={h} value={h}>{hourLabel(h)}</option>
-                        ))}
-                      </select>
+                        {zones.length > 0 ? 'Edit Zones' : 'Add Zones'}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 10, color: '#AEAEB2', fontStyle: 'italic' }}>
+                        Run a check first
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Zone chips preview */}
+                  {zones.length > 0 && (
+                    <div style={{
+                      padding: '0 14px 12px',
+                      display: 'flex', flexWrap: 'wrap', gap: 5,
+                    }}>
+                      {zones.map((z, i) => {
+                        const colors = ['#16A34A', '#30D158', '#FF9500', '#AF52DE', '#32ADE6', '#FF3B30']
+                        const c = colors[i % colors.length]
+                        return (
+                          <span key={z.id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '3px 9px', borderRadius: 99,
+                            background: 'white', border: `0.5px solid ${c}44`,
+                            fontSize: 11, fontWeight: 600, color: '#1D1D1F',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                          }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                            {z.label?.trim() || `Zone ${i + 1}`}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Screenshot mini-preview (readonly) */}
+                  {latestSnapshotUrl && zones.length > 0 && (
+                    <div
+                      onClick={() => setZoneModalOpen(true)}
+                      style={{ cursor: 'pointer', borderTop: '0.5px solid rgba(0,0,0,0.06)', overflow: 'hidden', maxHeight: 100 }}
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <img
+                          src={latestSnapshotUrl}
+                          alt="Preview"
+                          style={{ width: '100%', display: 'block', objectFit: 'cover', objectPosition: 'top', maxHeight: 100 }}
+                        />
+                        <div style={{
+                          position: 'absolute', inset: 0,
+                          background: 'rgba(0,0,0,0.12)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 600, color: 'white',
+                            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                            padding: '4px 10px', borderRadius: 7,
+                          }}>
+                            Click to edit zones
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
+              </section>
 
-                {!isArchive && (
-                  <div className="rounded-2xl p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Crosshair className="h-4 w-4" style={{ color: '#9CA3AF' }} />
-                          <h3 className="text-sm font-semibold" style={{ color: '#111827' }}>Focus zones</h3>
-                        </div>
-                        <p className="mt-1 text-sm" style={{ color: '#6B7280' }}>
-                          Restrict comparisons to the areas that matter most on the page.
-                        </p>
-                      </div>
-                      {zones.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setZones([])}
-                          className="rounded-xl px-3 py-2 text-xs font-medium"
-                          style={{ background: 'rgba(185,28,28,0.05)', color: '#B91C1C', border: '1px solid rgba(185,28,28,0.16)' }}
-                        >
-                          Clear zones
-                        </button>
-                      )}
-                    </div>
+              <Divider />
 
-                    <div className="mt-4">
-                      {latestSnapshotUrl ? (
-                        <div className="overflow-hidden rounded-2xl" style={{ border: '1px solid #E5E7EB' }}>
-                          <ZoneSelector imageUrl={latestSnapshotUrl} zones={zones} onChange={setZones} />
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center rounded-2xl py-12 text-center" style={{ background: '#F9FAFB', border: '1px dashed #E5E7EB' }}>
-                          <Crosshair className="h-5 w-5" style={{ color: '#D1D5DB' }} />
-                          <p className="mt-2 text-xs" style={{ color: '#9CA3AF' }}>
-                            No screenshot yet. Run a check first, then define focus zones here.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* AI Prompt */}
+              <section>
+                <SectionLabel>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Sparkles style={{ width: 10, height: 10 }} /> AI Alert Prompt
+                  </span>
+                </SectionLabel>
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="e.g. Alert me only if the pricing numbers change."
+                  style={{
+                    width: '100%', fontSize: 12, padding: '10px 12px',
+                    background: '#F5F5F7', border: '0.5px solid rgba(0,0,0,0.08)', borderRadius: 10,
+                    resize: 'none', outline: 'none', color: '#1D1D1F', lineHeight: 1.6,
+                    fontFamily: SF, boxSizing: 'border-box', letterSpacing: '-0.01em',
+                  }}
+                />
+                <p style={{ fontSize: 10, color: '#AEAEB2', marginTop: 7, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
+                  Claude will focus its analysis on what matters to you.
+                </p>
+              </section>
+            </>
+          )}
 
-              <div className="space-y-6">
-                {!isArchive && (
-                  <div className="rounded-2xl p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" style={{ color: '#9CA3AF' }} />
-                      <h3 className="text-sm font-semibold" style={{ color: '#111827' }}>Alert focus</h3>
-                    </div>
-                    <p className="mt-1 text-sm" style={{ color: '#6B7280' }}>
-                      Guide AI toward the kinds of visual changes you actually care about.
-                    </p>
-                    <textarea
-                      rows={7}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder={'Examples: "Alert if pricing changes" or "Watch the hero section for new offers"'}
-                      className="dash-input mt-4 resize-none leading-relaxed"
-                      style={{ borderRadius: '16px' }}
-                    />
-                  </div>
-                )}
+          <Divider />
 
-                <div className="rounded-2xl p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4" style={{ color: '#9CA3AF' }} />
-                    <h3 className="text-sm font-semibold" style={{ color: '#111827' }}>Capture depth</h3>
-                  </div>
-                  <p className="mt-1 text-sm" style={{ color: '#6B7280' }}>
-                    Decide whether checks should capture the entire page or just the visible viewport.
-                  </p>
-
+          {/* Delete */}
+          <section>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '9px', background: 'rgba(255,59,48,0.06)', color: '#FF3B30',
+                  borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  border: '0.5px solid rgba(255,59,48,0.15)', cursor: 'pointer',
+                  letterSpacing: '-0.01em', fontFamily: SF,
+                }}
+              >
+                <Trash2 style={{ width: 12, height: 12 }} /> Delete Monitor
+              </button>
+            ) : (
+              <div style={{
+                padding: '14px', background: 'rgba(255,59,48,0.04)',
+                borderRadius: 12, border: '0.5px solid rgba(255,59,48,0.18)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <AlertCircle style={{ width: 13, height: 13, color: '#FF3B30' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FF3B30', letterSpacing: '-0.01em' }}>
+                    Confirm deletion
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: '#6E6E73', marginBottom: 12, letterSpacing: '-0.01em', lineHeight: 1.5 }}>
+                  Permanently deletes <strong style={{ color: '#1D1D1F' }}>{url.name}</strong> and all its snapshots. This cannot be undone.
+                </p>
+                <div style={{ display: 'flex', gap: 7 }}>
                   <button
-                    type="button"
-                    aria-pressed={fullPage}
-                    onClick={() => setFullPage((v) => !v)}
-                    className="mt-4 flex w-full items-center justify-between rounded-2xl p-4 text-left"
-                    style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
+                    onClick={() => deleteMonitoredUrl(url.id).then(() => router.push('/dashboard/urls'))}
+                    style={{
+                      flex: 1, padding: '8px',
+                      background: '#FF3B30', color: 'white',
+                      borderRadius: 9, fontSize: 12, fontWeight: 700,
+                      border: 'none', cursor: 'pointer', letterSpacing: '-0.01em',
+                      fontFamily: SF,
+                    }}
                   >
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: '#111827' }}>{fullPage ? 'Full page capture' : 'Viewport only'}</p>
-                      <p className="mt-1 text-xs" style={{ color: '#6B7280' }}>
-                        {fullPage ? 'Captures the full scrollable document.' : 'Captures only what is visible on first load.'}
-                      </p>
-                    </div>
-                    <span className="relative h-6 w-11 rounded-full transition-colors" style={{ background: fullPage ? '#16A34A' : '#D1D5DB' }}>
-                      <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all" style={{ left: fullPage ? '1.35rem' : '0.125rem' }} />
-                    </span>
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    style={{
+                      flex: 1, padding: '8px',
+                      background: 'white', color: '#1D1D1F',
+                      borderRadius: 9, fontSize: 12, fontWeight: 600,
+                      border: '0.5px solid rgba(0,0,0,0.12)', cursor: 'pointer',
+                      letterSpacing: '-0.01em', fontFamily: SF,
+                    }}
+                  >
+                    Cancel
                   </button>
                 </div>
-
-                <div className="rounded-2xl p-5" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50"
-                    style={{ background: saved ? 'rgba(22,163,74,0.1)' : '#111827', color: saved ? '#15803D' : '#FFFFFF', border: saved ? '1px solid rgba(22,163,74,0.22)' : '1px solid #111827' }}
-                  >
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    {saved ? 'Saved' : isSaving ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <p className="mt-2 text-center text-xs" style={{ color: '#9CA3AF' }}>
-                    Changes apply to future checks. Existing screenshots stay untouched.
-                  </p>
-                </div>
               </div>
-            </div>
+            )}
+          </section>
 
-            <div className="rounded-2xl p-5" style={{ background: 'rgba(185,28,28,0.03)', border: '1px solid rgba(185,28,28,0.12)' }}>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" style={{ color: '#DC2626' }} />
-                <h3 className="text-sm font-semibold" style={{ color: '#B91C1C' }}>Danger zone</h3>
-              </div>
-              <p className="mt-2 text-sm" style={{ color: '#6B7280' }}>
-                Deleting this monitor permanently removes its screenshots, alerts, and history.
-              </p>
-
-              {!showDelete ? (
-                <button
-                  type="button"
-                  onClick={() => setShowDelete(true)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
-                  style={{ background: '#FFFFFF', color: '#B91C1C', border: '1px solid rgba(185,28,28,0.18)' }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete monitor
-                </button>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  <p className="text-sm" style={{ color: '#374151' }}>
-                    Type <span className="font-mono font-semibold">{url.name}</span> to confirm deletion.
-                  </p>
-                  <input
-                    type="text"
-                    className="dash-input"
-                    placeholder={url.name}
-                    value={deleteConfirm}
-                    onChange={(e) => setDeleteConfirm(e.target.value)}
-                    autoFocus
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={isDeleting || deleteConfirm.trim().toLowerCase() !== url.name.trim().toLowerCase()}
-                      className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                      style={{ background: '#FFFFFF', color: '#B91C1C', border: '1px solid rgba(185,28,28,0.18)' }}
-                    >
-                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      {isDeleting ? 'Deleting…' : 'Confirm delete'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowDelete(false)
-                        setDeleteConfirm('')
-                      }}
-                      className="rounded-xl px-4 py-2 text-sm font-medium"
-                      style={{ color: '#6B7280' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-    </section>
+
+      {/* Zone selector modal */}
+      {latestSnapshotUrl && (
+        <ZoneSelectorModal
+          isOpen={zoneModalOpen}
+          onClose={() => setZoneModalOpen(false)}
+          imageUrl={latestSnapshotUrl}
+          zones={zones}
+          onChange={setZones}
+        />
+      )}
+    </>
   )
 }

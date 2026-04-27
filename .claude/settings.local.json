@@ -13,7 +13,9 @@
       "Bash(node -e \"const pkg = require\\('./node_modules/@trigger.dev/sdk/package.json'\\); const exp = pkg.exports || {}; console.log\\(Object.keys\\(exp\\).slice\\(0,20\\).join\\('\\\\n'\\)\\)\")",
       "Bash(npx tsc *)",
       "Bash(node -e \"const fs=require\\('fs'\\); const content=fs.readFileSync\\('app/dashboard/alerts/page.tsx','utf8'\\); const lines=content.split\\('\\\\n'\\); lines.forEach\\(\\(l,i\\)=>{ if\\(l.includes\\('&'\\) || l.includes\\('amp;'\\)\\) console.log\\(i+1, l\\) }\\)\")",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(Remove-Item -Recurse -Force \"D:\\\\Projects\\\\vibe-agent-saas\\\\.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cache cleared\")"
     ]
   }
 }
