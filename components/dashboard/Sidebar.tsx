@@ -33,6 +33,7 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
         width: '220px',
         background: '#FFFFFF',
         borderRight: '1px solid #E5E7EB',
+        boxShadow: '1px 0 0 rgba(255,255,255,0.7)',
       }}
     >
       {/* Logo */}
@@ -42,7 +43,10 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       >
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ background: '#2563EB' }}
+          style={{
+            background: '#2563EB',
+            boxShadow: '0 6px 14px rgba(37,99,235,0.22)',
+          }}
         >
           <Monitor className="w-4 h-4" style={{ color: '#FFFFFF' }} />
         </div>
@@ -58,20 +62,26 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
         </div>
       </div>
 
-      {/* Add monitor button */}
+      {/* Primary action */}
       <div className="px-3 pt-3 pb-2">
         <button
           onClick={openAddUrl}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all"
+          className="w-full flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all"
           style={{
+            height: 34,
             background: '#2563EB',
             color: '#FFFFFF',
+            border: 'none',
+            boxShadow: '0 1px 4px rgba(37,99,235,0.25)',
+            letterSpacing: '-0.01em',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#1D4ED8'
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.32)'
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = '#2563EB'
+            e.currentTarget.style.boxShadow = '0 1px 4px rgba(37,99,235,0.25)'
           }}
         >
           <Plus className="w-3.5 h-3.5" />
@@ -88,9 +98,20 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
               key={href}
               href={href}
               className={`dash-nav-item${active ? ' active' : ''}`}
+              style={{ position: 'relative' }}
             >
+              {active && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute', left: 4, top: '50%',
+                    width: 3, height: 16, borderRadius: 99,
+                    background: '#2563EB', transform: 'translateY(-50%)',
+                  }}
+                />
+              )}
               <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
+              <span>{label}</span>
             </Link>
           )
         })}
@@ -100,16 +121,22 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       {plan === 'free' && (
         <div
           className="mx-3 mb-3 p-3 rounded-xl"
-          style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}
+          style={{ background: '#F8FAFC', border: '1px solid #E5E7EB' }}
         >
-          <p className="text-xs font-semibold mb-0.5" style={{ color: '#374151' }}>Free plan</p>
-          <p className="text-[11px] mb-2.5" style={{ color: '#9CA3AF' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+            <p className="text-xs font-semibold" style={{ color: '#374151' }}>Free plan</p>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#2563EB', boxShadow: '0 0 0 3px rgba(37,99,235,0.1)',
+            }} />
+          </div>
+          <p className="text-[11px] mb-2.5 leading-relaxed" style={{ color: '#9CA3AF' }}>
             3 monitors · daily checks
           </p>
           <Link
             href="/dashboard/settings#billing"
             className="flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-lg transition-colors"
-            style={{ background: '#2563EB', color: '#FFFFFF' }}
+            style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.18)' }}
           >
             Upgrade
             <ArrowUpRight className="w-3 h-3" />
