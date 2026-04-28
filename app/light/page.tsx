@@ -1,225 +1,338 @@
 import Link from 'next/link'
 import {
-  Monitor,
-  ArrowRight,
-  Check,
-  Eye,
-  Bell,
-  Sparkles,
-  Clock3,
-  Shield,
-  Briefcase,
-  Search,
-  ScrollText,
-  Layers3,
-  Camera,
   Activity,
+  ArrowRight,
+  Bell,
+  Check,
   ChevronRight,
+  Clock3,
+  Eye,
+  Layers3,
+  Monitor,
+  MousePointer2,
+  ScanLine,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Zap,
 } from 'lucide-react'
 import { ScrollReveal } from '@/components/landing/ScrollReveal'
 
 export const metadata = {
-  title: 'PageWatch | Visual Website Monitoring & Page Change Detection',
+  title: 'PageWatch | Visual Website Monitoring with Focus Zones',
   description:
-    'Monitor any public webpage with scheduled screenshots, visual diffs, and AI summaries. Catch pricing, layout, content, and checkout changes before your users do.',
+    'Monitor public webpages with scheduled screenshots, focus zones, visual diffs, and AI summaries. Track pricing pages, checkout flows, competitor pages, and critical website changes without manual checking.',
+  keywords: [
+    'visual website monitoring',
+    'website change detection',
+    'page change detection',
+    'website monitoring tool',
+    'visual regression monitoring',
+    'screenshot monitoring',
+    'competitor price monitoring',
+    'webpage monitoring',
+    'visual diff tool',
+    'AI website monitoring',
+  ],
+  openGraph: {
+    title: 'PageWatch | Visual Website Monitoring with Focus Zones',
+    description:
+      'Select the parts of a webpage that matter. PageWatch watches those zones and alerts you when meaningful visual changes happen.',
+    type: 'website',
+  },
 }
 
-const BG = '#f6f4ef'
-const BG_SOFT = '#fbfaf7'
-const SURFACE = '#ffffff'
-const SURFACE_ALT = '#f1eee6'
-const SURFACE_SOFT = '#faf8f3'
-const TEXT = '#111827'
-const TEXT_SOFT = 'rgba(17,24,39,0.72)'
-const TEXT_DIM = 'rgba(17,24,39,0.48)'
-const BORDER = 'rgba(17,24,39,0.09)'
-const ACCENT = '#0e9f6e'
-const ACCENT_SOFT = 'rgba(14,159,110,0.10)'
-const ACCENT_MID = 'rgba(14,159,110,0.18)'
-const RED = '#dc4c3f'
-const RED_SOFT = 'rgba(220,76,63,0.08)'
-const RED_MID = 'rgba(220,76,63,0.18)'
-const SHADOW = '0 30px 90px rgba(17,24,39,0.10)'
-const SHADOW_LG = '0 40px 120px rgba(17,24,39,0.14)'
+const BG = '#F7F9FC'
+const BG_SOFT = '#FBFCFF'
+const SURFACE = '#FFFFFF'
+const SURFACE_SOFT = '#F8FAFC'
+const INK = '#0F172A'
+const MUTED = '#64748B'
+const FAINT = '#94A3B8'
+const BORDER = '#E2E8F0'
+const BLUE = '#2563EB'
+const BLUE_2 = '#3B82F6'
+const BLUE_SOFT = 'rgba(37,99,235,0.08)'
+const BLUE_MID = 'rgba(37,99,235,0.18)'
+const RED = '#DC2626'
+const RED_SOFT = 'rgba(220,38,38,0.08)'
+const GREEN = '#16A34A'
+const GREEN_SOFT = 'rgba(22,163,74,0.08)'
+const AMBER = '#D97706'
+const AMBER_SOFT = 'rgba(217,119,6,0.08)'
+const PURPLE = '#7C3AED'
+const PURPLE_SOFT = 'rgba(124,58,237,0.08)'
+const SHADOW = '0 18px 48px rgba(15,23,42,0.06)'
+const SHADOW_LG = '0 34px 90px rgba(15,23,42,0.12)'
 
 const useCases = [
   {
-    eyebrow: 'Revenue & growth',
-    title: 'Catch broken checkout, pricing, and sign-up changes before they cost conversions.',
-    body: 'Monitor your highest-leverage pages with tight thresholds and faster schedules, so layout shifts, missing elements, and silent content changes do not sit unnoticed for hours.',
-    bullets: ['Pricing and plan pages', 'Checkout and sign-up flows', 'Campaign landing pages'],
-    metric: '23.4% diff detected',
-    accent: RED,
+    label: 'Revenue',
+    title: 'Pricing and checkout pages',
+    body: 'Watch plan cards, checkout CTAs, form states, payment copy, and launch pages before silent changes cost conversions.',
+    color: RED,
+    bg: RED_SOFT,
   },
   {
-    eyebrow: 'Agencies',
-    title: 'Watch every client site from one workspace and prove exactly what changed.',
-    body: 'Stop being the last to know when a client page breaks, disappears, or quietly changes. Keep screenshot history, send diff alerts, and maintain a clean visual audit trail.',
-    bullets: ['Multi-client monitoring', 'Proof for client conversations', 'Screenshot history over time'],
-    metric: '18 monitored client pages',
-    accent: ACCENT,
+    label: 'Agencies',
+    title: 'Client website monitoring',
+    body: 'Keep a visual audit trail across client pages and know exactly what changed before the client asks.',
+    color: BLUE,
+    bg: BLUE_SOFT,
   },
   {
-    eyebrow: 'Competitive intelligence',
-    title: 'Track competitor pricing, positioning, and page changes without checking manually.',
-    body: 'When a competitor updates pricing, swaps messaging, or launches a new offer, you should not discover it from a stale deck or a random screenshot in Slack.',
-    bullets: ['Pricing page monitoring', 'Messaging and offer shifts', 'New product page changes'],
-    metric: 'Competitor page updated',
-    accent: '#7c5cff',
+    label: 'Intel',
+    title: 'Competitor page tracking',
+    body: 'Track public pricing, positioning, offers, and launch pages without refreshing competitor sites manually.',
+    color: PURPLE,
+    bg: PURPLE_SOFT,
   },
   {
-    eyebrow: 'Archive & compliance',
-    title: 'Keep a visual record of important pages, even when you do not want active alerting.',
-    body: 'Use archive mode to preserve scheduled page screenshots over time, creating evidence you can point to later for audits, legal reviews, and internal accountability.',
-    bullets: ['Visual audit trail', 'Quiet screenshot archiving', 'Historical page evidence'],
-    metric: 'Archive mode enabled',
-    accent: '#c08b2c',
+    label: 'Ops',
+    title: 'Public page archives',
+    body: 'Create scheduled screenshot history for compliance, legal review, internal approvals, and public evidence.',
+    color: AMBER,
+    bg: AMBER_SOFT,
   },
 ]
 
-const differentiators = [
+const workflow = [
   {
-    icon: Eye,
-    title: 'Visual, not just technical',
-    body: 'PageWatch detects what people actually see on the page, not only HTML or uptime events.',
+    step: '01',
+    title: 'Capture',
+    body: 'Add a public URL and capture a clean baseline screenshot.',
+    icon: ScanLine,
   },
   {
-    icon: Activity,
-    title: 'Threshold-based alerts',
-    body: 'Control how sensitive monitoring should be, from subtle shifts to major layout changes.',
+    step: '02',
+    title: 'Focus',
+    body: 'Draw zones around the exact page areas that matter.',
+    icon: Target,
   },
   {
+    step: '03',
+    title: 'Instruct',
+    body: 'Tell PageWatch what should count as important inside each zone.',
     icon: Sparkles,
-    title: 'AI summaries included',
-    body: 'Get a plain-English summary of what changed so you can triage faster.',
   },
   {
-    icon: ScrollText,
-    title: 'Watch or archive mode',
-    body: 'Choose active alerting or quiet screenshot history depending on the use case.',
+    step: '04',
+    title: 'Review',
+    body: 'Open the diff, read the summary, resolve the alert, keep history clean.',
+    icon: Eye,
+  },
+]
+
+const featureRows = [
+  {
+    title: 'Zone-first monitoring',
+    body: 'Whole-page screenshots are useful, but whole-page alerts are noisy. PageWatch lets you watch the exact regions that matter.',
+    icon: Target,
   },
   {
-    icon: Clock3,
-    title: 'Per-page schedules',
-    body: 'Run checks hourly, daily, or weekly, page by page.',
+    title: 'Instructions per zone',
+    body: 'A pricing card, CTA, and stock status should not use the same rules. Each zone gets its own watch instruction.',
+    icon: Sparkles,
   },
   {
-    icon: Briefcase,
-    title: 'Built for operational teams',
-    body: 'Strong fit for agencies, growth, ops, QA, competitive monitoring, and audit-heavy workflows.',
+    title: 'History that explains itself',
+    body: 'Every check becomes a clean capture in history. Important changes become alerts with visual diffs and AI summaries.',
+    icon: Activity,
   },
 ]
 
 const faqs = [
   {
     q: 'What is visual website monitoring?',
-    a: 'Visual website monitoring means checking how a page actually looks over time, using screenshots and image comparison, rather than relying only on code, uptime, or DOM-level signals.',
+    a: 'Visual website monitoring checks how a webpage actually looks over time using screenshots and visual comparison, not only uptime checks or HTML changes.',
   },
   {
-    q: 'How does PageWatch detect page changes?',
-    a: 'PageWatch captures scheduled screenshots of a public URL, compares them visually, measures the difference, and alerts you when the change exceeds your chosen threshold.',
+    q: 'Can PageWatch monitor only part of a page?',
+    a: 'Yes. PageWatch is built around focus zones, so you can watch pricing cards, CTAs, forms, tables, status blocks, or any specific region of a public page.',
   },
   {
-    q: 'Can I monitor a competitor pricing page?',
-    a: 'Yes. PageWatch is useful for tracking public competitor pages such as pricing, feature, positioning, or campaign pages, so you can catch changes without checking manually.',
+    q: 'What are watch instructions?',
+    a: 'Watch instructions tell PageWatch what matters inside a zone. For example: alert only if the price changes, if the CTA disappears, or if a status changes.',
   },
   {
-    q: 'Can I keep a screenshot history of a page?',
-    a: 'Yes. Archive mode lets you preserve scheduled screenshots over time, creating a visual record of what the page looked like at different moments.',
+    q: 'Can I monitor competitor pages?',
+    a: 'Yes, as long as the page is public. PageWatch is useful for tracking competitor pricing, positioning, launch pages, product pages, and offer changes.',
   },
   {
-    q: 'What kinds of changes can it catch?',
-    a: 'It can catch visual changes such as pricing updates, moved sections, broken layouts, missing UI elements, changed headlines, revised CTAs, and other visible differences.',
-  },
-  {
-    q: 'How often can PageWatch check a page?',
-    a: 'You can choose hourly, daily, or weekly monitoring depending on how critical the page is.',
-  },
-  {
-    q: 'Do I need code or installation?',
-    a: 'No. You add a public URL, choose a schedule and threshold, and PageWatch handles the screenshot capture, diffing, and alerts for you.',
-  },
-  {
-    q: 'What is the difference between watch mode and archive mode?',
-    a: 'Watch mode is for active monitoring with alerts when important changes happen. Archive mode is for quietly collecting screenshots over time without treating each change as an incident.',
+    q: 'Do I need to install code?',
+    a: 'No. Add a public URL, capture a baseline screenshot, choose your zones, and PageWatch handles scheduled checks.',
   },
 ]
+
+function GlobalStyles() {
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes float-card {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+
+          @keyframes float-soft {
+            0%, 100% { transform: translate3d(0,0,0); }
+            50% { transform: translate3d(0,-7px,0); }
+          }
+
+          @keyframes scan-zone {
+            0% { transform: translateY(-90%); opacity: 0; }
+            18% { opacity: 1; }
+            82% { opacity: 1; }
+            100% { transform: translateY(145%); opacity: 0; }
+          }
+
+          @keyframes pulse-ring {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(37,99,235,0.10); }
+            50% { box-shadow: 0 0 0 8px rgba(37,99,235,0.04); }
+          }
+
+          @keyframes draw-line {
+            from { stroke-dashoffset: 520; }
+            to { stroke-dashoffset: 0; }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            * {
+              animation-duration: 0.001ms !important;
+              animation-iteration-count: 1 !important;
+              scroll-behavior: auto !important;
+            }
+          }
+
+          .pw-landing-link:hover {
+            color: ${INK} !important;
+          }
+
+          .pw-card-lift {
+            transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+          }
+
+          .pw-card-lift:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 22px 58px rgba(15,23,42,0.09) !important;
+            border-color: rgba(37,99,235,0.22) !important;
+          }
+
+          .pw-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 44px rgba(37,99,235,0.28) !important;
+          }
+
+          .pw-secondary:hover {
+            transform: translateY(-1px);
+            background: white !important;
+          }
+
+          .pw-details summary::-webkit-details-marker {
+            display: none;
+          }
+        `,
+      }}
+    />
+  )
+}
+
+function DotBackdrop() {
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        backgroundImage: 'radial-gradient(circle, rgba(15,23,42,0.105) 1px, transparent 1px)',
+        backgroundSize: '22px 22px',
+        maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.32) 58%, transparent 100%)',
+        WebkitMaskImage:
+          'linear-gradient(180deg, black 0%, rgba(0,0,0,0.32) 58%, transparent 100%)',
+      }}
+    />
+  )
+}
+
+function Badge({ children, tone = 'blue' }: { children: React.ReactNode; tone?: 'blue' | 'red' | 'green' }) {
+  const color = tone === 'red' ? RED : tone === 'green' ? GREEN : BLUE
+  const bg = tone === 'red' ? RED_SOFT : tone === 'green' ? GREEN_SOFT : BLUE_SOFT
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 12px',
+        borderRadius: 999,
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
+        boxShadow: '0 8px 24px rgba(15,23,42,0.04)',
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: 999,
+          background: color,
+          boxShadow: `0 0 0 4px ${bg}`,
+        }}
+      />
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 850,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color,
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  )
+}
 
 function SectionHeading({
   label,
   title,
   body,
-  align = 'left',
+  center = false,
 }: {
   label: string
   title: string
   body?: string
-  align?: 'left' | 'center'
+  center?: boolean
 }) {
   return (
     <div
+      data-animate
       style={{
-        maxWidth: align === 'center' ? 1000 : 800,
-        margin: align === 'center' ? '0 auto' : '0',
-        textAlign: align,
+        maxWidth: center ? 780 : 720,
+        margin: center ? '0 auto' : 0,
+        textAlign: center ? 'center' : 'left',
       }}
     >
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '8px 12px',
-          borderRadius: 999,
-          background: SURFACE,
-          border: `1px solid ${BORDER}`,
-          boxShadow: '0 10px 30px rgba(17,24,39,0.04)',
-          marginBottom: 18,
-        }}
-      >
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: 999,
-            background: ACCENT,
-            boxShadow: `0 0 0 6px ${ACCENT_SOFT}`,
-          }}
-        />
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: ACCENT,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-
+      <Badge>{label}</Badge>
       <h2
         style={{
-          fontSize: 'clamp(2rem, 4.5vw, 4rem)',
+          margin: '18px 0 0',
+          fontSize: 'clamp(2.15rem, 4.8vw, 4rem)',
           lineHeight: 1.02,
-          letterSpacing: '-0.05em',
-          fontWeight: 700,
-          color: TEXT,
-          marginBottom: body ? 18 : 0,
+          letterSpacing: '-0.065em',
+          fontWeight: 950,
+          color: INK,
         }}
       >
         {title}
       </h2>
-
       {body && (
         <p
           style={{
-            fontSize: 18,
+            margin: '18px 0 0',
+            fontSize: 17,
             lineHeight: 1.75,
-            color: TEXT_SOFT,
-            maxWidth: align === 'center' ? 800 : 720,
-            margin: align === 'center' ? '0 auto' : '0',
+            color: MUTED,
           }}
         >
           {body}
@@ -234,64 +347,61 @@ function Nav() {
     <nav
       className="fixed top-0 w-full z-50"
       style={{
-        background: 'rgba(246,244,239,0.78)',
+        background: 'rgba(251,252,255,0.82)',
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
         borderBottom: `1px solid ${BORDER}`,
       }}
     >
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 h-16 flex items-center justify-between gap-8">
-        <Link href="/light" className="flex items-center gap-3 shrink-0">
+      <div className="max-w-[1180px] mx-auto px-6 h-16 flex items-center justify-between gap-8">
+        <Link href="/light" className="flex items-center gap-3" style={{ textDecoration: 'none' }}>
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 24px rgba(14,159,110,0.20)',
+              width: 36,
+              height: 36,
+              borderRadius: 12,
+              background: `linear-gradient(135deg, ${BLUE_2}, ${BLUE})`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 12px 24px rgba(37,99,235,0.22)',
             }}
           >
-            <Monitor className="w-4 h-4" style={{ color: 'white' }} />
+            <Monitor size={16} color="white" />
           </div>
-          <div className="leading-none">
+          <div>
             <div
               style={{
-                color: TEXT,
+                color: INK,
                 fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: '-0.02em',
+                fontWeight: 900,
+                letterSpacing: '-0.03em',
               }}
             >
               PageWatch
             </div>
-            <div
-              style={{
-                color: TEXT_DIM,
-                fontSize: 10,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                marginTop: 4,
-              }}
-            >
-              Visual monitoring
-            </div>
+            <div style={{ color: FAINT, fontSize: 10, marginTop: 3 }}>visual monitoring</div>
           </div>
         </Link>
 
-        <div className="hidden lg:flex items-center gap-8">
+        <div className="hidden lg:flex items-center gap-7">
           {[
             ['Product', '#product'],
+            ['Workflow', '#workflow'],
             ['Use cases', '#use-cases'],
-            ['Why PageWatch', '#why-pagewatch'],
             ['Pricing', '#pricing'],
             ['FAQ', '#faq'],
           ].map(([label, href]) => (
             <a
               key={label}
               href={href}
-              className="transition-all"
+              className="pw-landing-link"
               style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: TEXT_SOFT,
+                textDecoration: 'none',
+                color: MUTED,
+                fontSize: 13,
+                fontWeight: 750,
+                transition: 'color 150ms ease',
               }}
             >
               {label}
@@ -299,31 +409,38 @@ function Nav() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link
             href="/login"
-            className="hidden sm:inline-flex items-center px-4 py-2 rounded-xl"
+            className="hidden sm:inline-flex"
             style={{
-              color: TEXT_SOFT,
-              fontSize: 14,
-              fontWeight: 600,
+              textDecoration: 'none',
+              color: MUTED,
+              fontSize: 13,
+              fontWeight: 750,
             }}
           >
             Log in
           </Link>
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all"
+            className="pw-primary"
             style={{
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
               color: 'white',
-              fontSize: 14,
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)',
-              boxShadow: '0 16px 36px rgba(14,159,110,0.22)',
+              background: BLUE,
+              padding: '10px 14px',
+              borderRadius: 12,
+              fontSize: 13,
+              fontWeight: 850,
+              boxShadow: '0 14px 30px rgba(37,99,235,0.24)',
+              transition: 'transform 160ms ease, box-shadow 160ms ease',
             }}
           >
-            Start free
-            <ArrowRight className="w-4 h-4" />
+            Start free <ArrowRight size={14} />
           </Link>
         </div>
       </div>
@@ -331,136 +448,341 @@ function Nav() {
   )
 }
 
-function CleanHeroVisual() {
+function MiniBrowser() {
   return (
-    <div className="relative w-full max-w-[600px] mx-auto lg:ml-auto">
-      {/* Background ambient glows */}
+    <div
+      className="relative rounded-[28px] overflow-hidden"
+      style={{
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
+        boxShadow: SHADOW_LG,
+      }}
+    >
       <div
-        className="absolute -inset-10 rounded-[40px] pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse at center, rgba(14,159,110,0.15) 0%, transparent 60%)',
-          filter: 'blur(20px)',
-        }}
-      />
-      <div
-        className="absolute -bottom-10 -right-10 w-64 h-64 rounded-full pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle, rgba(220,76,63,0.12), transparent 70%)',
-          filter: 'blur(20px)',
-        }}
-      />
-
-      {/* Main Browser Window */}
-      <div
-        className="relative rounded-[24px] overflow-hidden"
-        style={{
-          background: 'rgba(255,255,255,0.95)',
-          border: `1px solid ${BORDER}`,
-          boxShadow: SHADOW_LG,
+          height: 44,
+          background: SURFACE_SOFT,
+          borderBottom: `1px solid ${BORDER}`,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 14px',
+          gap: 10,
         }}
       >
-        {/* Browser Header */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['#FF5F57', '#FEBC2E', '#28C840'].map((color) => (
+            <span
+              key={color}
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: color,
+              }}
+            />
+          ))}
+        </div>
         <div
-          className="px-4 py-3 flex items-center gap-3"
           style={{
-            borderBottom: `1px solid ${BORDER}`,
-            background: SURFACE_SOFT,
+            margin: '0 auto',
+            width: 238,
+            height: 24,
+            borderRadius: 8,
+            border: `1px solid ${BORDER}`,
+            background: SURFACE,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: FAINT,
+            fontSize: 11,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
           }}
         >
-          <div className="flex gap-1.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#ff5f57' }} />
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#febc2e' }} />
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#28c840' }} />
-          </div>
-          <div
-            className="w-full max-w-[240px] mx-auto rounded-md px-3 py-1.5 flex items-center justify-center gap-2"
-            style={{
-              background: SURFACE,
-              border: `1px solid ${BORDER}`,
-            }}
-          >
-            <span
+          acme.com/pricing
+        </div>
+      </div>
+
+      <div style={{ padding: 18 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: 14,
+            alignItems: 'flex-start',
+          }}
+        >
+          <div>
+            <p
               style={{
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: TEXT_DIM,
+                margin: 0,
+                fontSize: 10,
+                fontWeight: 900,
+                color: BLUE,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
               }}
             >
-              https://acme.com/pricing
-            </span>
+              Monitor workspace
+            </p>
+            <div
+              style={{
+                width: 220,
+                height: 18,
+                borderRadius: 8,
+                background: '#E2E8F0',
+                marginTop: 9,
+              }}
+            />
           </div>
+          <span
+            style={{
+              color: RED,
+              background: RED_SOFT,
+              border: '1px solid rgba(220,38,38,0.18)',
+              borderRadius: 999,
+              padding: '5px 9px',
+              fontSize: 11,
+              fontWeight: 850,
+            }}
+          >
+            Alert
+          </span>
         </div>
 
-        {/* Browser Body (Wireframe) */}
-        <div className="p-8 relative" style={{ background: '#fdfdfc' }}>
-          {/* Subtle scanning animation over the zone */}
+        <div
+          style={{
+            border: `1px solid ${BORDER}`,
+            borderRadius: 18,
+            overflow: 'hidden',
+            boxShadow: SHADOW,
+          }}
+        >
           <div
-            className="absolute left-6 right-1/2 h-[140px] pointer-events-none z-10"
             style={{
-              background: 'linear-gradient(180deg, transparent 0%, rgba(14,159,110,0.03) 50%, transparent 100%)',
-              animation: 'scanPulse 4s ease-in-out infinite',
+              padding: 14,
+              borderBottom: `1px solid ${BORDER}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'linear-gradient(180deg, #FFFFFF, #FBFCFF)',
             }}
-          />
-
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-32 h-4 rounded-full mb-3" style={{ background: 'rgba(17,24,39,0.1)' }} />
-            <div className="w-48 h-3 rounded-full" style={{ background: 'rgba(17,24,39,0.05)' }} />
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  background: BLUE_SOFT,
+                  color: BLUE,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Target size={16} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: INK }}>
+                  Watched Zones
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, color: FAINT }}>
+                  Hover to preview. Click to lock focus.
+                </p>
+              </div>
+            </div>
+            <button
+              style={{
+                border: 'none',
+                color: 'white',
+                background: BLUE,
+                borderRadius: 10,
+                padding: '8px 11px',
+                fontSize: 11,
+                fontWeight: 850,
+              }}
+            >
+              Edit zones
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-5 relative z-0">
-            {/* Monitored Zone Wireframe */}
-            <div className="relative">
-              {/* Zone Selection Box */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 230px' }}>
+            <div style={{ padding: 14, display: 'grid', gap: 10 }}>
+              {[
+                ['Price card', BLUE, 'Alert if Pro pricing changes.', 'Locked'],
+                ['Checkout CTA', GREEN, 'Watch for missing or changed CTA.', 'Clean'],
+              ].map(([label, color, body, state], index) => (
+                <div
+                  key={label}
+                  style={{
+                    position: 'relative',
+                    minHeight: 90,
+                    padding: 13,
+                    borderRadius: 15,
+                    border: `1px solid ${index === 0 ? color : BORDER}`,
+                    background:
+                      index === 0
+                        ? `linear-gradient(180deg, ${BLUE_SOFT}, #FFFFFF)`
+                        : SURFACE,
+                    boxShadow:
+                      index === 0 ? '0 14px 32px rgba(37,99,235,0.12)' : 'none',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 14,
+                      bottom: 14,
+                      width: 3,
+                      borderRadius: 99,
+                      background: color,
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      paddingLeft: 8,
+                    }}
+                  >
+                    <p style={{ margin: 0, color: INK, fontSize: 13, fontWeight: 900 }}>
+                      {label}
+                    </p>
+                    <span
+                      style={{
+                        color: index === 0 ? BLUE : GREEN,
+                        background: index === 0 ? BLUE_SOFT : GREEN_SOFT,
+                        border: `1px solid ${index === 0 ? BLUE_MID : 'rgba(22,163,74,0.18)'}`,
+                        borderRadius: 999,
+                        padding: '3px 7px',
+                        fontSize: 10,
+                        fontWeight: 850,
+                      }}
+                    >
+                      {state}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      margin: '8px 0 0',
+                      paddingLeft: 8,
+                      color: MUTED,
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {body}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: 14, borderLeft: `1px solid ${BORDER}`, background: SURFACE_SOFT }}>
               <div
-                className="absolute -inset-2 rounded-xl z-10 pointer-events-none"
                 style={{
-                  border: `2px solid ${ACCENT}`,
-                  background: 'rgba(14,159,110,0.02)',
+                  height: 166,
+                  borderRadius: 15,
+                  overflow: 'hidden',
+                  border: `1px solid ${BORDER}`,
+                  background: '#EAF0F8',
+                  position: 'relative',
                 }}
               >
                 <div
-                  className="absolute -top-3 -right-2 px-2 py-1 rounded-md flex items-center gap-1.5"
                   style={{
-                    background: ACCENT,
-                    color: 'white',
-                    boxShadow: '0 4px 12px rgba(14,159,110,0.25)',
+                    position: 'absolute',
+                    inset: 12,
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
                   }}
                 >
-                  <Eye className="w-3 h-3" />
-                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Monitored Zone
-                  </span>
-                </div>
-                {/* Corner anchors to make it look like a selection tool */}
-                <div className="absolute -top-1 -left-1 w-2 h-2 bg-white border border-[#0e9f6e]" />
-                <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-white border border-[#0e9f6e]" />
-                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-white border border-[#0e9f6e]" />
-              </div>
-
-              <div
-                className="rounded-2xl p-5 relative z-0"
-                style={{ border: `1px solid ${BORDER}`, background: SURFACE }}
-              >
-                <div className="w-16 h-3 rounded-full mb-4" style={{ background: 'rgba(17,24,39,0.08)' }} />
-                <div className="w-20 h-6 rounded-md mb-6" style={{ background: 'rgba(17,24,39,0.12)' }} />
-                <div className="space-y-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="w-full h-2 rounded-full" style={{ background: 'rgba(17,24,39,0.04)' }} />
+                  {[0, 1, 2, 3].map((item) => (
+                    <div
+                      key={item}
+                      style={{
+                        borderRadius: 10,
+                        background: 'rgba(255,255,255,0.86)',
+                        border: `1px solid ${BORDER}`,
+                      }}
+                    />
                   ))}
                 </div>
-              </div>
-            </div>
 
-            {/* Unmonitored Plan Wireframe */}
-            <div
-              className="rounded-2xl p-5 opacity-60"
-              style={{ border: `1px solid ${BORDER}`, background: SURFACE }}
-            >
-              <div className="w-16 h-3 rounded-full mb-4" style={{ background: 'rgba(17,24,39,0.06)' }} />
-              <div className="w-20 h-6 rounded-md mb-6" style={{ background: 'rgba(17,24,39,0.08)' }} />
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="w-full h-2 rounded-full" style={{ background: 'rgba(17,24,39,0.03)' }} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 20,
+                    top: 28,
+                    width: 88,
+                    height: 64,
+                    border: `2px solid ${BLUE}`,
+                    background: 'rgba(37,99,235,0.16)',
+                    borderRadius: 7,
+                    boxShadow: '0 0 0 999px rgba(15,23,42,0.18)',
+                  }}
+                />
+
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 20,
+                    top: 28,
+                    width: 88,
+                    height: 64,
+                    overflow: 'hidden',
+                    borderRadius: 7,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      height: 28,
+                      background:
+                        'linear-gradient(180deg, transparent, rgba(37,99,235,0.28), transparent)',
+                      animation: 'scan-zone 3.2s ease-in-out infinite',
+                    }}
+                  />
+                </div>
+
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    bottom: 10,
+                    color: 'white',
+                    fontSize: 10,
+                    fontWeight: 900,
+                  }}
+                >
+                  Focused · Price card
+                </span>
+              </div>
+
+              <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                {[
+                  ['Checks', '11'],
+                  ['Changes', '4'],
+                  ['Clean rate', '64%'],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 11,
+                    }}
+                  >
+                    <span style={{ color: FAINT, fontWeight: 900, textTransform: 'uppercase' }}>
+                      {label}
+                    </span>
+                    <b style={{ color: label === 'Changes' ? RED : INK }}>{value}</b>
+                  </div>
                 ))}
               </div>
             </div>
@@ -468,63 +790,71 @@ function CleanHeroVisual() {
         </div>
       </div>
 
-      {/* Floating Alert Card */}
       <div
-        className="absolute -right-6 top-16 sm:-right-12 sm:top-24 rounded-[20px] p-4 w-64 z-20"
+        className="absolute -right-4 top-24 rounded-2xl p-4 hidden sm:block"
         style={{
-          background: 'rgba(255,255,255,0.95)',
-          backdropFilter: 'blur(12px)',
+          width: 252,
+          background: 'rgba(255,255,255,0.96)',
           border: `1px solid ${BORDER}`,
           boxShadow: SHADOW_LG,
+          animation: 'float-card 5s ease-in-out infinite',
         }}
       >
-        <div className="flex items-start gap-3">
+        <div style={{ display: 'flex', gap: 11 }}>
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: RED_SOFT, border: `1px solid ${RED_MID}` }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 12,
+              background: RED_SOFT,
+              color: RED,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <Bell className="w-5 h-5" style={{ color: RED }} />
+            <Bell size={17} />
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: TEXT }}>Change Detected</div>
-            <div style={{ fontSize: 12, color: TEXT_SOFT, marginTop: 2 }}>acme.com/pricing</div>
-            <div
-              className="mt-2 inline-flex items-center gap-2 px-2 py-1.5 rounded-md"
-              style={{ background: SURFACE_SOFT, border: `1px solid ${BORDER}` }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 600, color: TEXT_DIM, textDecoration: 'line-through' }}>$29</span>
-              <ArrowRight className="w-3 h-3" style={{ color: TEXT_DIM }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: RED }}>$39</span>
-            </div>
+            <p style={{ margin: 0, color: INK, fontSize: 13, fontWeight: 900 }}>
+              Change detected
+            </p>
+            <p style={{ margin: '3px 0 0', color: MUTED, fontSize: 12 }}>
+              Price card changed 7.7%
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Floating Report Card */}
       <div
-        className="absolute -left-6 -bottom-6 sm:-left-10 sm:-bottom-8 rounded-[20px] p-4 w-72 z-20"
+        className="absolute -left-5 bottom-9 rounded-2xl p-4 hidden md:block"
         style={{
-          background: 'rgba(255,255,255,0.95)',
-          backdropFilter: 'blur(12px)',
+          width: 272,
+          background: 'rgba(255,255,255,0.96)',
           border: `1px solid ${BORDER}`,
-          boxShadow: SHADOW_LG,
+          boxShadow: SHADOW,
+          animation: 'float-soft 6s ease-in-out infinite',
         }}
       >
-        <div className="flex items-start gap-3">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-            style={{ background: SURFACE_SOFT, border: `1px solid ${BORDER}` }}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 11,
+              background: BLUE_SOFT,
+              color: BLUE,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
           >
-            <ScrollText className="w-4 h-4" style={{ color: TEXT }} />
+            <Sparkles size={15} />
           </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Check Report
-            </div>
-            <div style={{ fontSize: 13, color: TEXT_SOFT, marginTop: 4, lineHeight: 1.5 }}>
-              "Price increased within the selected zone. No structural or layout changes detected."
-            </div>
-          </div>
+          <p style={{ margin: 0, color: MUTED, fontSize: 12, lineHeight: 1.55 }}>
+            “Price increased inside the selected zone. No layout issue detected.”
+          </p>
         </div>
       </div>
     </div>
@@ -537,192 +867,424 @@ function Hero() {
       className="relative overflow-hidden"
       style={{
         background: `
-          radial-gradient(circle at top center, rgba(14,159,110,0.08), transparent 40%),
-          linear-gradient(180deg, ${BG_SOFT} 0%, ${BG} 55%, ${BG_SOFT} 100%)
+          radial-gradient(circle at 82% 12%, rgba(37,99,235,0.14), transparent 32%),
+          radial-gradient(circle at 18% 22%, rgba(124,58,237,0.08), transparent 28%),
+          linear-gradient(180deg, ${BG_SOFT} 0%, ${BG} 100%)
         `,
       }}
     >
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: 'radial-gradient(circle, rgba(17,24,39,0.05) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-          maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.3) 60%, transparent 100%)',
-        }}
-      />
+      <DotBackdrop />
 
-      <div className="relative max-w-[1600px] mx-auto px-6 lg:px-12 pt-28 pb-16 lg:pt-36 lg:pb-24">
-        <div className="grid lg:grid-cols-[1fr_1fr] gap-16 lg:gap-8 items-center">
-
-          {/* Left Text Column */}
-          <div data-animate className="max-w-[700px] lg:pr-8">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-7"
-              style={{
-                background: 'rgba(255,255,255,0.8)',
-                border: `1px solid ${BORDER}`,
-                boxShadow: '0 8px 24px rgba(17,24,39,0.03)',
-              }}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: ACCENT, boxShadow: `0 0 0 4px ${ACCENT_SOFT}` }}
-              />
-              <span
-                style={{
-                  fontSize: 12,
-                  color: ACCENT,
-                  fontWeight: 700,
-                  letterSpacing: '0.10em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Targeted Website Monitoring
-              </span>
-            </div>
+      <div className="relative max-w-[1180px] mx-auto px-6 pt-32 pb-20 lg:pt-40 lg:pb-28">
+        <div className="grid lg:grid-cols-[0.92fr_1.08fr] gap-14 items-center">
+          <div data-animate>
+            <Badge>Zone-first website monitoring</Badge>
 
             <h1
               style={{
-                fontSize: 'clamp(2.75rem, 6vw, 5.5rem)',
-                lineHeight: 1.05,
-                letterSpacing: '-0.05em',
-                color: TEXT,
-                fontWeight: 800,
+                margin: '22px 0 0',
+                fontSize: 'clamp(3.1rem, 6vw, 5.7rem)',
+                lineHeight: 1.01,
+                letterSpacing: '-0.075em',
+                color: INK,
+                fontWeight: 950,
               }}
             >
-              Catch page changes
-              <br />
-              <span
-                style={{
-                  background: 'linear-gradient(135deg, #0d8f63 0%, #14b87a 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                before they get expensive.
-              </span>
+              Watch the parts of a page that actually matter.
             </h1>
 
             <p
               style={{
-                fontSize: 'clamp(1.125rem, 1.5vw, 1.25rem)',
-                lineHeight: 1.7,
-                color: TEXT_SOFT,
-                marginTop: 24,
+                margin: '24px 0 0',
+                fontSize: 19,
+                lineHeight: 1.72,
+                color: MUTED,
+                maxWidth: 620,
               }}
             >
-              Select critical zones on any public page or give our agent exact instructions on what to watch. Catch pricing updates, checkout issues, and competitor messaging shifts without wading through false alarms.
+              PageWatch captures public webpages on a schedule, lets you select focus zones, and alerts
+              you when meaningful visual changes happen inside those zones.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 mt-10">
+            <div className="flex flex-col sm:flex-row gap-4 mt-9">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl transition-transform hover:-translate-y-0.5"
+                className="pw-primary"
                 style={{
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '15px 22px',
+                  borderRadius: 16,
                   color: 'white',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  background: 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)',
-                  boxShadow: '0 18px 40px rgba(14,159,110,0.24)',
+                  background: BLUE,
+                  fontWeight: 900,
+                  boxShadow: '0 18px 40px rgba(37,99,235,0.24)',
+                  transition: 'transform 160ms ease, box-shadow 160ms ease',
                 }}
               >
-                Start free trial
-                <ArrowRight className="w-4 h-4" />
+                Start watching free <ArrowRight size={16} />
               </Link>
 
               <a
                 href="#product"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl transition-colors hover:bg-white"
+                className="pw-secondary"
                 style={{
-                  color: TEXT,
-                  fontWeight: 600,
-                  fontSize: 15,
-                  background: 'rgba(255,255,255,0.6)',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '15px 22px',
+                  borderRadius: 16,
+                  color: INK,
+                  background: SURFACE,
                   border: `1px solid ${BORDER}`,
+                  fontWeight: 800,
+                  transition: 'transform 160ms ease, background 160ms ease',
                 }}
               >
-                See how it works
-                <ChevronRight className="w-4 h-4" />
+                See product loop <ChevronRight size={16} />
               </a>
             </div>
 
             <div className="flex flex-wrap gap-x-6 gap-y-3 mt-8">
-              {['Select specific zones', 'Custom agent instructions', 'No code required'].map((item) => (
-                <div key={item} className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: ACCENT_SOFT }}>
-                    <Check className="w-3 h-3" style={{ color: ACCENT }} />
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_SOFT }}>{item}</span>
+              {['Focus zones', 'Per-zone instructions', 'AI summaries', 'No code'].map((item) => (
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      width: 21,
+                      height: 21,
+                      borderRadius: 999,
+                      background: BLUE_SOFT,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Check size={13} color={BLUE} />
+                  </span>
+                  <span style={{ fontSize: 13, color: MUTED, fontWeight: 750 }}>{item}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Right Visual Column */}
-          <div data-animate data-delay-1 className="mt-12 lg:mt-0">
-            <CleanHeroVisual />
+          <div data-animate data-delay-1 className="relative">
+            <div
+              className="absolute -inset-10 rounded-[44px]"
+              style={{
+                background: 'radial-gradient(circle, rgba(37,99,235,0.18), transparent 62%)',
+                filter: 'blur(20px)',
+              }}
+            />
+            <MiniBrowser />
           </div>
-
         </div>
       </div>
     </section>
   )
 }
 
-
-function ProofStrip() {
+function SignalSection() {
   return (
     <section
+      id="product"
+      className="py-24 lg:py-32"
       style={{
-        background: 'rgba(255,255,255,0.54)',
+        background: BG,
         borderTop: `1px solid ${BORDER}`,
-        borderBottom: `1px solid ${BORDER}`,
       }}
     >
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 py-7">
-        <div className="grid lg:grid-cols-[1fr_1fr] gap-6 items-center">
-          <div className="flex flex-wrap items-center gap-5">
-            <div className="flex -space-x-2.5">
-              {['JD', 'SA', 'MK', 'RO', 'LP'].map((t, i) => (
+      <div className="max-w-[1180px] mx-auto px-6">
+        <div className="grid lg:grid-cols-[0.82fr_1.18fr] gap-14 items-center">
+          <div>
+            <SectionHeading
+              label="Product loop"
+              title="Less page noise. More useful signal."
+              body="Most website monitoring either watches too little or alerts on everything. PageWatch sits in the middle: screenshot the page, focus on what matters, and explain the change."
+            />
+          </div>
+
+          <div data-animate className="relative">
+            <div
+              style={{
+                position: 'absolute',
+                inset: '10% 8%',
+                background: 'radial-gradient(circle, rgba(37,99,235,0.14), transparent 62%)',
+                filter: 'blur(18px)',
+              }}
+            />
+
+            <div
+              style={{
+                position: 'relative',
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 28,
+                padding: 22,
+                boxShadow: SHADOW_LG,
+                overflow: 'hidden',
+              }}
+            >
+              <svg
+                viewBox="0 0 640 250"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                }}
+              >
+                <path
+                  d="M80 126 C190 36, 285 210, 392 112 S545 70, 588 142"
+                  fill="none"
+                  stroke="rgba(37,99,235,0.18)"
+                  strokeWidth="2"
+                  strokeDasharray="520"
+                  strokeDashoffset="520"
+                  style={{ animation: 'draw-line 5s ease-in-out infinite alternate' }}
+                />
+              </svg>
+
+              <div className="grid sm:grid-cols-4 gap-3 relative">
+                {workflow.map((item, index) => {
+                  const Icon = item.icon
+                  return (
+                    <div
+                      key={item.step}
+                      className="pw-card-lift"
+                      style={{
+                        background: index === 1 ? 'linear-gradient(180deg, #FFFFFF, #F3F7FF)' : SURFACE,
+                        border: `1px solid ${index === 1 ? BLUE_MID : BORDER}`,
+                        borderRadius: 20,
+                        padding: 18,
+                        minHeight: 170,
+                        boxShadow: index === 1 ? '0 16px 44px rgba(37,99,235,0.10)' : SHADOW,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 13,
+                          background: index === 1 ? BLUE_SOFT : SURFACE_SOFT,
+                          color: index === 1 ? BLUE : MUTED,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: 18,
+                          animation: index === 1 ? 'pulse-ring 2.6s ease-in-out infinite' : undefined,
+                        }}
+                      >
+                        <Icon size={18} />
+                      </div>
+
+                      <p
+                        style={{
+                          margin: '0 0 8px',
+                          color: index === 1 ? BLUE : FAINT,
+                          fontSize: 11,
+                          fontWeight: 950,
+                          letterSpacing: '0.1em',
+                        }}
+                      >
+                        {item.step}
+                      </p>
+                      <h3 style={{ margin: 0, color: INK, fontSize: 16, fontWeight: 900 }}>
+                        {item.title}
+                      </h3>
+                      <p style={{ margin: '8px 0 0', color: MUTED, fontSize: 13, lineHeight: 1.6 }}>
+                        {item.body}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ComparisonSection() {
+  return (
+    <section className="py-24 lg:py-32" style={{ background: BG_SOFT }}>
+      <div className="max-w-[1180px] mx-auto px-6">
+        <div className="grid lg:grid-cols-[1.08fr_0.92fr] gap-14 items-center">
+          <div data-animate>
+            <div
+              style={{
+                position: 'relative',
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 30,
+                padding: 18,
+                boxShadow: SHADOW_LG,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: 22,
+                  background: '#EAF0F8',
+                  border: `1px solid ${BORDER}`,
+                  overflow: 'hidden',
+                  minHeight: 360,
+                  position: 'relative',
+                }}
+              >
                 <div
-                  key={t}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
                   style={{
-                    background: ['#dbf5e7', '#e1ecff', '#fde5dd', '#efe4ff', '#f7eccf'][i],
-                    border: `2px solid ${BG_SOFT}`,
-                    color: ['#0e9f6e', '#5b7bff', '#d26b45', '#7c5cff', '#b27a1a'][i],
-                    fontSize: 11,
-                    fontWeight: 800,
+                    position: 'absolute',
+                    inset: 20,
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 14,
                   }}
                 >
-                  {t}
+                  {[0, 1, 2, 3, 4, 5].map((item) => (
+                    <div
+                      key={item}
+                      style={{
+                        borderRadius: 18,
+                        background: 'rgba(255,255,255,0.82)',
+                        border: `1px solid ${BORDER}`,
+                      }}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: TEXT }}>
-                Built for agencies, growth, ops, and audit-heavy teams
-              </div>
-              <div style={{ fontSize: 13, color: TEXT_DIM, marginTop: 6 }}>
-                Monitor critical pages. Catch silent changes. Keep a visual record.
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '8%',
+                    top: '18%',
+                    width: '29%',
+                    height: '32%',
+                    borderRadius: 12,
+                    border: `2px solid ${BLUE}`,
+                    background: 'rgba(37,99,235,0.14)',
+                    boxShadow: '0 0 0 999px rgba(15,23,42,0.18)',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: -8,
+                      top: -30,
+                      background: BLUE,
+                      color: 'white',
+                      borderRadius: 9,
+                      padding: '6px 8px',
+                      fontSize: 10,
+                      fontWeight: 900,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <MousePointer2 size={11} />
+                    Selected zone
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 18,
+                    bottom: 18,
+                    width: 260,
+                    background: 'rgba(255,255,255,0.96)',
+                    border: `1px solid ${BORDER}`,
+                    borderRadius: 18,
+                    padding: 14,
+                    boxShadow: SHADOW,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        background: BLUE_SOFT,
+                        color: BLUE,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, color: INK, fontSize: 13, fontWeight: 900 }}>
+                        Watch instruction
+                      </p>
+                      <p style={{ margin: '4px 0 0', color: MUTED, fontSize: 12, lineHeight: 1.5 }}>
+                        Alert when the price changes or the plan card disappears.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="lg:text-right">
-            <div
-              style={{
-                fontSize: 15,
-                lineHeight: 1.7,
-                color: TEXT_SOFT,
-                fontStyle: 'italic',
-              }}
-            >
-              “The most useful part was not just the alert. It was seeing the actual diff and
-              knowing what changed immediately.”
+          <div>
+            <SectionHeading
+              label="Focus zones"
+              title="Stop treating the whole page as the signal."
+              body="Most pages are noisy. Headers change, ads rotate, cookie banners appear, carousels move. PageWatch lets you draw the important region and leave the rest alone."
+            />
+
+            <div style={{ display: 'grid', gap: 12, marginTop: 28 }}>
+              {[
+                ['Ignore noise', 'Do not alert because the header, footer, or random page chrome changed.'],
+                ['Watch intent', 'Each zone can have its own instruction and sensitivity.'],
+                ['Review faster', 'Open the exact region that changed instead of scanning the full screenshot.'],
+              ].map(([title, body]) => (
+                <div
+                  key={title}
+                  data-animate
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                    padding: 14,
+                    borderRadius: 16,
+                    background: SURFACE,
+                    border: `1px solid ${BORDER}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 10,
+                      background: BLUE_SOFT,
+                      color: BLUE,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Check size={14} />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, color: INK, fontSize: 13, fontWeight: 900 }}>{title}</p>
+                    <p style={{ margin: '4px 0 0', color: MUTED, fontSize: 13, lineHeight: 1.55 }}>
+                      {body}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -734,132 +1296,77 @@ function ProofStrip() {
 function UseCases() {
   return (
     <section id="use-cases" className="py-24 lg:py-32" style={{ background: BG }}>
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="Use cases"
-            title="Built for the pages you cannot afford to miss."
-            body="The same product loop works across several high-value jobs. What changes is the page you watch, the threshold you choose, and the reason you need to know first."
-          />
-        </div>
+      <div className="max-w-[1180px] mx-auto px-6">
+        <SectionHeading
+          label="Use cases"
+          title="For pages where a silent change has a cost."
+          body="PageWatch is not for every page. It is for the public pages your team should never discover too late."
+        />
 
-        <div className="grid lg:grid-cols-2 gap-5 mt-14">
-          {useCases.map((item, i) => (
-            <div key={item.title} data-animate {...(i % 2 === 1 ? { 'data-delay-1': '' } : {})}>
+        <div className="mt-14" style={{ display: 'grid', gap: 14 }}>
+          {useCases.map((item, index) => (
+            <div
+              key={item.title}
+              data-animate
+              className="pw-card-lift"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '160px 1fr auto',
+                gap: 22,
+                alignItems: 'center',
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 24,
+                padding: 18,
+                boxShadow: index === 0 ? SHADOW : '0 8px 24px rgba(15,23,42,0.035)',
+              }}
+            >
               <div
-                className="rounded-[30px] p-7 h-full"
                 style={{
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.72))',
-                  border: `1px solid ${BORDER}`,
-                  boxShadow: '0 22px 60px rgba(17,24,39,0.05)',
+                  height: 96,
+                  borderRadius: 18,
+                  background: item.bg,
+                  color: item.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        letterSpacing: '0.12em',
-                        textTransform: 'uppercase',
-                        color: item.accent,
-                        marginBottom: 14,
-                      }}
-                    >
-                      {item.eyebrow}
-                    </div>
-                    <h3
-                      style={{
-                        fontSize: 28,
-                        lineHeight: 1.15,
-                        fontWeight: 700,
-                        letterSpacing: '-0.04em',
-                        color: TEXT,
-                        maxWidth: 520,
-                      }}
-                    >
-                      {item.title}
-                    </h3>
-                  </div>
+                <Layers3 size={26} />
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background:
+                      'radial-gradient(circle at top right, rgba(255,255,255,0.55), transparent 55%)',
+                  }}
+                />
+              </div>
 
-                  <div
-                    className="hidden sm:flex w-12 h-12 rounded-2xl items-center justify-center"
-                    style={{
-                      background:
-                        i === 0
-                          ? RED_SOFT
-                          : i === 1
-                            ? ACCENT_SOFT
-                            : i === 2
-                              ? 'rgba(124,92,255,0.10)'
-                              : 'rgba(192,139,44,0.10)',
-                      border: `1px solid ${i === 0
-                        ? RED_MID
-                        : i === 1
-                          ? ACCENT_MID
-                          : i === 2
-                            ? 'rgba(124,92,255,0.18)'
-                            : 'rgba(192,139,44,0.18)'
-                        }`,
-                    }}
-                  >
-                    {i === 0 && <Bell className="w-5 h-5" style={{ color: RED }} />}
-                    {i === 1 && <Briefcase className="w-5 h-5" style={{ color: ACCENT }} />}
-                    {i === 2 && <Search className="w-5 h-5" style={{ color: '#7c5cff' }} />}
-                    {i === 3 && <Shield className="w-5 h-5" style={{ color: '#b27a1a' }} />}
-                  </div>
-                </div>
-
+              <div>
                 <p
                   style={{
-                    fontSize: 16,
-                    lineHeight: 1.8,
-                    color: TEXT_SOFT,
-                    marginTop: 18,
-                    maxWidth: 590,
+                    margin: '0 0 7px',
+                    color: item.color,
+                    fontSize: 11,
+                    fontWeight: 950,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.11em',
                   }}
                 >
+                  {item.label}
+                </p>
+                <h3 style={{ margin: 0, color: INK, fontSize: 22, fontWeight: 950 }}>
+                  {item.title}
+                </h3>
+                <p style={{ margin: '8px 0 0', color: MUTED, fontSize: 14, lineHeight: 1.65 }}>
                   {item.body}
                 </p>
-
-                <div className="grid sm:grid-cols-[1fr_auto] gap-5 mt-8 items-end">
-                  <div className="space-y-3">
-                    {item.bullets.map((bullet) => (
-                      <div key={bullet} className="flex items-center gap-3">
-                        <div
-                          className="w-7 h-7 rounded-full flex items-center justify-center"
-                          style={{ background: SURFACE_ALT, border: `1px solid ${BORDER}` }}
-                        >
-                          <Check className="w-4 h-4" style={{ color: item.accent }} />
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{bullet}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div
-                    className="rounded-[22px] p-4 min-w-[180px]"
-                    style={{
-                      background: SURFACE_SOFT,
-                      border: `1px solid ${BORDER}`,
-                    }}
-                  >
-                    <div style={{ fontSize: 11, color: TEXT_DIM, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.12em' }}>
-                      Live state
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 800,
-                        color: TEXT,
-                        marginTop: 10,
-                      }}
-                    >
-                      {item.metric}
-                    </div>
-                  </div>
-                </div>
               </div>
+
+              <ChevronRight className="hidden md:block" size={20} color={FAINT} />
             </div>
           ))}
         </div>
@@ -868,346 +1375,85 @@ function UseCases() {
   )
 }
 
-function ProductFlow() {
-  const steps = [
-    {
-      icon: Camera,
-      title: 'Capture a baseline',
-      body: 'Add any public URL and PageWatch captures the visual starting point.',
-    },
-    {
-      icon: Clock3,
-      title: 'Run on a schedule',
-      body: 'Choose hourly, daily, or weekly checks depending on page importance.',
-    },
-    {
-      icon: Layers3,
-      title: 'Compare screenshots',
-      body: 'Each new capture is compared visually against the previous state.',
-    },
-    {
-      icon: Bell,
-      title: 'Alert on real change',
-      body: 'When the diff exceeds your threshold, the page is treated like an actual event.',
-    },
-    {
-      icon: Sparkles,
-      title: 'Explain with AI',
-      body: 'An AI summary helps you understand what changed, faster.',
-    },
-    {
-      icon: ScrollText,
-      title: 'Keep the history',
-      body: 'Maintain screenshot evidence over time in watch mode or archive mode.',
-    },
-  ]
-
+function Features() {
   return (
-    <section id="product" className="py-24 lg:py-32" style={{ background: BG_SOFT }}>
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="Product flow"
-            title="Capture. Compare. Explain. Alert. Archive."
-            body="The whole point of PageWatch is that the workflow is automatic. You do not need to manually check pages, diff screenshots, or interpret every change from scratch."
-          />
-        </div>
+    <section id="workflow" className="py-24 lg:py-32" style={{ background: BG_SOFT }}>
+      <div className="max-w-[1180px] mx-auto px-6">
+        <SectionHeading
+          label="Why PageWatch"
+          title="A monitoring surface, not another noisy inbox."
+          center
+          body="The dashboard is built around the same idea as the product: show the objects that matter, keep the noise quiet, and make the next action obvious."
+        />
 
-        <div className="mt-14 grid lg:grid-cols-[0.78fr_1.22fr] gap-6 items-start">
-          <div data-animate>
-            <div
-              className="rounded-[32px] p-7 lg:sticky lg:top-24"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74))',
-                border: `1px solid ${BORDER}`,
-                boxShadow: SHADOW,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  color: ACCENT,
-                  fontWeight: 800,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  marginBottom: 16,
-                }}
-              >
-                What the buyer understands here
-              </div>
-
-              <h3
-                style={{
-                  fontSize: 32,
-                  lineHeight: 1.1,
-                  letterSpacing: '-0.05em',
-                  fontWeight: 700,
-                  color: TEXT,
-                }}
-              >
-                You are not buying another dashboard.
-              </h3>
-
-              <p
-                style={{
-                  fontSize: 16,
-                  lineHeight: 1.8,
-                  color: TEXT_SOFT,
-                  marginTop: 18,
-                }}
-              >
-                You are buying earlier awareness, clearer context, and a visual audit trail for
-                pages that matter. That is what makes PageWatch more useful than manual checking,
-                generic uptime tools, or brittle custom scripts.
-              </p>
-
-              <div
-                className="rounded-[26px] p-5 mt-7"
-                style={{ background: SURFACE_SOFT, border: `1px solid ${BORDER}` }}
-              >
-                <div style={{ fontSize: 12, fontWeight: 800, color: TEXT_DIM, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                  Typical monitored pages
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {[
-                    'Pricing',
-                    'Checkout',
-                    'Sign-up',
-                    'Client pages',
-                    'Competitor offers',
-                    'Legal / policy pages',
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="px-3 py-2 rounded-xl"
-                      style={{
-                        background: SURFACE,
-                        border: `1px solid ${BORDER}`,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: TEXT,
-                      }}
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {steps.map((step, i) => {
-              const Icon = step.icon
-              const delay =
-                i % 3 === 1 ? { 'data-delay-1': '' } : i % 3 === 2 ? { 'data-delay-2': '' } : {}
-              return (
-                <div key={step.title} data-animate {...delay}>
-                  <div
-                    className="rounded-[28px] p-6 h-full"
-                    style={{
-                      background: 'linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74))',
-                      border: `1px solid ${BORDER}`,
-                      boxShadow: '0 18px 44px rgba(17,24,39,0.05)',
-                    }}
-                  >
-                    <div
-                      className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                      style={{
-                        background: i === 3 ? RED_SOFT : ACCENT_SOFT,
-                        border: `1px solid ${i === 3 ? RED_MID : ACCENT_MID}`,
-                        marginBottom: 18,
-                      }}
-                    >
-                      <Icon className="w-5 h-5" style={{ color: i === 3 ? RED : ACCENT }} />
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: TEXT_DIM,
-                        fontWeight: 800,
-                        letterSpacing: '0.12em',
-                        textTransform: 'uppercase',
-                        marginBottom: 12,
-                      }}
-                    >
-                      Step {String(i + 1).padStart(2, '0')}
-                    </div>
-
-                    <h3
-                      style={{
-                        fontSize: 22,
-                        lineHeight: 1.15,
-                        letterSpacing: '-0.04em',
-                        color: TEXT,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {step.title}
-                    </h3>
-
-                    <p
-                      style={{
-                        fontSize: 15,
-                        lineHeight: 1.8,
-                        color: TEXT_SOFT,
-                        marginTop: 14,
-                      }}
-                    >
-                      {step.body}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function WhyPageWatch() {
-  return (
-    <section id="why-pagewatch" className="py-24 lg:py-32" style={{ background: BG }}>
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="Why PageWatch"
-            title="Everything you need to know what changed, not just that something changed."
-            body="This is where most monitoring products fall short. They might tell you an event happened. PageWatch is designed to show the visual difference, explain it, and keep the evidence."
-          />
-        </div>
-
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mt-14">
-          {differentiators.map((item, i) => {
+        <div
+          className="mt-14"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 16,
+          }}
+        >
+          {featureRows.map((item, index) => {
             const Icon = item.icon
-            const delay =
-              i % 3 === 1 ? { 'data-delay-1': '' } : i % 3 === 2 ? { 'data-delay-2': '' } : {}
             return (
-              <div key={item.title} data-animate {...delay}>
+              <div
+                key={item.title}
+                data-animate
+                className="pw-card-lift"
+                style={{
+                  minHeight: index === 1 ? 310 : 260,
+                  transform: index === 1 ? 'translateY(-18px)' : undefined,
+                  background: SURFACE,
+                  border: `1px solid ${index === 1 ? BLUE_MID : BORDER}`,
+                  borderRadius: 28,
+                  padding: 24,
+                  boxShadow: index === 1 ? SHADOW_LG : SHADOW,
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
                 <div
-                  className="rounded-[28px] p-6 h-full"
                   style={{
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.72))',
-                    border: `1px solid ${BORDER}`,
-                    boxShadow: '0 18px 44px rgba(17,24,39,0.05)',
+                    position: 'absolute',
+                    right: -45,
+                    top: -45,
+                    width: 140,
+                    height: 140,
+                    borderRadius: 999,
+                    background:
+                      index === 1
+                        ? 'rgba(37,99,235,0.10)'
+                        : 'rgba(15,23,42,0.035)',
+                  }}
+                />
+
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    background: index === 1 ? BLUE_SOFT : SURFACE_SOFT,
+                    color: index === 1 ? BLUE : MUTED,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 24,
+                    position: 'relative',
                   }}
                 >
-                  <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
-                    style={{ background: ACCENT_SOFT, border: `1px solid ${ACCENT_MID}` }}
-                  >
-                    <Icon className="w-5 h-5" style={{ color: ACCENT }} />
-                  </div>
-
-                  <h3
-                    style={{
-                      fontSize: 22,
-                      lineHeight: 1.15,
-                      letterSpacing: '-0.04em',
-                      color: TEXT,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.title}
-                  </h3>
-
-                  <p
-                    style={{
-                      fontSize: 15,
-                      lineHeight: 1.8,
-                      color: TEXT_SOFT,
-                      marginTop: 14,
-                    }}
-                  >
-                    {item.body}
-                  </p>
+                  <Icon size={20} />
                 </div>
+
+                <h3 style={{ margin: 0, color: INK, fontSize: 22, lineHeight: 1.15, fontWeight: 950 }}>
+                  {item.title}
+                </h3>
+                <p style={{ margin: '12px 0 0', color: MUTED, fontSize: 14, lineHeight: 1.7 }}>
+                  {item.body}
+                </p>
               </div>
             )
           })}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function Comparison() {
-  const rows = [
-    ['Visual screenshot diffs', 'No', 'Limited', 'Yes'],
-    ['AI summary of changes', 'No', 'No', 'Yes'],
-    ['Historical screenshot archive', 'Manual', 'Rare', 'Yes'],
-    ['Per-page threshold control', 'No', 'Sometimes', 'Yes'],
-    ['No-code setup', 'Yes', 'Mixed', 'Yes'],
-    ['Useful for competitor monitoring', 'Manual', 'Weak', 'Yes'],
-    ['Useful for agencies and client pages', 'Weak', 'Mixed', 'Yes'],
-  ]
-
-  return (
-    <section className="py-24 lg:py-32" style={{ background: BG_SOFT }}>
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="Comparison"
-            title="Better than manual checks, lighter than custom monitoring stacks."
-            body="A good landing page should make the alternative obvious. PageWatch wins when the problem is visual change detection, faster awareness, and a clean record of what changed over time."
-          />
-        </div>
-
-        <div data-animate data-delay-1>
-          <div
-            className="rounded-[32px] overflow-hidden mt-14"
-            style={{
-              background: 'rgba(255,255,255,0.82)',
-              border: `1px solid ${BORDER}`,
-              boxShadow: SHADOW,
-            }}
-          >
-            <div className="grid grid-cols-4" style={{ background: SURFACE_SOFT, borderBottom: `1px solid ${BORDER}` }}>
-              {['Capability', 'Manual checks', 'Basic monitors', 'PageWatch'].map((label, i) => (
-                <div
-                  key={label}
-                  className="p-4 sm:p-5"
-                  style={{
-                    color: i === 3 ? ACCENT : TEXT,
-                    fontSize: 14,
-                    fontWeight: 800,
-                    borderLeft: i > 0 ? `1px solid ${BORDER}` : undefined,
-                  }}
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-
-            {rows.map((row, r) => (
-              <div
-                key={row[0]}
-                className="grid grid-cols-4"
-                style={{
-                  borderBottom: r < rows.length - 1 ? `1px solid ${BORDER}` : undefined,
-                }}
-              >
-                {row.map((cell, i) => (
-                  <div
-                    key={cell + i}
-                    className="p-4 sm:p-5"
-                    style={{
-                      borderLeft: i > 0 ? `1px solid ${BORDER}` : undefined,
-                      color: i === 0 ? TEXT : i === 3 ? ACCENT : TEXT_SOFT,
-                      fontSize: 14,
-                      fontWeight: i === 0 || i === 3 ? 700 : 600,
-                      background: i === 3 ? 'rgba(14,159,110,0.03)' : 'transparent',
-                    }}
-                  >
-                    {cell}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </section>
@@ -1217,174 +1463,111 @@ function Comparison() {
 function Pricing() {
   return (
     <section id="pricing" className="py-24 lg:py-32" style={{ background: BG }}>
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="Pricing"
-            title="Start small. Monitor what matters first."
-            body="The best first setup is not every page you own. It is the handful that would hurt the most if they changed without you noticing."
-            align="center"
-          />
-        </div>
+      <div className="max-w-[980px] mx-auto px-6">
+        <SectionHeading
+          label="Pricing"
+          title="Start small. Upgrade when monitoring becomes operational."
+          center
+        />
 
-        <div className="grid lg:grid-cols-3 gap-5 mt-14">
-          {[
-            {
-              name: 'Free',
-              price: '$0',
-              subtitle: 'For getting started',
-              featured: false,
-              bullets: [
-                'Monitor up to 3 URLs',
-                'Visual diff alerts',
-                'Basic screenshot history',
-                'Good for first workflows',
-              ],
-            },
-            {
-              name: 'Starter',
-              price: '$29',
-              subtitle: 'For real production monitoring',
-              featured: true,
-              bullets: [
-                'More monitored URLs',
-                'Hourly, daily, weekly checks',
-                'Threshold-based alerts',
-                'AI change summaries',
-              ],
-            },
-            {
-              name: 'Agency',
-              price: '$99',
-              subtitle: 'For multiple clients or larger teams',
-              featured: false,
-              bullets: [
-                'Higher monitoring volume',
-                'Workspace-oriented setup',
-                'Client and competitor tracking',
-                'Archive-heavy workflows',
-              ],
-            },
-          ].map((plan, i) => {
-            const delay =
-              i === 1 ? { 'data-delay-1': '' } : i === 2 ? { 'data-delay-2': '' } : {}
-            return (
-              <div key={plan.name} data-animate {...delay}>
-                <div
-                  className="rounded-[30px] p-7 h-full"
-                  style={{
-                    background: plan.featured
-                      ? 'linear-gradient(180deg, rgba(255,255,255,0.94), rgba(246,255,251,0.92))'
-                      : 'linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.74))',
-                    border: `1px solid ${plan.featured ? ACCENT_MID : BORDER}`,
-                    boxShadow: plan.featured ? '0 24px 70px rgba(14,159,110,0.12)' : '0 18px 44px rgba(17,24,39,0.05)',
-                    position: 'relative',
-                  }}
-                >
-                  {plan.featured && (
-                    <div
-                      className="absolute top-5 right-5 px-3 py-1.5 rounded-full"
-                      style={{
-                        background: ACCENT_SOFT,
-                        border: `1px solid ${ACCENT_MID}`,
-                        color: ACCENT,
-                        fontSize: 11,
-                        fontWeight: 800,
-                        letterSpacing: '0.10em',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Most popular
-                    </div>
-                  )}
+        <div
+          data-animate
+          style={{
+            marginTop: 46,
+            background: SURFACE,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 30,
+            padding: 12,
+            boxShadow: SHADOW_LG,
+          }}
+        >
+          <div
+            style={{
+              borderRadius: 22,
+              background: 'linear-gradient(135deg, #FFFFFF, #F3F7FF)',
+              padding: 28,
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: 24,
+              alignItems: 'center',
+              border: `1px solid ${BORDER}`,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: GREEN,
+                  background: GREEN_SOFT,
+                  border: '1px solid rgba(22,163,74,0.18)',
+                  padding: '5px 9px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 900,
+                  marginBottom: 12,
+                }}
+              >
+                <Zap size={13} />
+                Free to start
+              </div>
 
+              <h3
+                style={{
+                  margin: 0,
+                  color: INK,
+                  fontSize: 30,
+                  lineHeight: 1,
+                  fontWeight: 950,
+                  letterSpacing: '-0.04em',
+                }}
+              >
+                3 monitors. Daily checks. Email alerts.
+              </h3>
+
+              <div className="grid sm:grid-cols-3 gap-3 mt-22" style={{ marginTop: 22 }}>
+                {['Focus zones', 'Screenshot history', 'AI change summaries'].map((item) => (
                   <div
+                    key={item}
                     style={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: '0.12em',
-                      textTransform: 'uppercase',
-                      color: plan.featured ? ACCENT : TEXT_DIM,
-                      marginBottom: 16,
-                    }}
-                  >
-                    {plan.name}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 52,
-                      lineHeight: 1,
-                      letterSpacing: '-0.06em',
-                      color: TEXT,
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      color: MUTED,
+                      fontSize: 13,
                       fontWeight: 750,
                     }}
                   >
-                    {plan.price}
-                    <span
-                      style={{
-                        fontSize: 16,
-                        color: TEXT_DIM,
-                        fontWeight: 700,
-                        marginLeft: 6,
-                      }}
-                    >
-                      /mo
-                    </span>
+                    <Check size={14} color={GREEN} />
+                    {item}
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: 15,
-                      color: TEXT_SOFT,
-                      marginTop: 14,
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {plan.subtitle}
-                  </div>
-
-                  <div className="space-y-3 mt-8">
-                    {plan.bullets.map((b) => (
-                      <div key={b} className="flex items-center gap-3">
-                        <div
-                          className="w-7 h-7 rounded-full flex items-center justify-center"
-                          style={{
-                            background: plan.featured ? ACCENT_SOFT : SURFACE_ALT,
-                            border: `1px solid ${plan.featured ? ACCENT_MID : BORDER}`,
-                          }}
-                        >
-                          <Check
-                            className="w-4 h-4"
-                            style={{ color: plan.featured ? ACCENT : TEXT_SOFT }}
-                          />
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{b}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <Link
-                    href="/login"
-                    className="mt-9 inline-flex items-center justify-center gap-2 w-full px-5 py-4 rounded-2xl"
-                    style={{
-                      color: plan.featured ? 'white' : TEXT,
-                      background: plan.featured
-                        ? 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)'
-                        : 'rgba(255,255,255,0.78)',
-                      border: `1px solid ${plan.featured ? 'transparent' : BORDER}`,
-                      fontWeight: 800,
-                      boxShadow: plan.featured ? '0 18px 40px rgba(14,159,110,0.22)' : 'none',
-                      marginTop: 34,
-                    }}
-                  >
-                    Start free
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
+                ))}
               </div>
-            )
-          })}
+            </div>
+
+            <Link
+              href="/login"
+              className="pw-primary"
+              style={{
+                background: BLUE,
+                color: 'white',
+                padding: '14px 18px',
+                borderRadius: 15,
+                fontSize: 15,
+                fontWeight: 900,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                gap: 8,
+                alignItems: 'center',
+                boxShadow: '0 18px 40px rgba(37,99,235,0.24)',
+                transition: 'transform 160ms ease, box-shadow 160ms ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Start free <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -1394,54 +1577,41 @@ function Pricing() {
 function FAQ() {
   return (
     <section id="faq" className="py-24 lg:py-32" style={{ background: BG_SOFT }}>
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <SectionHeading
-            label="FAQ"
-            title="Questions buyers ask before they commit."
-            body="These also help search engines understand what PageWatch does, what kinds of pages it monitors, and why a visual monitoring workflow is different from generic monitoring."
-            align="center"
-          />
-        </div>
+      <div className="max-w-[900px] mx-auto px-6">
+        <SectionHeading label="FAQ" title="Questions before you watch your first page?" center />
 
-        <div className="space-y-4 mt-14">
-          {faqs.map((item, i) => (
-            <div
-              key={item.q}
+        <div style={{ marginTop: 42, display: 'grid', gap: 10 }}>
+          {faqs.map((item) => (
+            <details
               data-animate
-              {...(i % 2 === 1 ? { 'data-delay-1': '' } : {})}
+              key={item.q}
+              className="pw-details"
+              style={{
+                background: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 18,
+                padding: '18px 20px',
+                boxShadow: '0 8px 24px rgba(15,23,42,0.03)',
+              }}
             >
-              <div
-                className="rounded-[26px] p-6"
+              <summary
                 style={{
-                  background: 'rgba(255,255,255,0.84)',
-                  border: `1px solid ${BORDER}`,
-                  boxShadow: '0 16px 40px rgba(17,24,39,0.04)',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: INK,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 16,
                 }}
               >
-                <h3
-                  style={{
-                    fontSize: 22,
-                    lineHeight: 1.2,
-                    letterSpacing: '-0.03em',
-                    color: TEXT,
-                    fontWeight: 700,
-                  }}
-                >
-                  {item.q}
-                </h3>
-                <p
-                  style={{
-                    fontSize: 15,
-                    lineHeight: 1.85,
-                    color: TEXT_SOFT,
-                    marginTop: 14,
-                  }}
-                >
-                  {item.a}
-                </p>
-              </div>
-            </div>
+                {item.q}
+                <ChevronRight size={16} color={FAINT} />
+              </summary>
+              <p style={{ margin: '12px 0 0', color: MUTED, fontSize: 14, lineHeight: 1.7 }}>
+                {item.a}
+              </p>
+            </details>
           ))}
         </div>
       </div>
@@ -1449,116 +1619,67 @@ function FAQ() {
   )
 }
 
-function FinalCTA() {
+function CTA() {
   return (
-    <section className="py-24 lg:py-32" style={{ background: BG }}>
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-        <div data-animate>
-          <div
-            className="rounded-[36px] overflow-hidden"
-            style={{
-              background:
-                'radial-gradient(circle at top center, rgba(14,159,110,0.16), transparent 42%), linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,246,241,0.92))',
-              border: `1px solid ${BORDER}`,
-              boxShadow: SHADOW_LG,
-            }}
-          >
-            <div className="px-8 py-12 sm:px-12 sm:py-16 text-center">
-              <div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                style={{
-                  background: 'rgba(255,255,255,0.72)',
-                  border: `1px solid ${BORDER}`,
-                }}
-              >
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: ACCENT, boxShadow: `0 0 0 6px ${ACCENT_SOFT}` }}
-                />
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: ACCENT,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                  }}
-                >
-                  Launch faster
-                </span>
-              </div>
+    <section
+      className="py-24 lg:py-32"
+      style={{
+        background: `
+          radial-gradient(circle at center, rgba(37,99,235,0.12), transparent 40%),
+          linear-gradient(180deg, ${BG_SOFT}, #EEF4FF)
+        `,
+      }}
+    >
+      <div data-animate className="max-w-[920px] mx-auto px-6 text-center">
+        <Badge>Ready when the page changes</Badge>
 
-              <h2
-                style={{
-                  fontSize: 'clamp(2.4rem, 5vw, 4.8rem)',
-                  lineHeight: 0.98,
-                  letterSpacing: '-0.06em',
-                  color: TEXT,
-                  fontWeight: 750,
-                  marginTop: 20,
-                }}
-              >
-                Be the first to know
-                <br />
-                <span
-                  style={{
-                    background: 'linear-gradient(135deg, #0d8f63 0%, #14b87a 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  when the web changes.
-                </span>
-              </h2>
+        <h2
+          style={{
+            margin: '20px 0 0',
+            fontSize: 'clamp(2.4rem, 5vw, 4.4rem)',
+            lineHeight: 1.02,
+            letterSpacing: '-0.065em',
+            fontWeight: 950,
+            color: INK,
+          }}
+        >
+          Stop checking important pages manually.
+        </h2>
 
-              <p
-                style={{
-                  fontSize: 18,
-                  lineHeight: 1.8,
-                  color: TEXT_SOFT,
-                  maxWidth: 760,
-                  margin: '22px auto 0',
-                }}
-              >
-                Start with the handful of pages that matter most. Pricing. Checkout. Client
-                deliverables. Competitor pages. Legal and policy pages. PageWatch keeps watch, so
-                your team does not have to.
-              </p>
+        <p
+          style={{
+            margin: '18px auto 0',
+            maxWidth: 640,
+            color: MUTED,
+            fontSize: 17,
+            lineHeight: 1.7,
+          }}
+        >
+          Add a URL, capture a baseline, choose zones, and let PageWatch tell you when something
+          meaningful changes.
+        </p>
 
-              <div className="flex flex-col sm:flex-row justify-center gap-3 mt-9">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl"
-                  style={{
-                    color: 'white',
-                    fontWeight: 800,
-                    fontSize: 15,
-                    background: 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)',
-                    boxShadow: '0 18px 40px rgba(14,159,110,0.24)',
-                  }}
-                >
-                  Start free
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                <a
-                  href="#pricing"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl"
-                  style={{
-                    color: TEXT,
-                    fontWeight: 700,
-                    fontSize: 15,
-                    background: 'rgba(255,255,255,0.78)',
-                    border: `1px solid ${BORDER}`,
-                  }}
-                >
-                  See pricing
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Link
+          href="/login"
+          className="pw-primary"
+          style={{
+            marginTop: 30,
+            background: BLUE,
+            color: 'white',
+            padding: '15px 22px',
+            borderRadius: 16,
+            fontSize: 15,
+            fontWeight: 900,
+            textDecoration: 'none',
+            display: 'inline-flex',
+            gap: 8,
+            alignItems: 'center',
+            boxShadow: '0 18px 40px rgba(37,99,235,0.24)',
+            transition: 'transform 160ms ease, box-shadow 160ms ease',
+          }}
+        >
+          Start watching free <ArrowRight size={16} />
+        </Link>
       </div>
     </section>
   )
@@ -1566,49 +1687,29 @@ function FinalCTA() {
 
 function Footer() {
   return (
-    <footer
-      style={{
-        background: 'rgba(255,255,255,0.54)',
-        borderTop: `1px solid ${BORDER}`,
-      }}
-    >
-      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <footer style={{ background: SURFACE, borderTop: `1px solid ${BORDER}` }}>
+      <div className="max-w-[1180px] mx-auto px-6 py-8 flex flex-col sm:flex-row justify-between gap-4">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #14b87a 0%, #0e9f6e 100%)',
+              width: 30,
+              height: 30,
+              borderRadius: 10,
+              background: BLUE,
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <Monitor className="w-4 h-4" style={{ color: 'white' }} />
+            <Monitor size={14} />
           </div>
-          <div style={{ color: TEXT, fontSize: 14, fontWeight: 800 }}>PageWatch</div>
+          <span style={{ fontSize: 13, fontWeight: 900, color: INK }}>PageWatch</span>
         </div>
 
-        <div className="flex items-center gap-6">
-          {[
-            ['Product', '#product'],
-            ['Use cases', '#use-cases'],
-            ['Pricing', '#pricing'],
-            ['FAQ', '#faq'],
-          ].map(([label, href]) => (
-            <a
-              key={label}
-              href={href}
-              style={{
-                fontSize: 14,
-                color: TEXT_SOFT,
-                fontWeight: 600,
-              }}
-            >
-              {label}
-            </a>
-          ))}
-        </div>
-
-        <div style={{ fontSize: 13, color: TEXT_DIM }}>
-          Visual website monitoring for pages that matter.
-        </div>
+        <p style={{ margin: 0, color: FAINT, fontSize: 12 }}>
+          © {new Date().getFullYear()} PageWatch. Visual monitoring for public pages.
+        </p>
       </div>
     </footer>
   )
@@ -1616,74 +1717,19 @@ function Footer() {
 
 export default function LightLandingPage() {
   return (
-    <>
-      <style>{`
-        html {
-          scroll-behavior: smooth;
-        }
-
-        @keyframes heroSheen {
-          0% { transform: translateX(-35%); opacity: 0; }
-          10% { opacity: 1; }
-          55% { transform: translateX(65%); opacity: 1; }
-          100% { transform: translateX(85%); opacity: 0; }
-        }
-
-        @keyframes scanPulse {
-          0% { transform: translateY(-18px); opacity: 0.45; }
-          50% { transform: translateY(10px); opacity: 1; }
-          100% { transform: translateY(-18px); opacity: 0.45; }
-        }
-
-        .light-page a {
-          text-decoration: none;
-        }
-
-        .light-page * {
-          box-sizing: border-box;
-        }
-
-        [data-animate] {
-          opacity: 0;
-          transform: translateY(24px);
-          transition:
-            opacity 700ms ease,
-            transform 700ms ease;
-          will-change: opacity, transform;
-        }
-
-        [data-animate][data-visible] {
-          opacity: 1;
-          transform: translateY(0);
-        }
-
-        [data-animate][data-delay-1] {
-          transition-delay: 90ms;
-        }
-
-        [data-animate][data-delay-2] {
-          transition-delay: 180ms;
-        }
-
-        [data-animate][data-delay-3] {
-          transition-delay: 270ms;
-        }
-      `}</style>
-
-      <div className="light-page" style={{ background: BG, overflow: 'hidden' }}>
-        <ScrollReveal />
-        <Nav />
-        <Hero />
-        <ProofStrip />
-        <UseCases />
-        <ProductFlow />
-        <WhyPageWatch />
-        <Comparison />
-        <Pricing />
-        <FAQ />
-        <FinalCTA />
-        <Footer />
-      </div>
-    </>
+    <main style={{ background: BG, minHeight: '100vh' }}>
+      <GlobalStyles />
+      <Nav />
+      <Hero />
+      <SignalSection />
+      <ComparisonSection />
+      <UseCases />
+      <Features />
+      <Pricing />
+      <FAQ />
+      <CTA />
+      <Footer />
+      <ScrollReveal />
+    </main>
   )
 }
