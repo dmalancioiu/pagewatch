@@ -168,6 +168,11 @@ export default async function DashboardPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 80px 80px 80px 140px 28px', padding: '8px 14px', background: '#FBFCFF', borderBottom: '1px solid #EEF2F7' }}>{['', 'Monitor', 'Mode', 'Schedule', 'Last Check', 'Last Change', ''].map((h, i) => <span key={i} style={{ fontSize: 9, fontWeight: 800, color: '#CBD5E1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}</div>
                 {urls.slice(0, 8).map((url: any, idx: number) => { const lastAlert = lastAlertMap.get(url.id); return <MonitorRow key={url.id} isLast={idx === Math.min(urls.length, 8) - 1} showLastChange url={{ id: url.id, name: url.name, url: url.url, is_active: url.is_active, mode: url.mode, check_frequency: url.check_frequency, last_checked_at: url.last_checked_at, openAlertCount: alertCountMap.get(url.id) ?? 0, lastAlertDiffPct: lastAlert?.diff_pct ?? null, lastAlertSummary: lastAlert?.ai_summary ?? null }} /> })}
               </Surface>
+
+              <Surface>
+                <SurfaceHeader icon={<Flame size={16} />} title="Change heatmap" description={`${volatileDays} volatile day${volatileDays === 1 ? '' : 's'} in the last 5 weeks.`} />
+                <div style={{ padding: '16px 18px 18px' }}><div style={{ display: 'grid', gridTemplateColumns: 'repeat(35, minmax(10px, 1fr))', gap: 6 }}>{heatmapDays.map(day => <div key={day.key} title={`${day.label}: ${day.count} change${day.count === 1 ? '' : 's'}`} style={{ aspectRatio: '1 / 1', minHeight: 13, borderRadius: 4, background: heatColor(day.count), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 7, marginTop: 11 }}><span style={{ fontSize: 10, color: '#94A3B8' }}>Fewer</span><div style={{ display: 'flex', gap: 4 }}>{[0, 1, 3, 5].map(value => <span key={value} style={{ width: 13, height: 13, borderRadius: 4, background: heatColor(value), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><span style={{ fontSize: 10, color: '#94A3B8' }}>More</span></div></div>
+              </Surface>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -179,11 +184,6 @@ export default async function DashboardPage() {
               <Surface>
                 <SurfaceHeader icon={<Clock3 size={16} />} title="Next scheduled runs" description="The next checks across active monitors." />
                 <div>{nextRuns.length === 0 ? <div style={{ padding: 22, color: '#94A3B8', fontSize: 12 }}>No active checks scheduled.</div> : nextRuns.map((item: any, idx: number) => <Link key={item.url.id} href={`/dashboard/urls/${item.url.id}`} className="monitor-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: idx === nextRuns.length - 1 ? 'none' : '1px solid #F1F5F9', textDecoration: 'none' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2563EB', boxShadow: '0 0 0 3px rgba(37,99,235,0.1)', flexShrink: 0 }} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.url.name}</p><p style={{ margin: '3px 0 0', fontSize: 10, color: '#94A3B8' }}>{item.url.check_frequency} check</p></div><span style={{ fontSize: 11, fontWeight: 800, color: '#475569', flexShrink: 0 }}>{item.at.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></Link>)}</div>
-              </Surface>
-
-              <Surface>
-                <SurfaceHeader icon={<Flame size={16} />} title="Change heatmap" description={`${volatileDays} volatile day${volatileDays === 1 ? '' : 's'} in the last 5 weeks.`} />
-                <div style={{ padding: '14px 16px 16px' }}><div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>{heatmapDays.map(day => <div key={day.key} title={`${day.label}: ${day.count} change${day.count === 1 ? '' : 's'}`} style={{ height: 19, borderRadius: 5, background: heatColor(day.count), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}><span style={{ fontSize: 10, color: '#94A3B8' }}>Fewer</span><div style={{ display: 'flex', gap: 4 }}>{[0, 1, 3, 5].map(value => <span key={value} style={{ width: 13, height: 13, borderRadius: 4, background: heatColor(value), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><span style={{ fontSize: 10, color: '#94A3B8' }}>More</span></div></div>
               </Surface>
             </div>
           </div>
