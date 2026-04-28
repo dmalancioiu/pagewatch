@@ -5,7 +5,7 @@ import { getMonitoredUrls } from '@/lib/actions/websites'
 import { getAlerts } from '@/lib/actions/alerts'
 import { createServerClient } from '@/lib/supabase/server'
 import {
-  Globe, ArrowRight, AlertTriangle, Activity, Archive, Eye, Sparkles, ShieldCheck,
+  Globe, ArrowRight, AlertTriangle, Activity, Archive, Eye, Sparkles, ShieldCheck, Clock3, Flame,
 } from 'lucide-react'
 import { AddMonitorButton } from '@/components/dashboard/AddMonitorButton'
 import { MonitorRow } from '@/components/dashboard/MonitorRow'
@@ -31,6 +31,49 @@ function SurfaceHeader({ icon, title, description, action }: { icon: React.React
   return <div style={{ padding: '16px 18px', borderBottom: '1px solid #EEF2F7', background: 'linear-gradient(180deg, #FFFFFF, #FBFCFF)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}><div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 34, height: 34, borderRadius: 11, background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.15)', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div><div><h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>{title}</h2>{description && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94A3B8' }}>{description}</p>}</div></div>{action}</div>
 }
 
+function nextRunAt(url: any): Date | null {
+  if (!url.is_active) return null
+  const freq: string = url.check_frequency
+  const last: string | null = url.last_checked_at
+  const checkHour: number | null = url.check_hour ?? null
+  const now = new Date()
+
+  if (!last) return now
+  const lastD = new Date(last)
+
+  if (freq === 'hourly') {
+    const next = new Date(lastD.getTime() + 60 * 60 * 1000)
+    return next > now ? next : now
+  }
+
+  if (checkHour != null) {
+    const next = new Date()
+    next.setUTCHours(checkHour, 0, 0, 0)
+    if (freq === 'weekly') {
+      const minNext = new Date(lastD.getTime() + 7 * 24 * 60 * 60 * 1000)
+      while (next < minNext) next.setUTCDate(next.getUTCDate() + 1)
+    } else if (next <= now) {
+      next.setUTCDate(next.getUTCDate() + 1)
+    }
+    return next
+  }
+
+  const ms = freq === 'weekly' ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+  const next = new Date(lastD.getTime() + ms)
+  return next > now ? next : now
+}
+
+function dayKey(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function heatColor(count: number): string {
+  if (count >= 5) return '#991B1B'
+  if (count >= 3) return '#DC2626'
+  if (count >= 1) return '#FCA5A5'
+  return '#F1F5F9'
+}
+
 export default async function DashboardPage() {
   const workspace = await getWorkspace()
   if (!workspace) redirect('/dashboard')
@@ -44,10 +87,14 @@ export default async function DashboardPage() {
 
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
+  const heatmapStart = new Date()
+  heatmapStart.setHours(0, 0, 0, 0)
+  heatmapStart.setDate(heatmapStart.getDate() - 34)
 
-  const [{ count: checksToday }, { data: recentAlertsRaw }] = await Promise.all([
+  const [{ count: checksToday }, { data: recentAlertsRaw }, { data: heatmapAlertsRaw }] = await Promise.all([
     supabase.from('screenshot_snapshots').select('*', { count: 'exact', head: true }).eq('workspace_id', workspace.id).gte('taken_at', todayStart.toISOString()),
     supabase.from('alerts').select('id, diff_pct, ai_summary, created_at, status, monitored_url_id, monitored_urls(name, url, mode)').eq('workspace_id', workspace.id).order('created_at', { ascending: false }).limit(8),
+    supabase.from('alerts').select('id, created_at').eq('workspace_id', workspace.id).gte('created_at', heatmapStart.toISOString()),
   ])
 
   const recentAlerts = recentAlertsRaw ?? []
@@ -61,6 +108,20 @@ export default async function DashboardPage() {
   const openAlertCount = (openAlerts as any[]).length
   const hasUrls = urls.length > 0
   const sortedOpen = [...(openAlerts as any[])].sort((a, b) => (b.diff_pct ?? 0) - (a.diff_pct ?? 0))
+  const nextRuns = urls.map((url: any) => ({ url, at: nextRunAt(url) })).filter((item: any) => item.at).sort((a: any, b: any) => a.at.getTime() - b.at.getTime()).slice(0, 5)
+  const alertCountsByDay = new Map<string, number>()
+  for (const alert of heatmapAlertsRaw ?? []) {
+    const key = dayKey(new Date((alert as any).created_at))
+    alertCountsByDay.set(key, (alertCountsByDay.get(key) ?? 0) + 1)
+  }
+  const heatmapDays = Array.from({ length: 35 }, (_, index) => {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() - (34 - index))
+    const key = dayKey(date)
+    return { key, label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), count: alertCountsByDay.get(key) ?? 0 }
+  })
+  const volatileDays = heatmapDays.filter(day => day.count > 0).length
 
   return (
     <div className="canvas-dot-bg" style={{ minHeight: '100vh', padding: '30px 36px 56px' }}>
@@ -109,10 +170,22 @@ export default async function DashboardPage() {
               </Surface>
             </div>
 
-            <Surface>
-              <SurfaceHeader icon={<Activity size={16} />} title="Recent activity" description="Newest detected changes and AI summaries." action={<Link href="/dashboard/alerts" style={{ fontSize: 12, fontWeight: 750, color: '#2563EB', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>All alerts <ArrowRight size={12} /></Link>} />
-              <div>{recentAlerts.length === 0 ? <div style={{ padding: 28, color: '#94A3B8', fontSize: 12 }}>No recent changes yet.</div> : recentAlerts.map((alert: any, idx: number) => <Link key={alert.id} href={`/dashboard/urls/${alert.monitored_url_id}`} className="monitor-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderBottom: idx === recentAlerts.length - 1 ? 'none' : '1px solid #F1F5F9', textDecoration: 'none' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: alert.status === 'open' ? '#EF4444' : '#CBD5E1', marginTop: 5, boxShadow: alert.status === 'open' ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none', flexShrink: 0 }} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span style={{ fontSize: 12, fontWeight: 780, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alert.monitored_urls?.name ?? 'Unknown'}</span><span style={{ fontSize: 10, color: '#94A3B8', flexShrink: 0 }}>{timeAgo(alert.created_at)}</span></div>{alert.ai_summary && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748B', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{alert.ai_summary}</p>}</div><ArrowRight size={12} style={{ color: '#CBD5E1', marginTop: 3 }} /></Link>)}</div>
-            </Surface>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <Surface>
+                <SurfaceHeader icon={<Clock3 size={16} />} title="Next scheduled runs" description="The next checks across active monitors." />
+                <div>{nextRuns.length === 0 ? <div style={{ padding: 22, color: '#94A3B8', fontSize: 12 }}>No active checks scheduled.</div> : nextRuns.map((item: any, idx: number) => <Link key={item.url.id} href={`/dashboard/urls/${item.url.id}`} className="monitor-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: idx === nextRuns.length - 1 ? 'none' : '1px solid #F1F5F9', textDecoration: 'none' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2563EB', boxShadow: '0 0 0 3px rgba(37,99,235,0.1)', flexShrink: 0 }} /><div style={{ flex: 1, minWidth: 0 }}><p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.url.name}</p><p style={{ margin: '3px 0 0', fontSize: 10, color: '#94A3B8' }}>{item.url.check_frequency} check</p></div><span style={{ fontSize: 11, fontWeight: 800, color: '#475569', flexShrink: 0 }}>{item.at.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></Link>)}</div>
+              </Surface>
+
+              <Surface>
+                <SurfaceHeader icon={<Flame size={16} />} title="Change heatmap" description={`${volatileDays} volatile day${volatileDays === 1 ? '' : 's'} in the last 5 weeks.`} />
+                <div style={{ padding: '14px 16px 16px' }}><div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>{heatmapDays.map(day => <div key={day.key} title={`${day.label}: ${day.count} change${day.count === 1 ? '' : 's'}`} style={{ height: 19, borderRadius: 5, background: heatColor(day.count), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}><span style={{ fontSize: 10, color: '#94A3B8' }}>Fewer</span><div style={{ display: 'flex', gap: 4 }}>{[0, 1, 3, 5].map(value => <span key={value} style={{ width: 13, height: 13, borderRadius: 4, background: heatColor(value), border: '1px solid rgba(15,23,42,0.04)' }} />)}</div><span style={{ fontSize: 10, color: '#94A3B8' }}>More</span></div></div>
+              </Surface>
+
+              <Surface>
+                <SurfaceHeader icon={<Activity size={16} />} title="Recent activity" description="Newest detected changes and AI summaries." action={<Link href="/dashboard/alerts" style={{ fontSize: 12, fontWeight: 750, color: '#2563EB', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>All alerts <ArrowRight size={12} /></Link>} />
+                <div>{recentAlerts.length === 0 ? <div style={{ padding: 28, color: '#94A3B8', fontSize: 12 }}>No recent changes yet.</div> : recentAlerts.map((alert: any, idx: number) => <Link key={alert.id} href={`/dashboard/urls/${alert.monitored_url_id}`} className="monitor-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderBottom: idx === recentAlerts.length - 1 ? 'none' : '1px solid #F1F5F9', textDecoration: 'none' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: alert.status === 'open' ? '#EF4444' : '#CBD5E1', marginTop: 5, boxShadow: alert.status === 'open' ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none', flexShrink: 0 }} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><span style={{ fontSize: 12, fontWeight: 780, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alert.monitored_urls?.name ?? 'Unknown'}</span><span style={{ fontSize: 10, color: '#94A3B8', flexShrink: 0 }}>{timeAgo(alert.created_at)}</span></div>{alert.ai_summary && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748B', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{alert.ai_summary}</p>}</div><ArrowRight size={12} style={{ color: '#CBD5E1', marginTop: 3 }} /></Link>)}</div>
+              </Surface>
+            </div>
           </div>
         )}
       </div>
