@@ -35,7 +35,7 @@ export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange }
 
   function handleClose() {
     setLocalZones(zones) // discard
-    info('Changes discarded')
+    //info('Changes discarded')
     onClose()
   }
 
