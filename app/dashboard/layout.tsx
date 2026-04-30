@@ -33,12 +33,29 @@ export default async function DashboardLayout({ children }: { children: React.Re
     )
   }
 
+  const [{ count: totalMonitorCount }, { count: activeMonitorCount }] = await Promise.all([
+    supabase
+      .from('monitored_urls')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspace.id)
+      .is('deleted_at', null),
+    supabase
+      .from('monitored_urls')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspace.id)
+      .is('deleted_at', null)
+      .eq('is_active', true),
+  ])
+
   return (
     <DashboardShell
       workspaceId={workspace.id}
       domain={workspace.domain ?? ''}
       userEmail={userEmail}
       plan="free"
+      activeMonitorCount={activeMonitorCount ?? 0}
+      totalMonitorCount={totalMonitorCount ?? 0}
+      monitorLimit={3}
     >
       {children}
     </DashboardShell>
