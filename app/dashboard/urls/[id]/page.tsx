@@ -4,6 +4,7 @@ import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
+import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -109,7 +110,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <MonitorDetailDesignClientFixed
+    <MonitorDetailDesignClientResponsive
       monitor={urlData}
       openAlert={openAlert}
       snapshots={enrichedSnapshots}
