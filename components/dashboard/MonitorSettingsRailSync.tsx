@@ -17,6 +17,8 @@ type Zone = {
 
 type Props = {
   monitorId: string
+  initialIsActive: boolean
+  hasOpenAlert: boolean
   initialCheckFrequency: 'hourly' | 'daily' | 'weekly'
   initialCheckHour: number | null
   initialFullPage: boolean
@@ -43,8 +45,19 @@ function sectionByLabel(inspector: Element, keyword: string) {
   ) as HTMLElement | undefined
 }
 
+function esc(value: string | null | undefined) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
 export function MonitorSettingsRailSync({
   monitorId,
+  initialIsActive,
+  hasOpenAlert,
   initialCheckFrequency,
   initialCheckHour,
   initialFullPage,
@@ -52,6 +65,7 @@ export function MonitorSettingsRailSync({
   initialZones,
 }: Props) {
   const router = useRouter()
+  const [isActive, setIsActive] = useState(initialIsActive)
   const [checkFrequency, setCheckFrequency] = useState(initialCheckFrequency)
   const [checkHour, setCheckHour] = useState(initialCheckHour ?? 10)
   const [fullPage, setFullPage] = useState(initialFullPage)
@@ -82,6 +96,57 @@ export function MonitorSettingsRailSync({
     })
   }
 
+  function saveZones(nextZones: typeof zones, success = 'Zones saved') {
+    setZones(nextZones)
+    save({ zones: nextZones }, success)
+  }
+
+  useEffect(() => {
+    const topbar = document.querySelector('.md-topbar')
+    if (!topbar) return
+
+    const buttons = Array.from(topbar.querySelectorAll<HTMLButtonElement>('button'))
+    const actionButton = buttons.find((button) => {
+      const text = button.textContent?.trim().toLowerCase() ?? ''
+      return text.includes('pause') || text.includes('resume') || button.dataset.monitorPauseResume === 'true'
+    })
+    if (!actionButton) return
+
+    const statusChip = topbar.querySelector<HTMLElement>('.md-crumbs em')
+    const status = !isActive ? 'Paused' : hasOpenAlert ? 'Alert' : 'Healthy'
+
+    actionButton.dataset.monitorPauseResume = 'true'
+    actionButton.disabled = isPending
+    actionButton.innerHTML = isPending
+      ? 'Saving...'
+      : isActive
+        ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect></svg>Pause'
+        : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>Resume'
+
+    if (statusChip) {
+      statusChip.className = status.toLowerCase()
+      statusChip.innerHTML = `<i></i>${status}`
+    }
+
+    actionButton.onclick = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const next = !isActive
+      setMessage(next ? 'Resuming...' : 'Pausing...')
+      startTransition(async () => {
+        try {
+          await updateMonitoredUrl(monitorId, { is_active: next } as any)
+          setIsActive(next)
+          setMessage(next ? 'Monitor resumed' : 'Monitor paused')
+          router.refresh()
+        } catch (error) {
+          console.error(error)
+          setMessage('Could not update monitor')
+        }
+      })
+    }
+  }, [monitorId, isActive, isPending, hasOpenAlert, router])
+
   useEffect(() => {
     const inspector = document.querySelector('.md-inspector')
     if (!inspector) return
@@ -91,7 +156,7 @@ export function MonitorSettingsRailSync({
       const style = document.createElement('style')
       style.id = styleId
       style.textContent = `
-        .msr-msg{font-size:10px;color:#6B7280;margin-top:6px;text-align:right}.msr-control-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.msr-input{height:28px;border:1px solid #E5E7EB;border-radius:7px;padding:0 8px;font-size:11px;font-family:inherit;color:#111827;background:white;outline:none}.msr-input:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.08)}.msr-toggle{position:relative;width:36px;height:20px;border-radius:99px;border:0;background:#D1D5DB;cursor:pointer;flex-shrink:0}.msr-toggle.on{background:#2563EB}.msr-toggle i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .2s}.msr-toggle.on i{left:18px}.msr-zone-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid #E5E7EB;border-radius:6px;background:#FAFAFA;margin-bottom:5px}.msr-zone-dot{width:8px;height:8px;border-radius:50%;background:#2563EB;flex-shrink:0}.msr-zone-main{flex:1;min-width:0}.msr-zone-main b{display:block;font-size:11.5px;color:#111827}.msr-zone-main span{display:block;font-size:10px;color:#9CA3AF;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.msr-remove{width:22px;height:22px;border-radius:5px;border:1px solid #E5E7EB;background:white;color:#EF4444;cursor:pointer;font-size:13px;line-height:1}.msr-remove:hover{background:#FEF2F2;border-color:#FECACA}.msr-empty{font-size:11px;color:#9CA3AF;margin:0 0 8px}.msr-btn{width:100%;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid #E5E7EB;background:white;border-radius:8px;font-size:11px;font-weight:500;color:#374151;cursor:pointer}.msr-btn:hover{background:#F9FAFB}.msr-btn.primary{background:#2563EB;color:white;border-color:#2563EB}.msr-btn.primary:hover{background:#1D4ED8}.msr-btn:disabled{opacity:.65;cursor:wait}.msr-textarea{width:100%;min-height:82px;resize:vertical;border:1px solid #E5E7EB;border-radius:8px;padding:8px;font-size:11.5px;line-height:1.5;color:#374151;font-family:inherit;outline:none;margin-bottom:8px}.msr-textarea:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+        .msr-msg{font-size:10px;color:#6B7280;margin-top:6px;text-align:right}.msr-control-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.msr-input{height:28px;border:1px solid #E5E7EB;border-radius:7px;padding:0 8px;font-size:11px;font-family:inherit;color:#111827;background:white;outline:none}.msr-input:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.08)}.msr-toggle{position:relative;width:36px;height:20px;border-radius:99px;border:0;background:#D1D5DB;cursor:pointer;flex-shrink:0}.msr-toggle.on{background:#2563EB}.msr-toggle i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .2s}.msr-toggle.on i{left:18px}.msr-zone-card{padding:8px;border:1px solid #E5E7EB;border-radius:8px;background:#FAFAFA;margin-bottom:8px}.msr-zone-head{display:flex;align-items:center;gap:6px;margin-bottom:7px}.msr-zone-dot{width:8px;height:8px;border-radius:50%;background:#2563EB;flex-shrink:0}.msr-zone-head input{flex:1;height:25px;border:1px solid transparent;background:transparent;border-radius:6px;padding:0 5px;font-size:11.5px;font-weight:700;color:#111827;outline:none}.msr-zone-head input:focus{background:white;border-color:#E5E7EB}.msr-remove{width:22px;height:22px;border-radius:5px;border:1px solid #E5E7EB;background:white;color:#EF4444;cursor:pointer;font-size:13px;line-height:1}.msr-remove:hover{background:#FEF2F2;border-color:#FECACA}.msr-zone-prompt{width:100%;min-height:64px;resize:vertical;border:1px solid #E5E7EB;border-radius:7px;background:white;padding:7px;font-size:11px;line-height:1.45;color:#374151;font-family:inherit;outline:none;margin-bottom:6px}.msr-zone-prompt:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.08)}.msr-zone-save{height:24px;border:1px solid #E5E7EB;border-radius:6px;background:white;color:#374151;font-size:10.5px;font-weight:500;padding:0 8px;cursor:pointer}.msr-zone-save:hover{background:#F9FAFB}.msr-empty{font-size:11px;color:#9CA3AF;margin:0 0 8px}.msr-btn{width:100%;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid #E5E7EB;background:white;border-radius:8px;font-size:11px;font-weight:500;color:#374151;cursor:pointer}.msr-btn:hover{background:#F9FAFB}.msr-btn.primary{background:#2563EB;color:white;border-color:#2563EB}.msr-btn:disabled{opacity:.65;cursor:wait}.msr-textarea{width:100%;min-height:82px;resize:vertical;border:1px solid #E5E7EB;border-radius:8px;padding:8px;font-size:11.5px;line-height:1.5;color:#374151;font-family:inherit;outline:none;margin-bottom:8px}.msr-textarea:focus{border-color:rgba(37,99,235,.45);box-shadow:0 0 0 3px rgba(37,99,235,.08)}.msr-hint{font-size:10px;line-height:1.45;color:#9CA3AF;margin:0 0 8px}
       `
       document.head.appendChild(style)
     }
@@ -112,13 +177,8 @@ export function MonitorSettingsRailSync({
           <button data-freq="daily" class="${checkFrequency === 'daily' ? 'active' : ''}">Daily</button>
           <button data-freq="weekly" class="${checkFrequency === 'weekly' ? 'active' : ''}">Weekly</button>
         </div>
-        <div class="msr-control-row">
-          <span style="font-size:11px;color:#6B7280;font-weight:500">Run at (UTC)</span>
-          <select class="msr-input" data-check-hour>
-            ${Array.from({ length: 24 }, (_, hour) => `<option value="${hour}" ${hour === checkHour ? 'selected' : ''}>${String(hour).padStart(2, '0')}:00</option>`).join('')}
-          </select>
-        </div>
-        <div class="msr-msg">${message}</div>
+        <div class="msr-control-row"><span style="font-size:11px;color:#6B7280;font-weight:500">Run at (UTC)</span><select class="msr-input" data-check-hour>${Array.from({ length: 24 }, (_, hour) => `<option value="${hour}" ${hour === checkHour ? 'selected' : ''}>${String(hour).padStart(2, '0')}:00</option>`).join('')}</select></div>
+        <div class="msr-msg">${esc(message)}</div>
       `
       scheduleSection.querySelectorAll<HTMLButtonElement>('[data-freq]').forEach((button) => {
         button.onclick = () => {
@@ -141,11 +201,8 @@ export function MonitorSettingsRailSync({
     if (captureSection) {
       captureSection.innerHTML = `
         <label>▣ Capture</label>
-        <div class="msr-control-row">
-          <div><b style="display:block;font-size:12px;font-weight:600;color:#111827">Full page scroll</b><span style="font-size:10px;color:#9CA3AF">Capture entire page height</span></div>
-          <button class="msr-toggle ${fullPage ? 'on' : ''}" data-full-page><i></i></button>
-        </div>
-        <p style="font-size:10px;color:#9CA3AF;margin:10px 0 0">Cookie banners are always dismissed automatically before capture.</p>
+        <div class="msr-control-row"><div><b style="display:block;font-size:12px;font-weight:600;color:#111827">Full page scroll</b><span style="font-size:10px;color:#9CA3AF">Capture entire page height</span></div><button class="msr-toggle ${fullPage ? 'on' : ''}" data-full-page><i></i></button></div>
+        <p class="msr-hint">Cookie banners are always dismissed automatically before capture.</p>
       `
       const toggle = captureSection.querySelector<HTMLButtonElement>('[data-full-page]')
       if (toggle) {
@@ -161,22 +218,27 @@ export function MonitorSettingsRailSync({
     if (zonesSection) {
       zonesSection.innerHTML = `
         <label>▣ Zones</label>
+        <p class="msr-hint">Each zone can have its own prompt. The LLM receives these as zone-specific instructions.</p>
         <div data-zone-list>
           ${zones.length ? zones.map((zone, index) => `
-            <div class="msr-zone-row" data-zone-id="${zone.id}">
-              <i class="msr-zone-dot" style="background:${index === 0 ? '#2563EB' : '#16A34A'}"></i>
-              <div class="msr-zone-main"><b>${zone.label || `Zone ${index + 1}`}</b><span>${zone.instruction || zone.sensitivity || 'Visual changes'}</span></div>
-              <button class="msr-remove" data-remove-zone="${zone.id}" title="Remove zone">×</button>
+            <div class="msr-zone-card" data-zone-id="${esc(zone.id)}">
+              <div class="msr-zone-head"><i class="msr-zone-dot" style="background:${index === 0 ? '#2563EB' : '#16A34A'}"></i><input data-zone-label="${esc(zone.id)}" value="${esc(zone.label || `Zone ${index + 1}`)}" /><button class="msr-remove" data-remove-zone="${esc(zone.id)}" title="Remove zone">×</button></div>
+              <textarea class="msr-zone-prompt" data-zone-prompt="${esc(zone.id)}" placeholder="Prompt for this zone, e.g. Only alert me if pricing or CTA text changes…">${esc(zone.instruction || '')}</textarea>
+              <button class="msr-zone-save" data-save-zone="${esc(zone.id)}">Save zone prompt</button>
             </div>
-          `).join('') : '<p class="msr-empty">No custom zones yet.</p>'}
+          `).join('') : '<p class="msr-empty">No custom zones yet. The main AI instruction below applies to the whole page.</p>'}
         </div>
         <button class="msr-btn" data-open-zone-editor>+ Add zone</button>
       `
       zonesSection.querySelectorAll<HTMLButtonElement>('[data-remove-zone]').forEach((button) => {
+        button.onclick = () => saveZones(zones.filter((zone) => zone.id !== button.dataset.removeZone), 'Zone removed')
+      })
+      zonesSection.querySelectorAll<HTMLButtonElement>('[data-save-zone]').forEach((button) => {
         button.onclick = () => {
-          const next = zones.filter((zone) => zone.id !== button.dataset.removeZone)
-          setZones(next)
-          save({ zones: next }, 'Zone removed')
+          const id = button.dataset.saveZone
+          const label = zonesSection.querySelector<HTMLInputElement>(`[data-zone-label="${CSS.escape(id ?? '')}"]`)?.value ?? ''
+          const instruction = zonesSection.querySelector<HTMLTextAreaElement>(`[data-zone-prompt="${CSS.escape(id ?? '')}"]`)?.value ?? ''
+          saveZones(zones.map((zone) => zone.id === id ? { ...zone, label, instruction } : zone), 'Zone prompt saved')
         }
       })
       const addZoneButton = zonesSection.querySelector<HTMLButtonElement>('[data-open-zone-editor]')
@@ -191,16 +253,15 @@ export function MonitorSettingsRailSync({
     const aiSection = sectionByLabel(inspector, 'ai instruction')
     if (aiSection) {
       aiSection.innerHTML = `
-        <label>ⓘ AI instruction</label>
-        <textarea class="msr-textarea" data-watch-description>${watchDescription}</textarea>
+        <label>ⓘ Main AI instruction</label>
+        <p class="msr-hint">Used for full-page monitoring and as fallback context when a zone has no prompt.</p>
+        <textarea class="msr-textarea" data-watch-description placeholder="General page-level prompt…">${esc(watchDescription)}</textarea>
         <button class="msr-btn" data-update-instruction ${isPending ? 'disabled' : ''}>${isPending ? 'Saving...' : 'Update instruction'}</button>
       `
       const textarea = aiSection.querySelector<HTMLTextAreaElement>('[data-watch-description]')
       if (textarea) textarea.oninput = () => setWatchDescription(textarea.value)
       const updateButton = aiSection.querySelector<HTMLButtonElement>('[data-update-instruction]')
-      if (updateButton) {
-        updateButton.onclick = () => save({ watch_description: textarea?.value ?? '' }, 'Instruction saved')
-      }
+      if (updateButton) updateButton.onclick = () => save({ watch_description: textarea?.value ?? '' }, 'Instruction saved')
     }
   }, [checkFrequency, checkHour, fullPage, watchDescription, zones, isPending, message])
 
