@@ -3,6 +3,7 @@ import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
+import { MonitorPauseResumeSync } from '@/components/dashboard/MonitorPauseResumeSync'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 
 export const metadata = { title: 'Monitor — PageWatch' }
@@ -109,15 +110,22 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <MonitorDetailDesignClientFixed
-      monitor={urlData}
-      openAlert={openAlert}
-      snapshots={enrichedSnapshots}
-      alerts={enrichedAlerts}
-      alertBySnapshotId={alertBySnapshotId}
-      zones={urlData.zones ?? []}
-      lastChecked={timeAgo(urlData.last_checked_at)}
-      nextRun={nextCheckAt(urlData)}
-    />
+    <>
+      <MonitorDetailDesignClientFixed
+        monitor={urlData}
+        openAlert={openAlert}
+        snapshots={enrichedSnapshots}
+        alerts={enrichedAlerts}
+        alertBySnapshotId={alertBySnapshotId}
+        zones={urlData.zones ?? []}
+        lastChecked={timeAgo(urlData.last_checked_at)}
+        nextRun={nextCheckAt(urlData)}
+      />
+      <MonitorPauseResumeSync
+        monitorId={urlData.id}
+        initialIsActive={urlData.is_active !== false}
+        hasOpenAlert={Boolean(openAlert)}
+      />
+    </>
   )
 }
