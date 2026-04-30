@@ -2,9 +2,9 @@ import { notFound, redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
-import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
+import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -110,15 +110,25 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <MonitorDetailDesignClientResponsive
-      monitor={urlData}
-      openAlert={openAlert}
-      snapshots={enrichedSnapshots}
-      alerts={enrichedAlerts}
-      alertBySnapshotId={alertBySnapshotId}
-      zones={urlData.zones ?? []}
-      lastChecked={timeAgo(urlData.last_checked_at)}
-      nextRun={nextCheckAt(urlData)}
-    />
+    <>
+      <MonitorDetailDesignClientResponsive
+        monitor={urlData}
+        openAlert={openAlert}
+        snapshots={enrichedSnapshots}
+        alerts={enrichedAlerts}
+        alertBySnapshotId={alertBySnapshotId}
+        zones={urlData.zones ?? []}
+        lastChecked={timeAgo(urlData.last_checked_at)}
+        nextRun={nextCheckAt(urlData)}
+      />
+      <MonitorSettingsRailSync
+        monitorId={urlData.id}
+        initialCheckFrequency={urlData.check_frequency ?? 'daily'}
+        initialCheckHour={urlData.check_hour ?? 10}
+        initialFullPage={urlData.full_page !== false}
+        initialWatchDescription={urlData.watch_description ?? null}
+        initialZones={urlData.zones ?? []}
+      />
+    </>
   )
 }
