@@ -3,6 +3,7 @@ import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
+import { MonitorPauseResumeSync } from '@/components/dashboard/MonitorPauseResumeSync'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 
