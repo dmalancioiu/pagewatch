@@ -16,12 +16,6 @@ import {
 } from 'lucide-react'
 import { useDashboard } from './DashboardShell'
 
-const NAV = [
-  { href: '/dashboard', label: 'Feed', icon: Zap, exact: true, badge: '3', badgeTone: 'red' },
-  { href: '/dashboard/urls', label: 'Monitors', icon: LayoutGrid, badge: '6', badgeTone: 'gray' },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-]
-
 const WORKSPACE = [
   { href: '/dashboard/settings#team', label: 'Team', icon: Users },
   { href: '/dashboard/settings#integrations', label: 'Integrations', icon: Webhook },
@@ -32,6 +26,9 @@ interface SidebarProps {
   domain: string
   userEmail: string
   plan?: 'free' | 'pro' | 'agency'
+  activeMonitorCount?: number
+  totalMonitorCount?: number
+  monitorLimit?: number
 }
 
 function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
@@ -39,7 +36,7 @@ function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
   label: string
   icon: any
   active: boolean
-  badge?: string
+  badge?: string | number
   badgeTone?: string
 }) {
   return (
@@ -55,17 +52,30 @@ function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
       {active && <span className="pw-side-active-bar" />}
       <Icon size={14} strokeWidth={1.9} style={{ color: active ? '#2563EB' : undefined, flexShrink: 0 }} />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      {badge && <span className={`pw-side-badge ${badgeTone === 'red' ? 'red' : 'gray'}`}>{badge}</span>}
+      {badge !== undefined && badge !== null && <span className={`pw-side-badge ${badgeTone === 'red' ? 'red' : 'gray'}`}>{badge}</span>}
     </Link>
   )
 }
 
-export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
+export function Sidebar({
+  domain,
+  userEmail,
+  plan = 'free',
+  activeMonitorCount = 0,
+  totalMonitorCount = 0,
+  monitorLimit = 3,
+}: SidebarProps) {
   const pathname = usePathname()
   const { openAddUrl } = useDashboard()
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'
   const displayEmail = userEmail || 'Account'
-  const activeCount = 6
+  const activeLabel = `${activeMonitorCount} monitor${activeMonitorCount === 1 ? '' : 's'} active`
+
+  const nav = [
+    { href: '/dashboard', label: 'Feed', icon: Zap, exact: true },
+    { href: '/dashboard/urls', label: 'Monitors', icon: LayoutGrid, badge: totalMonitorCount, badgeTone: 'gray' },
+    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  ]
 
   return (
     <aside className="pw-side">
@@ -86,7 +96,7 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       </div>
 
       <nav className="pw-side-nav">
-        {NAV.map(({ href, label, icon, exact, badge, badgeTone }) => {
+        {nav.map(({ href, label, icon, exact, badge, badgeTone }) => {
           const active = exact ? pathname === href : pathname.startsWith(href)
           return <NavItem key={href} href={href} label={label} icon={icon} active={active} badge={badge} badgeTone={badgeTone} />
         })}
@@ -97,14 +107,14 @@ export function Sidebar({ domain, userEmail, plan = 'free' }: SidebarProps) {
       <div className="pw-side-bottom">
         <div className="pw-side-status">
           <span className="pw-live-dot" />
-          <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{activeCount} monitors active</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9CA3AF' }}>Live</span>
+          <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{activeLabel}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9CA3AF' }}>{activeMonitorCount > 0 ? 'Live' : 'Idle'}</span>
         </div>
         <div className="pw-side-account">
           <div className="pw-side-avatar">{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 11.5, fontWeight: 550, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{plan === 'free' ? 'Free plan' : `${plan} plan`}</p>
-            <p style={{ fontSize: 9.5, color: '#9CA3AF', margin: 0 }}>3 / 3 monitors used</p>
+            <p style={{ fontSize: 9.5, color: '#9CA3AF', margin: 0 }}>{totalMonitorCount} / {monitorLimit} monitors used</p>
           </div>
           {plan === 'free' ? <Link href="/dashboard/settings#billing" className="pw-side-upgrade">Upgrade</Link> : null}
           <form action="/api/auth/signout" method="post" style={{ flexShrink: 0 }}>
