@@ -18,6 +18,9 @@ interface DashboardShellProps {
   domain: string
   userEmail: string
   plan?: 'free' | 'pro' | 'agency'
+  activeMonitorCount?: number
+  totalMonitorCount?: number
+  monitorLimit?: number
 }
 
 export function DashboardShell({
@@ -26,6 +29,9 @@ export function DashboardShell({
   domain,
   userEmail,
   plan = 'free',
+  activeMonitorCount = 0,
+  totalMonitorCount = 0,
+  monitorLimit = 3,
 }: DashboardShellProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [newUrlId, setNewUrlId] = useState<string | null>(null)
@@ -45,7 +51,14 @@ export function DashboardShell({
   return (
     <DashboardCtx.Provider value={{ openAddUrl: () => setAddOpen(true) }}>
       <div style={{ minHeight: '100vh', background: '#F7F8FA' }}>
-        <Sidebar domain={domain} userEmail={userEmail} plan={plan} />
+        <Sidebar
+          domain={domain}
+          userEmail={userEmail}
+          plan={plan}
+          activeMonitorCount={activeMonitorCount}
+          totalMonitorCount={totalMonitorCount}
+          monitorLimit={monitorLimit}
+        />
 
         <main
           style={{
