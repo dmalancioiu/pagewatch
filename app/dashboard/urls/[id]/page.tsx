@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
-import { MonitorDetailDesignClient } from '@/components/dashboard/MonitorDetailDesignClient'
+import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 
 export const metadata = { title: 'Monitor — PageWatch' }
@@ -68,7 +68,6 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
 
   const snapshots: any[] = (urlData.screenshot_snapshots ?? []).sort((a: any, b: any) => new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime())
   const alerts: any[] = (urlData.alerts ?? []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  const openAlerts = alerts.filter((a: any) => a.status === 'open')
 
   const snapshotById = new Map<string, any>()
   for (const snapshot of snapshots) snapshotById.set(snapshot.id, snapshot)
@@ -110,7 +109,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <MonitorDetailDesignClient
+    <MonitorDetailDesignClientFixed
       monitor={urlData}
       openAlert={openAlert}
       snapshots={enrichedSnapshots}
