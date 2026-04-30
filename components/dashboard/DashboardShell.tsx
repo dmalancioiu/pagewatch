@@ -5,15 +5,13 @@ import { Sidebar } from './Sidebar'
 import { AddUrlModal } from './AddUrlModal'
 import { FirstScreenshotModal } from './FirstScreenshotModal'
 
-/* ─── Context ─── */
 interface DashboardCtxValue {
   openAddUrl: () => void
 }
 
-const DashboardCtx = createContext<DashboardCtxValue>({ openAddUrl: () => { } })
+const DashboardCtx = createContext<DashboardCtxValue>({ openAddUrl: () => {} })
 export const useDashboard = () => useContext(DashboardCtx)
 
-/* ─── Shell ─── */
 interface DashboardShellProps {
   children: React.ReactNode
   workspaceId: string
@@ -31,7 +29,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [newUrlId, setNewUrlId] = useState<string | null>(null)
-  const [newUrlName, setNewUrlName] = useState<string>('')
+  const [newUrlName, setNewUrlName] = useState('')
 
   function handleUrlCreated(urlId: string, name?: string) {
     setAddOpen(false)
@@ -46,16 +44,18 @@ export function DashboardShell({
 
   return (
     <DashboardCtx.Provider value={{ openAddUrl: () => setAddOpen(true) }}>
-      <div className="flex min-h-screen" style={{ background: '#F6F7F9' }}>
+      <div style={{ minHeight: '100vh', background: '#F7F8FA' }}>
         <Sidebar domain={domain} userEmail={userEmail} plan={plan} />
 
         <main
-          className="flex-1 min-h-screen overflow-x-hidden"
-          style={{ marginLeft: '220px' }}
+          style={{
+            marginLeft: 208,
+            minHeight: '100vh',
+            overflowX: 'hidden',
+            background: '#F7F8FA',
+          }}
         >
-          <div className="w-full">
-            {children}
-          </div>
+          {children}
         </main>
       </div>
 
