@@ -2,10 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
-import { WorkspaceTopBar } from '@/components/dashboard/WorkspaceTopBar'
-import { UrlDetailClient } from './UrlDetailClient'
-import { UrlDetailSettings } from './UrlDetailSettings'
-import { ResizableInspectorLayout } from './ResizableInspectorLayout'
+import { MonitorDetailDesignClient } from '@/components/dashboard/MonitorDetailDesignClient'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 
 export const metadata = { title: 'Monitor — PageWatch' }
@@ -54,10 +51,6 @@ function nextCheckAt(url: any): string {
   return `~${Math.round((next.getTime() - now.getTime()) / 3600000)}h`
 }
 
-function hostname(raw: string): string {
-  try { return new URL(raw).hostname } catch { return raw }
-}
-
 export default async function UrlDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const workspace = await getWorkspace()
   if (!workspace) redirect('/dashboard')
@@ -78,61 +71,54 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const openAlerts = alerts.filter((a: any) => a.status === 'open')
 
   const snapshotById = new Map<string, any>()
-  for (const s of snapshots) snapshotById.set(s.id, s)
+  for (const snapshot of snapshots) snapshotById.set(snapshot.id, snapshot)
 
-  const allPaths = [...snapshots.map((s: any) => s.storage_path), ...alerts.map((a: any) => a.diff_storage_path)]
+  const allPaths = [...snapshots.map((s: any) => s.storage_path), ...alerts.map((a: any) => a.diff_storage_path)].filter(Boolean)
   const signedUrlMap = await getSignedUrls(allPaths)
 
-  const enrichedAlerts: AlertWithUrls[] = alerts.map((a: any) => {
-    const prevSnap = snapshotById.get(a.previous_snapshot_id)
-    const currSnap = snapshotById.get(a.current_snapshot_id)
+  const enrichedAlerts: AlertWithUrls[] = alerts.map((alert: any) => {
+    const prevSnap = snapshotById.get(alert.previous_snapshot_id)
+    const currSnap = snapshotById.get(alert.current_snapshot_id)
     return {
-      id: a.id,
-      diff_pct: a.diff_pct,
-      severity: a.severity,
-      status: a.status,
-      created_at: a.created_at,
-      ai_summary: a.ai_summary,
-      metadata: a.metadata ?? null,
+      id: alert.id,
+      diff_pct: alert.diff_pct,
+      severity: alert.severity,
+      status: alert.status,
+      created_at: alert.created_at,
+      ai_summary: alert.ai_summary,
+      metadata: alert.metadata ?? null,
       beforeUrl: prevSnap ? signedUrlMap.get(prevSnap.storage_path) ?? null : null,
       afterUrl: currSnap ? signedUrlMap.get(currSnap.storage_path) ?? null : null,
-      diffUrl: a.diff_storage_path ? signedUrlMap.get(a.diff_storage_path) ?? null : null,
+      diffUrl: alert.diff_storage_path ? signedUrlMap.get(alert.diff_storage_path) ?? null : null,
     }
   })
 
   const alertBySnapshotId: Record<string, AlertWithUrls> = {}
-  for (const a of enrichedAlerts) {
-    const rawAlert = alerts.find((ra: any) => ra.id === a.id)
-    if (rawAlert?.current_snapshot_id) alertBySnapshotId[rawAlert.current_snapshot_id] = a
+  for (const enriched of enrichedAlerts) {
+    const raw = alerts.find((alert: any) => alert.id === enriched.id)
+    if (raw?.current_snapshot_id) alertBySnapshotId[raw.current_snapshot_id] = enriched
   }
 
-  const enrichedSnapshots: SnapshotWithUrl[] = snapshots.map((s: any) => ({ id: s.id, storage_path: s.storage_path, taken_at: s.taken_at, file_size_bytes: s.file_size_bytes, signedUrl: signedUrlMap.get(s.storage_path) ?? null }))
-  const openAlert = enrichedAlerts.find((a) => a.status === 'open') ?? null
+  const enrichedSnapshots: SnapshotWithUrl[] = snapshots.map((snapshot: any) => ({
+    id: snapshot.id,
+    storage_path: snapshot.storage_path,
+    taken_at: snapshot.taken_at,
+    file_size_bytes: snapshot.file_size_bytes,
+    signedUrl: signedUrlMap.get(snapshot.storage_path) ?? null,
+  }))
 
-  const isPaused = !urlData.is_active
-  const isArchive = urlData.mode === 'archive'
-  const statusVariant = isPaused ? 'paused' : openAlerts.length > 0 ? 'alert' : isArchive ? 'archive' : 'healthy'
+  const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F6F7F9' }}>
-      <WorkspaceTopBar name={urlData.name} url={urlData.url} statusVariant={statusVariant} lastChecked={timeAgo(urlData.last_checked_at)} nextRun={nextCheckAt(urlData)} urlId={urlData.id} isPaused={isPaused} />
-
-      <ResizableInspectorLayout
-        main={
-          <div style={{ maxWidth: 1320, margin: '0 auto', width: '100%' }}>
-            <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 850, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Monitor workspace</p>
-                <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.08, fontWeight: 850, color: '#0F172A', letterSpacing: '-0.045em' }}>{urlData.name}</h1>
-                <p style={{ margin: '8px 0 0', fontSize: 13, color: openAlerts.length > 0 ? '#DC2626' : '#64748B' }}>{openAlerts.length > 0 ? `${openAlerts.length} open change${openAlerts.length !== 1 ? 's' : ''} waiting for review.` : `${hostname(urlData.url)} · ${urlData.zones?.length ?? 0} focus zone${(urlData.zones?.length ?? 0) !== 1 ? 's' : ''}.`}</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 999, background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 8px 24px rgba(15,23,42,0.045)', flexShrink: 0 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: statusVariant === 'alert' ? '#EF4444' : statusVariant === 'paused' ? '#94A3B8' : '#16A34A', boxShadow: statusVariant === 'alert' ? '0 0 0 4px rgba(239,68,68,0.1)' : statusVariant === 'paused' ? '0 0 0 4px rgba(148,163,184,0.12)' : '0 0 0 4px rgba(22,163,74,0.1)' }} /><span style={{ fontSize: 12, fontWeight: 750, color: '#475569', textTransform: 'capitalize' }}>{statusVariant}</span></div>
-            </div>
-            <UrlDetailClient openAlert={openAlert} snapshots={enrichedSnapshots} alertBySnapshotId={alertBySnapshotId} pageUrl={urlData.url} urlId={urlData.id} zones={urlData.zones ?? []} />
-          </div>
-        }
-        inspector={<UrlDetailSettings url={urlData} latestSnapshotUrl={enrichedSnapshots[0]?.signedUrl ?? null} />}
-      />
-    </div>
+    <MonitorDetailDesignClient
+      monitor={urlData}
+      openAlert={openAlert}
+      snapshots={enrichedSnapshots}
+      alerts={enrichedAlerts}
+      alertBySnapshotId={alertBySnapshotId}
+      zones={urlData.zones ?? []}
+      lastChecked={timeAgo(urlData.last_checked_at)}
+      nextRun={nextCheckAt(urlData)}
+    />
   )
 }
