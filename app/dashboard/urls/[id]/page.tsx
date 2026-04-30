@@ -2,8 +2,6 @@ import { notFound, redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
-import { MonitorDetailDesignClientFixed } from '@/components/dashboard/MonitorDetailDesignClientFixed'
-import { MonitorPauseResumeSync } from '@/components/dashboard/MonitorPauseResumeSync'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
@@ -125,6 +123,8 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
       />
       <MonitorSettingsRailSync
         monitorId={urlData.id}
+        initialIsActive={urlData.is_active !== false}
+        hasOpenAlert={Boolean(openAlert)}
         initialCheckFrequency={urlData.check_frequency ?? 'daily'}
         initialCheckHour={urlData.check_hour ?? 10}
         initialFullPage={urlData.full_page !== false}
