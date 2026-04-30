@@ -29,8 +29,11 @@ export default async function UrlsPage() {
   ])
 
   const openCountMap = new Map<string, number>()
+  const openAlertMap = new Map<string, any>()
+
   for (const alert of openAlerts ?? []) {
     openCountMap.set(alert.monitored_url_id, (openCountMap.get(alert.monitored_url_id) ?? 0) + 1)
+    if (!openAlertMap.has(alert.monitored_url_id)) openAlertMap.set(alert.monitored_url_id, alert)
   }
 
   const lastAlertMap = new Map<string, any>()
@@ -39,7 +42,10 @@ export default async function UrlsPage() {
   }
 
   const monitors = urls.map((url: any) => {
-    const lastAlert = lastAlertMap.get(url.id)
+    const activeAlert = openAlertMap.get(url.id)
+    const latestAlert = lastAlertMap.get(url.id)
+    const scoreAlert = activeAlert ?? latestAlert
+
     return {
       id: url.id,
       name: url.name,
@@ -50,9 +56,9 @@ export default async function UrlsPage() {
       last_checked_at: url.last_checked_at,
       zones: url.zones,
       openAlertCount: openCountMap.get(url.id) ?? 0,
-      lastAlertDiffPct: lastAlert?.diff_pct ?? null,
-      lastAlertSummary: lastAlert?.ai_summary ?? null,
-      lastAlertCreatedAt: lastAlert?.created_at ?? null,
+      lastAlertDiffPct: scoreAlert?.diff_pct ?? null,
+      lastAlertSummary: scoreAlert?.ai_summary ?? null,
+      lastAlertCreatedAt: scoreAlert?.created_at ?? null,
     }
   })
 
