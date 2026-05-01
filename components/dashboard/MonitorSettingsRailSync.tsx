@@ -50,10 +50,24 @@ function normaliseZones(zones: Zone[]) {
   }))
 }
 
-function sectionByLabel(inspector: Element, keyword: string) {
-  return Array.from(inspector.querySelectorAll('section')).find((section) =>
-    section.querySelector('label')?.textContent?.toLowerCase().includes(keyword.toLowerCase())
-  ) as HTMLElement | undefined
+function normaliseLabel(text: string | null | undefined) {
+  return (text ?? '')
+    .replace(/[^a-zA-Z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function sectionByExactLabel(inspector: Element, label: string) {
+  const wanted = normaliseLabel(label)
+  return Array.from(inspector.querySelectorAll('section')).find((section) => {
+    const sectionLabel = normaliseLabel(section.querySelector('label')?.textContent)
+    return sectionLabel === wanted
+  }) as HTMLElement | undefined
+}
+
+function sectionByAnyExactLabel(inspector: Element, labels: string[]) {
+  return labels.map((label) => sectionByExactLabel(inspector, label)).find(Boolean)
 }
 
 function esc(value: string | null | undefined) {
@@ -242,7 +256,7 @@ export function MonitorSettingsRailSync({
       saveButton.onclick = () => save(undefined, 'Settings saved', 'settings')
     }
 
-    const scheduleSection = sectionByLabel(inspector, 'schedule')
+    const scheduleSection = sectionByExactLabel(inspector, 'schedule')
     if (scheduleSection) {
       const saving = loadingAction === 'schedule'
       scheduleSection.innerHTML = `
@@ -271,7 +285,7 @@ export function MonitorSettingsRailSync({
       }
     }
 
-    const captureSection = sectionByLabel(inspector, 'capture')
+    const captureSection = sectionByExactLabel(inspector, 'capture')
     if (captureSection) {
       const saving = loadingAction === 'capture'
       captureSection.innerHTML = `
@@ -289,7 +303,7 @@ export function MonitorSettingsRailSync({
       }
     }
 
-    const zonesSection = sectionByLabel(inspector, 'zones')
+    const zonesSection = sectionByExactLabel(inspector, 'zones')
     if (zonesSection) {
       zonesSection.innerHTML = `
         <label>▣ Zones</label>
@@ -329,7 +343,7 @@ export function MonitorSettingsRailSync({
       }
     }
 
-    const aiSection = sectionByLabel(inspector, 'ai instruction')
+    const aiSection = sectionByAnyExactLabel(inspector, ['main ai instruction', 'ai instruction'])
     if (aiSection) {
       const saving = loadingAction === 'instruction'
       aiSection.innerHTML = `
