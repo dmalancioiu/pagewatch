@@ -81,13 +81,21 @@ function getActiveViewerTab(hasDiff: boolean): Tab {
   return hasDiff ? 'diff' : 'current'
 }
 
+function buttonLikeTarget(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null
+  return target.closest<HTMLElement>('button, [role="button"], a')
+}
+
 function isFullscreenButton(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  const button = target.closest<HTMLButtonElement>('.md-viewer-header button')
+  const button = buttonLikeTarget(target)
   if (!button) return false
 
-  const text = button.textContent?.trim().toLowerCase() ?? ''
-  return text.includes('fullscreen') || button.dataset.monitorFullscreen === 'true'
+  const text = button.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? ''
+  const label = button.getAttribute('aria-label')?.toLowerCase() ?? ''
+  const title = button.getAttribute('title')?.toLowerCase() ?? ''
+  const dataset = (button as HTMLElement).dataset?.monitorFullscreen === 'true'
+
+  return dataset || text === 'fullscreen' || text.includes('fullscreen') || label.includes('fullscreen') || title.includes('fullscreen')
 }
 
 export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAlert, zones }: Props) {
@@ -135,17 +143,33 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
   }
 
   useEffect(() => {
-    const markButtons = () => {
-      document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button').forEach((button) => {
-        const text = button.textContent?.trim().toLowerCase() ?? ''
-        if (text.includes('fullscreen')) {
+    function markButtons() {
+      document.querySelectorAll<HTMLElement>('button, [role="button"], a').forEach((button) => {
+        const text = button.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? ''
+        const label = button.getAttribute('aria-label')?.toLowerCase() ?? ''
+        const title = button.getAttribute('title')?.toLowerCase() ?? ''
+        if (text.includes('fullscreen') || label.includes('fullscreen') || title.includes('fullscreen')) {
           button.dataset.monitorFullscreen = 'true'
-          button.type = 'button'
+          if (button instanceof HTMLButtonElement) button.type = 'button'
         }
       })
     }
 
     markButtons()
+    const observer = new MutationObserver(markButtons)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    function handleOpenEvent(event: Event) {
+      event.preventDefault()
+      openFullscreen()
+    }
+
+    function handlePointer(event: PointerEvent) {
+      if (!isFullscreenButton(event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      openFullscreen()
+    }
 
     function handleClick(event: MouseEvent) {
       if (!isFullscreenButton(event.target)) return
@@ -154,8 +178,16 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
       openFullscreen()
     }
 
+    window.addEventListener('pagewatch:open-fullscreen', handleOpenEvent)
+    window.addEventListener('pointerdown', handlePointer, true)
     document.addEventListener('click', handleClick, true)
-    return () => document.removeEventListener('click', handleClick, true)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('pagewatch:open-fullscreen', handleOpenEvent)
+      window.removeEventListener('pointerdown', handlePointer, true)
+      document.removeEventListener('click', handleClick, true)
+    }
   }, [hasDiff])
 
   useEffect(() => {
