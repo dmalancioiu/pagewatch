@@ -1,0 +1,5 @@
+/* Restore capture timeline info after the semantic alert UI pass.
+   The pixel-diff hiding selector should not remove the selected capture timestamp/status text. */
+.md-tl-info > span {
+  display: inline !important;
+}
