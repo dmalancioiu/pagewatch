@@ -31,6 +31,9 @@ export function AlertCard({ alert }: { alert: Alert }) {
   const pageUrl  = (alert as any).monitored_urls?.url  ?? null
   const pageName = (alert as any).monitored_urls?.name ?? null
   const technicalDiff = formatTechnicalDiffPct(alert.diff_pct)
+  const displayTitle = alert.ai_summary || alert.summary
+    ? 'Relevant change detected'
+    : alert.title.replace(/^Page changed/i, 'Relevant change detected')
 
   async function handleAcknowledge() {
     setLoading(true)
@@ -69,7 +72,7 @@ export function AlertCard({ alert }: { alert: Alert }) {
             </div>
 
             {/* Title + summary */}
-            <h3 className="font-semibold text-white/90 text-sm leading-snug">{alert.title}</h3>
+            <h3 className="font-semibold text-white/90 text-sm leading-snug">{displayTitle}</h3>
             <p className="text-white/45 text-sm mt-1 leading-relaxed">{alert.summary}</p>
 
             {/* Technical diff, kept as secondary evidence rather than the alert reason */}
