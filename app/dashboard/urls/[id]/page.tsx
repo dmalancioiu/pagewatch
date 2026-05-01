@@ -3,7 +3,7 @@ import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
-import { MonitorDetailClient } from '@/components/dashboard/MonitorDetailClient'
+import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
 import { MonitorTimelineSync } from '@/components/dashboard/MonitorTimelineSync'
 
@@ -112,7 +112,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <MonitorDetailClient
+      <MonitorDetailDesignClientResponsive
         monitor={urlData}
         openAlert={openAlert}
         snapshots={enrichedSnapshots}
