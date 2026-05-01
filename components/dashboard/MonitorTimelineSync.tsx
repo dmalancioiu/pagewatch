@@ -55,10 +55,6 @@ function clickViewerTab(kind: 'diff' | 'current') {
 function setTimelineInfo(snapshot: SnapshotItem, hasChange: boolean) {
   const info = document.querySelector<HTMLElement>('.md-tl-info > span')
   if (!info) return
-<<<<<<< react-selected-capture-state
-
-  info.innerHTML = `Viewing <b>${fmtDate(snapshot.taken_at)}</b>, ${hasChange ? '<span style="color:#EF4444">change detected</span>' : '<span style="color:#16A34A">clean capture</span>'}`
-=======
   // Only update existing child nodes — never replace innerHTML (breaks React reconciliation)
   const bold = info.querySelector('b')
   if (bold) bold.textContent = fmtDate(snapshot.taken_at)
@@ -67,7 +63,6 @@ function setTimelineInfo(snapshot: SnapshotItem, hasChange: boolean) {
     colored.textContent = hasChange ? 'change detected' : 'clean capture'
     colored.style.color = hasChange ? '#EF4444' : '#16A34A'
   }
->>>>>>> main
 }
 
 function updateViewerFooter(snapshot: SnapshotItem, alert?: AlertItem) {
