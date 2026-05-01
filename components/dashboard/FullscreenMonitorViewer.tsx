@@ -74,6 +74,22 @@ function downloadUrl(url: string | null, filename: string) {
   a.remove()
 }
 
+function getActiveViewerTab(hasDiff: boolean): Tab {
+  const activeTabText = Array.from(document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button.active'))[0]?.textContent?.toLowerCase() ?? ''
+  if (activeTabText.includes('zone')) return 'zones'
+  if (activeTabText.includes('current')) return 'current'
+  return hasDiff ? 'diff' : 'current'
+}
+
+function isFullscreenButton(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const button = target.closest<HTMLButtonElement>('.md-viewer-header button')
+  if (!button) return false
+
+  const text = button.textContent?.trim().toLowerCase() ?? ''
+  return text.includes('fullscreen') || button.dataset.monitorFullscreen === 'true'
+}
+
 export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAlert, zones }: Props) {
   const latest = snapshots[0] ?? null
   const previous = snapshots[1] ?? null
@@ -113,24 +129,33 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
     }))
   }
 
-  useEffect(() => {
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button'))
-    const fullscreenButton = buttons.find((button) => {
-      const text = button.textContent?.trim().toLowerCase() ?? ''
-      return text.includes('fullscreen') || button.dataset.monitorFullscreen === 'true'
-    })
-    if (!fullscreenButton) return
+  function openFullscreen() {
+    setTab(getActiveViewerTab(hasDiff))
+    setOpen(true)
+  }
 
-    fullscreenButton.dataset.monitorFullscreen = 'true'
-    fullscreenButton.onclick = (event) => {
+  useEffect(() => {
+    const markButtons = () => {
+      document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button').forEach((button) => {
+        const text = button.textContent?.trim().toLowerCase() ?? ''
+        if (text.includes('fullscreen')) {
+          button.dataset.monitorFullscreen = 'true'
+          button.type = 'button'
+        }
+      })
+    }
+
+    markButtons()
+
+    function handleClick(event: MouseEvent) {
+      if (!isFullscreenButton(event.target)) return
       event.preventDefault()
       event.stopPropagation()
-      const activeTabText = Array.from(document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button.active'))[0]?.textContent?.toLowerCase() ?? ''
-      if (activeTabText.includes('zone')) setTab('zones')
-      else if (activeTabText.includes('current')) setTab('current')
-      else setTab(hasDiff ? 'diff' : 'current')
-      setOpen(true)
+      openFullscreen()
     }
+
+    document.addEventListener('click', handleClick, true)
+    return () => document.removeEventListener('click', handleClick, true)
   }, [hasDiff])
 
   useEffect(() => {
