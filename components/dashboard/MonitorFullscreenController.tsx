@@ -35,21 +35,6 @@ type Props = {
   zones: Zone[]
 }
 
-function currentViewerTab(): ViewerTab {
-  const activeText = document.querySelector('.md-viewer-header button.active')?.textContent?.toLowerCase() ?? ''
-  if (activeText.includes('zone')) return 'zones'
-  if (activeText.includes('current')) return 'current'
-  return 'diff'
-}
-
-function isFullscreenTrigger(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  const button = target.closest('button')
-  if (!button) return false
-  const text = button.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? ''
-  return text.includes('fullscreen') || text.includes('view in full')
-}
-
 export function MonitorFullscreenController({ monitorName, snapshots, alerts, openAlert, zones }: Props) {
   const [open, setOpen] = useState(false)
   const [initialTab, setInitialTab] = useState<ViewerTab>('diff')
@@ -58,16 +43,14 @@ export function MonitorFullscreenController({ monitorName, snapshots, alerts, op
   useEffect(() => setLocalZones(zones), [zones])
 
   useEffect(() => {
-    function onClick(event: MouseEvent) {
-      if (!isFullscreenTrigger(event.target)) return
-      event.preventDefault()
-      event.stopPropagation()
-      setInitialTab(currentViewerTab())
+    function onOpen(event: Event) {
+      const tab = (event as CustomEvent<{ tab: string }>).detail?.tab
+      setInitialTab(tab === 'zones' ? 'zones' : tab === 'current' ? 'current' : 'diff')
       setOpen(true)
     }
 
-    document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
+    window.addEventListener('pagewatch:open-fullscreen', onOpen)
+    return () => window.removeEventListener('pagewatch:open-fullscreen', onOpen)
   }, [])
 
   function updateZones(nextZones: Zone[]) {
