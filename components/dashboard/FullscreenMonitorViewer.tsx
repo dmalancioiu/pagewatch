@@ -25,15 +25,19 @@ type SnapshotItem = {
   signedUrl: string | null
 }
 
+type Tab = 'diff' | 'current' | 'zones'
+
 type Props = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialTab: Tab
   monitorName: string
   snapshots: SnapshotItem[]
   alerts: AlertItem[]
   openAlert: AlertItem | null
   zones: Zone[]
+  onZonesChange?: (zones: Zone[]) => void
 }
-
-type Tab = 'diff' | 'current' | 'zones'
 
 function fmtDate(iso?: string | null) {
   if (!iso) return 'Never'
@@ -74,36 +78,21 @@ function downloadUrl(url: string | null, filename: string) {
   a.remove()
 }
 
-function getActiveViewerTab(hasDiff: boolean): Tab {
-  const activeTabText = Array.from(document.querySelectorAll<HTMLButtonElement>('.md-viewer-header button.active'))[0]?.textContent?.toLowerCase() ?? ''
-  if (activeTabText.includes('zone')) return 'zones'
-  if (activeTabText.includes('current')) return 'current'
-  return hasDiff ? 'diff' : 'current'
-}
-
-function buttonLikeTarget(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement)) return null
-  return target.closest<HTMLElement>('button, [role="button"], a')
-}
-
-function isFullscreenButton(target: EventTarget | null): boolean {
-  const button = buttonLikeTarget(target)
-  if (!button) return false
-
-  const text = button.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? ''
-  const label = button.getAttribute('aria-label')?.toLowerCase() ?? ''
-  const title = button.getAttribute('title')?.toLowerCase() ?? ''
-  const dataset = (button as HTMLElement).dataset?.monitorFullscreen === 'true'
-
-  return dataset || text === 'fullscreen' || text.includes('fullscreen') || label.includes('fullscreen') || title.includes('fullscreen')
-}
-
-export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAlert, zones }: Props) {
+export function FullscreenMonitorViewer({
+  open,
+  onOpenChange,
+  initialTab,
+  monitorName,
+  snapshots,
+  alerts,
+  openAlert,
+  zones,
+  onZonesChange,
+}: Props) {
   const latest = snapshots[0] ?? null
   const previous = snapshots[1] ?? null
   const activeAlert = openAlert ?? alerts[0] ?? null
-  const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<Tab>('diff')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [handle, setHandle] = useState(50)
   const [localZones, setLocalZones] = useState<Zone[]>(() => normaliseZones(zones))
 
@@ -112,96 +101,37 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
   const currentUrl = latest?.signedUrl ?? afterUrl
   const zoneImageUrl = latest?.signedUrl ?? afterUrl
   const changedRegion = activeAlert?.metadata?.zone_scores?.[0]?.label ?? localZones[0]?.label ?? 'Full page'
-
   const hasDiff = Boolean(beforeUrl && afterUrl)
+
+  useEffect(() => {
+    if (open) setTab(initialTab)
+  }, [initialTab, open])
 
   useEffect(() => {
     setLocalZones(normaliseZones(zones))
   }, [zones])
 
   useEffect(() => {
-    function handleExternalZones(event: Event) {
-      const detail = (event as CustomEvent<{ zones?: Zone[]; source?: string }>).detail
-      if (!Array.isArray(detail?.zones) || detail.source === 'fullscreen-viewer') return
-      setLocalZones(normaliseZones(detail.zones))
+    if (!open) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onOpenChange(false)
     }
-
-    window.addEventListener('pagewatch:zones-updated', handleExternalZones)
-    return () => window.removeEventListener('pagewatch:zones-updated', handleExternalZones)
-  }, [])
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onOpenChange, open])
 
   function updateZones(nextZones: Zone[]) {
     setLocalZones(nextZones)
+    onZonesChange?.(nextZones)
     window.dispatchEvent(new CustomEvent('pagewatch:zones-updated', {
       detail: { zones: nextZones, source: 'fullscreen-viewer' },
     }))
   }
-
-  function openFullscreen() {
-    setTab(getActiveViewerTab(hasDiff))
-    setOpen(true)
-  }
-
-  useEffect(() => {
-    function markButtons() {
-      document.querySelectorAll<HTMLElement>('button, [role="button"], a').forEach((button) => {
-        const text = button.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() ?? ''
-        const label = button.getAttribute('aria-label')?.toLowerCase() ?? ''
-        const title = button.getAttribute('title')?.toLowerCase() ?? ''
-        if (text.includes('fullscreen') || label.includes('fullscreen') || title.includes('fullscreen')) {
-          button.dataset.monitorFullscreen = 'true'
-          if (button instanceof HTMLButtonElement) button.type = 'button'
-        }
-      })
-    }
-
-    markButtons()
-    const observer = new MutationObserver(markButtons)
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    function handleOpenEvent(event: Event) {
-      event.preventDefault()
-      openFullscreen()
-    }
-
-    function handlePointer(event: PointerEvent) {
-      if (!isFullscreenButton(event.target)) return
-      event.preventDefault()
-      event.stopPropagation()
-      openFullscreen()
-    }
-
-    function handleClick(event: MouseEvent) {
-      if (!isFullscreenButton(event.target)) return
-      event.preventDefault()
-      event.stopPropagation()
-      openFullscreen()
-    }
-
-    window.addEventListener('pagewatch:open-fullscreen', handleOpenEvent)
-    window.addEventListener('pointerdown', handlePointer, true)
-    document.addEventListener('click', handleClick, true)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('pagewatch:open-fullscreen', handleOpenEvent)
-      window.removeEventListener('pointerdown', handlePointer, true)
-      document.removeEventListener('click', handleClick, true)
-    }
-  }, [hasDiff])
-
-  useEffect(() => {
-    if (!open) return
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [open])
 
   function drag(e: React.PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -219,7 +149,7 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
   return (
     <div className="pw-fullscreen-viewer" role="dialog" aria-modal="true" aria-label="Fullscreen monitor viewer">
       <style jsx global>{css}</style>
-      <div className="pw-fs-backdrop" onClick={() => setOpen(false)} />
+      <div className="pw-fs-backdrop" onClick={() => onOpenChange(false)} />
       <div className="pw-fs-shell">
         <header className="pw-fs-header">
           <div className="pw-fs-title">
@@ -230,11 +160,11 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
             </div>
           </div>
 
-          <nav className="pw-fs-tabs">
+          <nav className="pw-fs-tabs" aria-label="Fullscreen monitor tabs">
             {tabButtons.map((item) => {
               const Icon = item.icon
               return (
-                <button key={item.id} disabled={item.disabled} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>
+                <button key={item.id} type="button" disabled={item.disabled} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>
                   <Icon size={14} />{item.label}
                 </button>
               )
@@ -242,9 +172,9 @@ export function FullscreenMonitorViewer({ monitorName, snapshots, alerts, openAl
           </nav>
 
           <div className="pw-fs-actions">
-            {tab === 'current' && currentUrl && <button onClick={() => downloadUrl(currentUrl, `${monitorName}-capture.png`)}><Download size={13} />Download</button>}
-            <button onClick={() => setOpen(false)}><Minimize2 size={13} />Exit</button>
-            <button className="icon" onClick={() => setOpen(false)} aria-label="Close fullscreen viewer"><X size={16} /></button>
+            {tab === 'current' && currentUrl && <button type="button" onClick={() => downloadUrl(currentUrl, `${monitorName}-capture.png`)}><Download size={13} />Download</button>}
+            <button type="button" onClick={() => onOpenChange(false)}><Minimize2 size={13} />Exit</button>
+            <button type="button" className="icon" onClick={() => onOpenChange(false)} aria-label="Close fullscreen viewer"><X size={16} /></button>
           </div>
         </header>
 

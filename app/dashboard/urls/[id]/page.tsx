@@ -3,10 +3,9 @@ import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
-import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
+import { MonitorDetailClient } from '@/components/dashboard/MonitorDetailClient'
 import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
 import { MonitorTimelineSync } from '@/components/dashboard/MonitorTimelineSync'
-import { FullscreenMonitorViewer } from '@/components/dashboard/FullscreenMonitorViewer'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -113,7 +112,7 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <MonitorDetailDesignClientResponsive
+      <MonitorDetailClient
         monitor={urlData}
         openAlert={openAlert}
         snapshots={enrichedSnapshots}
@@ -122,13 +121,6 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         zones={urlData.zones ?? []}
         lastChecked={timeAgo(urlData.last_checked_at)}
         nextRun={nextCheckAt(urlData)}
-      />
-      <FullscreenMonitorViewer
-        monitorName={urlData.name ?? urlData.url}
-        snapshots={enrichedSnapshots}
-        alerts={enrichedAlerts}
-        openAlert={openAlert}
-        zones={urlData.zones ?? []}
       />
       <MonitorTimelineSync
         snapshots={enrichedSnapshots}
