@@ -52,12 +52,11 @@ function clickViewerTab(kind: 'diff' | 'current') {
   button?.click()
 }
 
-function setTimelineInfo(snapshot: SnapshotItem, hasChange: boolean, alert?: AlertItem) {
+function setTimelineInfo(snapshot: SnapshotItem, hasChange: boolean) {
   const info = document.querySelector<HTMLElement>('.md-tl-info > span')
   if (!info) return
 
-  const diff = alert?.diff_pct != null ? ` (+${Number(alert.diff_pct).toFixed(1)}%)` : ''
-  info.innerHTML = `Viewing <b>${fmtDate(snapshot.taken_at)}</b>, ${hasChange ? `<span style="color:#EF4444">change detected${diff}</span>` : '<span style="color:#16A34A">clean capture</span>'}`
+  info.innerHTML = `Viewing <b>${fmtDate(snapshot.taken_at)}</b>, ${hasChange ? '<span style="color:#EF4444">change detected</span>' : '<span style="color:#16A34A">clean capture</span>'}`
 }
 
 function updateViewerFooter(snapshot: SnapshotItem, alert?: AlertItem) {
@@ -79,57 +78,8 @@ function updateViewerFooter(snapshot: SnapshotItem, alert?: AlertItem) {
 
       const changedRegion = footer.querySelector('span b')
       const zoneLabel = alert?.metadata?.zone_scores?.[0]?.label
-      if (changedRegion) changedRegion.textContent = zoneLabel || 'Full page'
-
-      const diffLabel = Array.from(footer.querySelectorAll('span')).find((node) => node.textContent?.toLowerCase().includes('pixel diff'))
-      const diffValue = diffLabel?.querySelector('b')
-      if (diffValue) diffValue.textContent = alert?.diff_pct != null ? `+${Number(alert.diff_pct).toFixed(1)}%` : '+0.0%'
+      if (changedRegion && zoneLabel) changedRegion.textContent = zoneLabel
     }
-  }
-}
-
-function sectionByLabel(label: string) {
-  return Array.from(document.querySelectorAll<HTMLElement>('.md-inspector section')).find((section) =>
-    section.querySelector('label')?.textContent?.toLowerCase().includes(label.toLowerCase())
-  )
-}
-
-function setRowValue(section: HTMLElement, key: string, value: string, options?: { pill?: 'red' | 'green'; red?: boolean }) {
-  const row = Array.from(section.querySelectorAll<HTMLElement>('.md-row')).find((item) =>
-    item.querySelector('span')?.textContent?.trim().toLowerCase() === key.toLowerCase()
-  )
-  if (!row) return
-
-  const valueNode = row.querySelector<HTMLElement>('b')
-  if (!valueNode) return
-
-  valueNode.textContent = value
-
-  if (options?.pill) {
-    valueNode.className = `pill ${options.pill}`
-  } else if (options?.red) {
-    valueNode.className = 'red'
-  }
-}
-
-function syncInspectorSnapshot(snapshot: SnapshotItem, latestSnapshotId: string | undefined, alert?: AlertItem) {
-  const section = sectionByLabel('latest snapshot')
-  if (!section) return
-
-  const label = section.querySelector('label')
-  if (label) {
-    const isLatest = snapshot.id === latestSnapshotId
-    label.innerHTML = label.innerHTML.replace(/Latest snapshot|Selected capture/g, isLatest ? 'Latest snapshot' : 'Selected capture')
-  }
-
-  setRowValue(section, 'Captured', fmtDate(snapshot.taken_at))
-  setRowValue(section, 'Alert status', alert ? '1 open' : 'Clean', { pill: alert ? 'red' : 'green' })
-  setRowValue(section, 'File size', bytes(snapshot.file_size_bytes))
-
-  if (alert?.diff_pct != null) {
-    setRowValue(section, 'Pixel diff', `+${Number(alert.diff_pct).toFixed(1)}%`, { red: true })
-  } else {
-    setRowValue(section, 'Pixel diff', '+0.0%')
   }
 }
 
@@ -166,9 +116,8 @@ export function MonitorTimelineSync({ snapshots, alertBySnapshotId }: Props) {
     if (scroll) button?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
 
     const alert = alertBySnapshotId[snapshot.id]
-    setTimelineInfo(snapshot, Boolean(alert), alert)
+    setTimelineInfo(snapshot, Boolean(alert))
     updateViewerFooter(snapshot, alert)
-    syncInspectorSnapshot(snapshot, timeline[0]?.id, alert)
 
     if (alert) {
       clickViewerTab('diff')
