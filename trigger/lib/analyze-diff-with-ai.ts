@@ -12,7 +12,7 @@ export interface ZoneCrop {
 
 export interface AiAnalysisResult {
   shouldAlert: boolean
-  summary: string   // Always populated — either Claude's description or a generic fallback
+  summary: string   // Always populated: either Claude's description or a generic fallback
 }
 
 /**
@@ -24,7 +24,8 @@ export interface AiAnalysisResult {
  * cropped before/after pairs for each zone instead of the full page screenshots.
  * This focuses the analysis on exactly what the user cares about and reduces noise.
  *
- * If ANTHROPIC_API_KEY is not set, returns a generic summary so alerting still fires.
+ * If ANTHROPIC_API_KEY is not set, returns a generic semantic summary so alerting
+ * still fires without making pixel percentage the user-facing reason.
  */
 export async function analyzeWithAI(params: {
   beforeBuffer:     Buffer
@@ -38,14 +39,14 @@ export async function analyzeWithAI(params: {
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    return { shouldAlert: true, summary: genericSummary(diffPct) }
+    return { shouldAlert: true, summary: genericSummary(diffPct, Boolean(zoneCrops?.length)) }
   }
 
   const client = new Anthropic({ apiKey })
 
   const hasZones = zoneCrops && zoneCrops.length > 0
 
-  // ── Build content array ──────────────────────────────────────────────────────
+  // Build content array
 
   const content: Anthropic.ContentBlockParam[] = []
 
@@ -55,16 +56,16 @@ export async function analyzeWithAI(params: {
       const instruction = crop.instruction?.trim()
       const sensitivity = crop.sensitivity ?? 'normal'
       const meta = instruction
-        ? `${crop.label} — watch instruction: "${instruction}". Sensitivity: ${sensitivity}.`
-        : `${crop.label} — no custom watch instruction. Sensitivity: ${sensitivity}.`
+        ? `${crop.label} - watch instruction: "${instruction}". Sensitivity: ${sensitivity}.`
+        : `${crop.label} - no custom watch instruction. Sensitivity: ${sensitivity}.`
 
       content.push({ type: 'text', text: meta })
-      content.push({ type: 'text', text: `${crop.label} — before:` })
+      content.push({ type: 'text', text: `${crop.label} - before:` })
       content.push({
         type:   'image',
         source: { type: 'base64', media_type: 'image/png', data: crop.before.toString('base64') },
       })
-      content.push({ type: 'text', text: `${crop.label} — after:` })
+      content.push({ type: 'text', text: `${crop.label} - after:` })
       content.push({
         type:   'image',
         source: { type: 'base64', media_type: 'image/png', data: crop.after.toString('base64') },
@@ -82,7 +83,7 @@ export async function analyzeWithAI(params: {
     })
   }
 
-  // ── Build prompt ─────────────────────────────────────────────────────────────
+  // Build prompt
 
   let prompt: string
 
@@ -131,28 +132,28 @@ export async function analyzeWithAI(params: {
       `Respond with either NO_ALERT or a 1-2 sentence description. No preamble, no labels, no formatting.`,
     ].join('\n')
   } else {
-    // Full-page — original prompt logic
+    // Full-page comparison
     const sensitivityNote = thresholdPct != null
-      ? `The user's sensitivity is set to ${thresholdPct}% — changes smaller than this are generally considered noise by them.`
+      ? `The user's sensitivity is set to ${thresholdPct}% - changes smaller than this are generally considered noise by them.`
       : ''
 
     if (watchDescription?.trim()) {
       prompt = [
         `The user is monitoring a web page and wants to be alerted when: "${watchDescription.trim()}"`,
         ``,
-        `The page changed — ${diffPct.toFixed(1)}% of pixels are different between the before and after screenshots.`,
+        `The page changed: ${diffPct.toFixed(1)}% of pixels are different between the before and after screenshots.`,
         sensitivityNote,
         ``,
         `Look at both screenshots carefully. Did something the user specifically cares about change?`,
         ``,
         `- If YES: describe exactly what changed in one or two plain sentences. Be specific (e.g. "The pricing plan changed from $29/mo to $39/mo" or "The hero headline now reads 'New: Enterprise Plan'").`,
-        `- If NO (the change is unrelated noise — ads rotating, a timestamp updating, minor layout shifts the user wouldn't care about): respond with only the word NO_ALERT and nothing else.`,
+        `- If NO (the change is unrelated noise such as ads rotating, a timestamp updating, or minor layout shifts the user would not care about): respond with only the word NO_ALERT and nothing else.`,
         ``,
         `Respond with either NO_ALERT or a 1-2 sentence description. No preamble, no labels, no formatting.`,
       ].filter(Boolean).join('\n')
     } else {
       prompt = [
-        `A web page changed — ${diffPct.toFixed(1)}% of pixels are different between the before and after screenshots.`,
+        `A web page changed: ${diffPct.toFixed(1)}% of pixels are different between the before and after screenshots.`,
         sensitivityNote,
         ``,
         `Look at both screenshots and describe what visually changed in one or two plain sentences.`,
@@ -165,7 +166,7 @@ export async function analyzeWithAI(params: {
 
   content.push({ type: 'text', text: prompt })
 
-  // ── Call Claude ──────────────────────────────────────────────────────────────
+  // Call Claude
 
   try {
     const response = await client.messages.create({
@@ -186,17 +187,22 @@ export async function analyzeWithAI(params: {
 
     return {
       shouldAlert: true,
-      summary: text || genericSummary(diffPct),
+      summary: text || genericSummary(diffPct, hasZones),
     }
   } catch (err) {
     console.error('[analyzeWithAI] Claude call failed, falling back to generic alert:', err)
-    return { shouldAlert: true, summary: genericSummary(diffPct) }
+    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones) }
   }
 }
 
-function genericSummary(diffPct: number): string {
-  if (diffPct >= 50) return `Major layout change detected — ${diffPct.toFixed(1)}% of pixels are different. The page structure appears significantly altered.`
-  if (diffPct >= 25) return `Significant visual change — ${diffPct.toFixed(1)}% of pixels changed. Multiple elements appear to have shifted or been replaced.`
-  if (diffPct >= 10) return `Moderate change — ${diffPct.toFixed(1)}% of pixels differ. Some content or styling was updated.`
-  return `Minor change detected — ${diffPct.toFixed(1)}% of pixels are different. A small text or style update may have occurred.`
+function genericSummary(diffPct: number, hasZones = false): string {
+  if (hasZones) {
+    if (diffPct >= 10) return 'A significant change was detected inside one of the watched zones. Open the before/after comparison to review the exact change.'
+    return 'A watched zone changed in a way that passed its sensitivity setting. Open the before/after comparison to review the exact change.'
+  }
+
+  if (diffPct >= 50) return 'A major visual change was detected. The page structure appears significantly altered.'
+  if (diffPct >= 25) return 'A significant visual change was detected. Multiple elements appear to have shifted or been replaced.'
+  if (diffPct >= 10) return 'A moderate visual change was detected. Some content or styling appears to have changed.'
+  return 'A small visual change was detected. Open the before/after comparison to review the exact change.'
 }
