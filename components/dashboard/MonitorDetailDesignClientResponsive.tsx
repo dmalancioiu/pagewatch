@@ -124,6 +124,12 @@ function severityLabel(alert: AlertItem | null) {
   return `${alert.severity.charAt(0).toUpperCase()}${alert.severity.slice(1)} severity`
 }
 
+function alertStatusLabel(alert: AlertItem | null) {
+  if (!alert) return 'Clean'
+  if (alert.status === 'open') return '1 open'
+  return alert.status.charAt(0).toUpperCase() + alert.status.slice(1)
+}
+
 function PlaceholderSite({ after = false }: { after?: boolean }) {
   return (
     <div className="md-placeholder-site">
@@ -167,16 +173,21 @@ export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapsh
   const [fsOpen, setFsOpen] = useState(false)
 
   const latest = snapshots[0] ?? null
-  const previous = snapshots[1] ?? null
-  const selected = snapshots.find((s) => s.id === selectedId) ?? latest
-  const activeAlert = openAlert ?? alerts[0] ?? null
-  const currentAfter = activeAlert?.afterUrl ?? latest?.signedUrl ?? null
-  const beforeUrl = activeAlert?.beforeUrl ?? previous?.signedUrl ?? null
-  const zoneImageUrl = latest?.signedUrl ?? currentAfter ?? ''
+  const selectedIndex = Math.max(0, snapshots.findIndex((s) => s.id === selectedId))
+  const selected = snapshots[selectedIndex] ?? latest
+  const comparisonBase = snapshots[selectedIndex + 1] ?? snapshots[1] ?? null
+  const selectedAlert = selected ? alertBySnapshotId[selected.id] ?? null : null
+  const bannerAlert = openAlert ?? alerts[0] ?? null
+  const viewerAlert = selectedAlert ?? (selected?.id === latest?.id ? bannerAlert : null)
+  const currentAfter = viewerAlert?.afterUrl ?? selected?.signedUrl ?? latest?.signedUrl ?? null
+  const beforeUrl = viewerAlert?.beforeUrl ?? comparisonBase?.signedUrl ?? null
+  const currentCaptureUrl = selected?.signedUrl ?? currentAfter
+  const zoneImageUrl = selected?.signedUrl ?? latest?.signedUrl ?? currentAfter ?? ''
   const status = !monitor.is_active ? 'Paused' : openAlert ? 'Alert' : 'Healthy'
   const score = scoreFor(openAlert, localZones, snapshots)
   const healthTone = score >= 90 ? 'Good' : score >= 75 ? 'Fair' : 'Needs review'
-  const changedZone = activeAlert?.metadata?.zone_scores?.[0]?.label || localZones[0]?.label || 'Full page'
+  const changedZone = viewerAlert?.metadata?.zone_scores?.[0]?.label || localZones[0]?.label || 'Full page'
+  const isLatestSelected = !selected || selected.id === latest?.id
 
   const timeline = useMemo(() => snapshots.slice(0, 14), [snapshots])
 
@@ -204,6 +215,11 @@ export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapsh
     }])
   }
 
+  function selectSnapshot(snap: SnapshotItem) {
+    setSelectedId(snap.id)
+    setTab(alertBySnapshotId[snap.id] ? 'diff' : 'current')
+  }
+
   return (
     <div className="md-page">
       <header className="md-topbar">
@@ -220,22 +236,22 @@ export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapsh
 
       <div className="md-body">
         <main className="md-main">
-          {activeAlert && <section className="md-alert"><div className="md-alert-icon"><AlertTriangle size={13} /></div><div><div className="md-alert-head"><b>Change detected</b><span>+{pct(activeAlert.diff_pct)}% diff</span><em>{severityLabel(activeAlert)}</em><small>{fmtDate(activeAlert.created_at)}</small></div><p>{activeAlert.ai_summary || 'A meaningful visual change was detected on this monitored page.'}</p></div><div className="md-alert-actions"><button className="md-btn-g sm"><CheckCircle2 size={10} />Resolve</button><button className="md-btn-p sm" onClick={() => setFsOpen(true)}>View in full<ArrowRight size={10} /></button></div></section>}
+          {bannerAlert && <section className="md-alert"><div className="md-alert-icon"><AlertTriangle size={13} /></div><div><div className="md-alert-head"><b>Change detected</b><span>+{pct(bannerAlert.diff_pct)}% diff</span><em>{severityLabel(bannerAlert)}</em><small>{fmtDate(bannerAlert.created_at)}</small></div><p>{bannerAlert.ai_summary || 'A meaningful visual change was detected on this monitored page.'}</p></div><div className="md-alert-actions"><button className="md-btn-g sm"><CheckCircle2 size={10} />Resolve</button><button className="md-btn-p sm" onClick={() => setFsOpen(true)}>View in full<ArrowRight size={10} /></button></div></section>}
 
           <section className="md-viewer">
             <div className="md-viewer-header"><button className={tab === 'diff' ? 'active' : ''} onClick={() => setTab('diff')}><Columns2 size={12} />Diff comparison</button><button className={tab === 'current' ? 'active' : ''} onClick={() => setTab('current')}><Image size={12} />Current capture</button><button className={tab === 'zones' ? 'active' : ''} onClick={() => setTab('zones')}><Target size={12} />Zone editor</button><div className="md-grow" /><span>{tab === 'zones' ? 'Drag to draw zones' : 'Drag to compare'}</span><button className="md-btn-g sm" onClick={() => setFsOpen(true)}><Maximize2 size={10} />Fullscreen</button></div>
 
-            {tab === 'diff' && <><div className="md-diff" onPointerDown={drag} onPointerMove={(e) => e.buttons === 1 && drag(e)}><div className="md-after"><ViewportShot url={currentAfter} after /></div><div className="md-before" style={{ clipPath: `inset(0 ${100 - handle}% 0 0)` }}><ViewportShot url={beforeUrl} /></div><div className="md-label before">BEFORE</div><div className="md-label after">AFTER</div><div className="md-handle" style={{ left: `${handle}%` }}><div><MoveHorizontal size={14} /></div></div></div><div className="md-viewer-foot"><span>Changed region <b>{changedZone}</b></span><i /><span>Pixel diff <b className="red">+{pct(activeAlert?.diff_pct)}%</b></span><i /><span>Preview <b>Normalized viewport</b></span><div className="md-grow" /><em>{fmtDate(activeAlert?.created_at ?? latest?.taken_at)}</em></div></>}
+            {tab === 'diff' && <><div className="md-diff" onPointerDown={drag} onPointerMove={(e) => e.buttons === 1 && drag(e)}><div className="md-after"><ViewportShot url={currentAfter} after /></div><div className="md-before" style={{ clipPath: `inset(0 ${100 - handle}% 0 0)` }}><ViewportShot url={beforeUrl} /></div><div className="md-label before">BEFORE</div><div className="md-label after">AFTER</div><div className="md-handle" style={{ left: `${handle}%` }}><div><MoveHorizontal size={14} /></div></div></div><div className="md-viewer-foot"><span>Changed region <b>{changedZone}</b></span><i /><span>Pixel diff <b className="red">+{pct(viewerAlert?.diff_pct)}%</b></span><i /><span>Preview <b>Normalized viewport</b></span><div className="md-grow" /><em>{fmtDate(viewerAlert?.created_at ?? selected?.taken_at)}</em></div></>}
 
-            {tab === 'current' && <><div className="md-current"><ViewportShot url={latest?.signedUrl ?? currentAfter} after /></div><div className="md-viewer-foot"><span>Latest capture <b>{fmtDate(latest?.taken_at)}</b></span><em>{bytes(latest?.file_size_bytes ?? null)} · normalized viewport</em><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Download</button></div></>}
+            {tab === 'current' && <><div className="md-current"><ViewportShot url={currentCaptureUrl} after /></div><div className="md-viewer-foot"><span>{isLatestSelected ? 'Latest capture' : 'Selected capture'} <b>{fmtDate(selected?.taken_at)}</b></span><em>{bytes(selected?.file_size_bytes ?? null)} · normalized viewport</em><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Download</button></div></>}
 
             {tab === 'zones' && <><div className="md-zones">{zoneImageUrl ? <div className="md-zone-selector-shell"><ZoneSelector imageUrl={zoneImageUrl} zones={localZones} onChange={setLocalZones} /></div> : <ViewportShot after />}</div><div className="md-viewer-foot"><Info size={12} /><em>Draw zones on the real screenshot canvas. The preview tab always uses a normalized browser viewport.</em><div className="md-grow" /><button className="md-btn-g sm" onClick={addQuickZone}><Plus size={10} />Add zone</button><button className="md-btn-p sm" onClick={saveZones} disabled={isSavingZones}>{isSavingZones ? 'Saving...' : 'Save zones'}</button></div></>}
           </section>
 
-          <section className="md-timeline"><div className="md-timeline-head"><History size={13} /><b>Capture timeline</b><span>{snapshots.length} total</span><div className="md-grow" /><button className="md-btn-g sm"><Play size={10} className="green" />Play</button><button className="md-btn-g sm"><Filter size={10} />Changes only</button></div><div className="md-timeline-scroll"><div className="md-tl-group"><p>Recent</p><div>{timeline.map((snap, index) => <TimelineThumb key={snap.id} snap={snap} changed={Boolean(alertBySnapshotId[snap.id])} selected={(selected?.id ?? '') === snap.id || index === 0 && !selectedId} onClick={() => setSelectedId(snap.id)} />)}</div></div></div><div className="md-tl-info"><MousePointerClick size={11} /><span>Viewing <b>{fmtDate(selected?.taken_at)}</b>{alertBySnapshotId[selected?.id ?? ''] ? `, change detected (+${pct(alertBySnapshotId[selected?.id ?? '']?.diff_pct)}%)` : ', clean capture'}</span><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Export</button></div></section>
+          <section className="md-timeline"><div className="md-timeline-head"><History size={13} /><b>Capture timeline</b><span>{snapshots.length} total</span><div className="md-grow" /><button className="md-btn-g sm"><Play size={10} className="green" />Play</button><button className="md-btn-g sm"><Filter size={10} />Changes only</button></div><div className="md-timeline-scroll"><div className="md-tl-group"><p>Recent</p><div>{timeline.map((snap, index) => <TimelineThumb key={snap.id} snap={snap} changed={Boolean(alertBySnapshotId[snap.id])} selected={(selected?.id ?? '') === snap.id || index === 0 && !selectedId} onClick={() => selectSnapshot(snap)} />)}</div></div></div><div className="md-tl-info"><MousePointerClick size={11} /><span>Viewing <b>{fmtDate(selected?.taken_at)}</b>{alertBySnapshotId[selected?.id ?? ''] ? `, change detected (+${pct(alertBySnapshotId[selected?.id ?? '']?.diff_pct)}%)` : ', clean capture'}</span><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Export</button></div></section>
         </main>
 
-        <aside className="md-inspector"><div className="md-inspector-save"><div><b>Monitor settings</b><span>{monitor.name}</span></div><button className="md-btn-p sm"><Save size={10} />Save</button></div><section><label><HeartPulse size={10} />Health score</label><div className="md-score"><svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="28" fill="none" stroke="#F3F4F6" strokeWidth="7"/><circle cx="36" cy="36" r="28" fill="none" stroke={score >= 90 ? '#16A34A' : score >= 75 ? '#F59E0B' : '#EF4444'} strokeWidth="7" strokeDasharray={`${(score / 100) * 175.9} 175.9`} strokeLinecap="round" transform="rotate(-90 36 36)"/><text x="36" y="40" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{score}</text></svg><div><b>{healthTone}</b><p><i className="red" />{alerts.length} changes detected</p><p><i className="green" />{snapshots.length ? '94%' : '—'} uptime</p><p><i className="green" />{localZones.length} zones configured</p></div></div></section><section><label><Activity size={10} />Latest snapshot</label><Row k="Captured" v={fmtDate(latest?.taken_at)} /><Row k="Alert status" v={openAlert ? '1 open' : 'Clean'} pill={openAlert ? 'red' : 'green'} /><Row k="Pixel diff" v={`+${pct(activeAlert?.diff_pct)}%`} red /><Row k="File size" v={bytes(latest?.file_size_bytes ?? null)} mono /><Row k="Total checks" v={String(snapshots.length)} /><Row k="Changes found" v={String(alerts.length)} red /></section><section><label><Calendar size={10} />Schedule</label><div className="md-freq"><button className={monitor.check_frequency === 'hourly' ? 'active' : ''}>Hourly</button><button className={!monitor.check_frequency || monitor.check_frequency === 'daily' ? 'active' : ''}>Daily</button><button className={monitor.check_frequency === 'weekly' ? 'active' : ''}>Weekly</button></div><Row k="Run at (UTC)" v={monitor.check_hour != null ? `${monitor.check_hour}:00` : '9:00 AM'} /></section><section><label><Camera size={10} />Capture</label><Toggle title="Full page scroll" subtitle="Capture entire page height" on={monitor.full_page !== false} /><Toggle title="Hide cookie banners" subtitle="Dismiss overlays before capture" on /></section><section><label><Target size={10} />Zones</label>{localZones.length ? localZones.map((z, i) => <div key={z.id ?? i} className="md-zone-chip"><i style={{ background: i === 0 ? '#2563EB' : '#16A34A' }} /><div><b>{z.label || `Zone ${i + 1}`}</b><span>{z.instruction || z.sensitivity || 'Visual changes'}</span></div></div>) : <p className="md-muted">No custom zones yet.</p>}<button className="md-btn-g sm full" onClick={() => setTab('zones')}><Plus size={10} />Add zone</button></section><section><label><Info size={10} />AI instruction</label><textarea defaultValue={monitor.watch_description || 'Only alert me when pricing, CTA, or layout changes could affect conversion.'} /><button className="md-btn-g sm full">Update instruction</button></section></aside>
+        <aside className="md-inspector"><div className="md-inspector-save"><div><b>Monitor settings</b><span>{monitor.name}</span></div><button className="md-btn-p sm"><Save size={10} />Save</button></div><section><label><HeartPulse size={10} />Health score</label><div className="md-score"><svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="28" fill="none" stroke="#F3F4F6" strokeWidth="7"/><circle cx="36" cy="36" r="28" fill="none" stroke={score >= 90 ? '#16A34A' : score >= 75 ? '#F59E0B' : '#EF4444'} strokeWidth="7" strokeDasharray={`${(score / 100) * 175.9} 175.9`} strokeLinecap="round" transform="rotate(-90 36 36)"/><text x="36" y="40" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{score}</text></svg><div><b>{healthTone}</b><p><i className="red" />{alerts.length} changes detected</p><p><i className="green" />{snapshots.length ? '94%' : '—'} uptime</p><p><i className="green" />{localZones.length} zones configured</p></div></div></section><section><label><Activity size={10} />{isLatestSelected ? 'Latest snapshot' : 'Selected capture'}</label><Row k="Captured" v={fmtDate(selected?.taken_at)} /><Row k="Alert status" v={alertStatusLabel(selectedAlert)} pill={selectedAlert ? 'red' : 'green'} /><Row k="Pixel diff" v={`+${pct(selectedAlert?.diff_pct)}%`} red={Boolean(selectedAlert)} /><Row k="File size" v={bytes(selected?.file_size_bytes ?? null)} mono /><Row k="Total checks" v={String(snapshots.length)} /><Row k="Changes found" v={String(alerts.length)} red /></section><section><label><Calendar size={10} />Schedule</label><div className="md-freq"><button className={monitor.check_frequency === 'hourly' ? 'active' : ''}>Hourly</button><button className={!monitor.check_frequency || monitor.check_frequency === 'daily' ? 'active' : ''}>Daily</button><button className={monitor.check_frequency === 'weekly' ? 'active' : ''}>Weekly</button></div><Row k="Run at (UTC)" v={monitor.check_hour != null ? `${monitor.check_hour}:00` : '9:00 AM'} /></section><section><label><Camera size={10} />Capture</label><Toggle title="Full page scroll" subtitle="Capture entire page height" on={monitor.full_page !== false} /><Toggle title="Hide cookie banners" subtitle="Dismiss overlays before capture" on /></section><section><label><Target size={10} />Zones</label>{localZones.length ? localZones.map((z, i) => <div key={z.id ?? i} className="md-zone-chip"><i style={{ background: i === 0 ? '#2563EB' : '#16A34A' }} /><div><b>{z.label || `Zone ${i + 1}`}</b><span>{z.instruction || z.sensitivity || 'Visual changes'}</span></div></div>) : <p className="md-muted">No custom zones yet.</p>}<button className="md-btn-g sm full" onClick={() => setTab('zones')}><Plus size={10} />Add zone</button></section><section><label><Info size={10} />AI instruction</label><textarea defaultValue={monitor.watch_description || 'Only alert me when pricing, CTA, or layout changes could affect conversion.'} /><button className="md-btn-g sm full">Update instruction</button></section></aside>
       </div>
       <FullscreenMonitorViewer
         open={fsOpen}
@@ -244,7 +260,7 @@ export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapsh
         monitorName={monitor.name ?? monitor.url}
         snapshots={snapshots}
         alerts={alerts}
-        openAlert={openAlert}
+        openAlert={viewerAlert}
         zones={localZones}
         onZonesChange={setLocalZones}
       />
