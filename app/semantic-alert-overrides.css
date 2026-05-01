@@ -1,0 +1,7 @@
+/* Follow-up for semantic alert UI.
+   The initial pixel-diff hiding pass accidentally hid the whole capture timeline
+   info span. Restore it so selecting a capture still shows the selected timestamp
+   and status text below the timeline. */
+.md-tl-info > span {
+  display: inline !important;
+}
