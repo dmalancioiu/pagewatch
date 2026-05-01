@@ -93,6 +93,12 @@ export function MonitorSettingsRailSync({
 
   const payload = useMemo(() => ({ checkFrequency, checkHour, fullPage, watchDescription, zones }), [checkFrequency, checkHour, fullPage, watchDescription, zones])
 
+  function publishZones(nextZones: Zone[], source = 'settings-rail') {
+    window.dispatchEvent(new CustomEvent('pagewatch:zones-updated', {
+      detail: { zones: nextZones, source },
+    }))
+  }
+
   function save(updates?: Record<string, any>, success = 'Settings saved', action: ActionKey = 'settings') {
     setLoadingAction(action)
     startTransition(async () => {
@@ -117,8 +123,20 @@ export function MonitorSettingsRailSync({
 
   function saveZones(nextZones: typeof zones, success = 'Zones saved', action: ActionKey = 'settings') {
     setZones(nextZones)
+    publishZones(nextZones)
     save({ zones: nextZones }, success, action)
   }
+
+  useEffect(() => {
+    function handleExternalZones(event: Event) {
+      const detail = (event as CustomEvent<{ zones?: Zone[]; source?: string }>).detail
+      if (!Array.isArray(detail?.zones) || detail.source === 'settings-rail') return
+      setZones(normaliseZones(detail.zones))
+    }
+
+    window.addEventListener('pagewatch:zones-updated', handleExternalZones)
+    return () => window.removeEventListener('pagewatch:zones-updated', handleExternalZones)
+  }, [])
 
   useEffect(() => {
     const topbar = document.querySelector('.md-topbar')
