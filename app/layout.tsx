@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./semantic-alert-overrides.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ToastProvider } from "@/components/ui/ToastProvider";
