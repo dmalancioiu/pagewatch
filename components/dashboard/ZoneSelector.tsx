@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Zone } from '@/lib/types/database.types'
 
@@ -21,10 +21,6 @@ function zoneColor(i: number) {
   return ZONE_COLORS[i % ZONE_COLORS.length]
 }
 
-function zoneKey(zone: Zone, index: number) {
-  return zone.id ?? `zone-${index + 1}`
-}
-
 interface DrawState {
   startX: number
   startY: number
@@ -34,33 +30,8 @@ interface DrawState {
 
 export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [drawing, setDrawing] = useState<DrawState | null>(null)
+  const [drawing, setDrawing]     = useState<DrawState | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [localZones, setLocalZones] = useState<Zone[]>(zones)
-
-  useEffect(() => {
-    setLocalZones(zones)
-  }, [zones])
-
-  useEffect(() => {
-    function handleExternalUpdate(event: Event) {
-      const detail = (event as CustomEvent<{ zones?: Zone[]; source?: string }>).detail
-      if (!Array.isArray(detail?.zones) || detail.source === 'visual-zone-editor') return
-      setLocalZones(detail.zones)
-      setSelectedId(null)
-    }
-
-    window.addEventListener('pagewatch:zones-updated', handleExternalUpdate)
-    return () => window.removeEventListener('pagewatch:zones-updated', handleExternalUpdate)
-  }, [])
-
-  function emitZones(nextZones: Zone[]) {
-    setLocalZones(nextZones)
-    onChange?.(nextZones)
-    window.dispatchEvent(new CustomEvent('pagewatch:zones-updated', {
-      detail: { zones: nextZones, source: 'visual-zone-editor' },
-    }))
-  }
 
   function getRelCoords(e: React.MouseEvent): { x: number; y: number } {
     const rect = containerRef.current!.getBoundingClientRect()
@@ -91,37 +62,30 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
     const minY = Math.min(drawing.startY, drawing.endY)
     const w = Math.abs(drawing.endX - drawing.startX)
     const h = Math.abs(drawing.endY - drawing.startY)
-
-    if (w > 0.02 && h > 0.02) {
-      const next: Zone = {
-        id: `zone-${Date.now()}`,
-        x: minX,
-        y: minY,
-        width: w,
-        height: h,
-      }
-      emitZones([...localZones, next])
-    }
     setDrawing(null)
+    if (w > 0.02 && h > 0.02) {
+      onChange([...zones, {
+        id: `zone-${Date.now()}`,
+        x: minX, y: minY, width: w, height: h,
+      }])
+    }
   }
 
   function deleteZone(id: string) {
-    emitZones(localZones.filter((z, index) => zoneKey(z, index) !== id))
     setSelectedId(null)
+    onChange?.(zones.filter((z) => z.id !== id))
   }
 
   function updateLabel(id: string, label: string) {
-    emitZones(localZones.map((z, index) => zoneKey(z, index) === id ? { ...z, label } : z))
+    onChange?.(zones.map((z) => z.id === id ? { ...z, label } : z))
   }
 
-  const previewStyle = drawing
-    ? {
-        left: `${Math.min(drawing.startX, drawing.endX) * 100}%`,
-        top: `${Math.min(drawing.startY, drawing.endY) * 100}%`,
-        width: `${Math.abs(drawing.endX - drawing.startX) * 100}%`,
-        height: `${Math.abs(drawing.endY - drawing.startY) * 100}%`,
-      }
-    : null
+  const previewStyle = drawing ? {
+    left:   `${Math.min(drawing.startX, drawing.endX) * 100}%`,
+    top:    `${Math.min(drawing.startY, drawing.endY) * 100}%`,
+    width:  `${Math.abs(drawing.endX - drawing.startX) * 100}%`,
+    height: `${Math.abs(drawing.endY - drawing.startY) * 100}%`,
+  } : null
 
   return (
     <div
@@ -141,43 +105,42 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
         style={{ pointerEvents: 'none', userSelect: 'none' }}
       />
 
-      {localZones.map((zone, i) => {
+      {zones.map((zone, i) => {
+        if (!zone.id) return null
         const color = zoneColor(i)
-        const id = zoneKey(zone, i)
-        const isSelected = selectedId === id
+        const isSelected = selectedId === zone.id
         return (
           <div
-            key={id}
-            data-zone-id={id}
+            key={zone.id}
+            data-zone-id={zone.id}
             className="absolute"
             style={{
-              left: `${zone.x * 100}%`,
-              top: `${zone.y * 100}%`,
-              width: `${zone.width * 100}%`,
-              height: `${zone.height * 100}%`,
-              border: `2px solid ${color}`,
+              left:       `${zone.x * 100}%`,
+              top:        `${zone.y * 100}%`,
+              width:      `${zone.width * 100}%`,
+              height:     `${zone.height * 100}%`,
+              border:     `2px solid ${color}`,
               background: isSelected ? `${color}28` : `${color}14`,
-              cursor: readonly ? 'default' : 'pointer',
-              boxSizing: 'border-box',
+              cursor:     readonly ? 'default' : 'pointer',
+              boxSizing:  'border-box',
             }}
             onClick={(e) => {
               if (readonly) return
               e.stopPropagation()
-              setSelectedId(isSelected ? null : id)
+              setSelectedId(isSelected ? null : zone.id!)
             }}
           >
             <div
               className="absolute text-[10px] font-bold px-1.5 py-0.5 leading-none whitespace-nowrap pointer-events-none"
               style={{
-                top: 0,
-                left: 0,
-                transform: 'translateY(-100%)',
-                background: color,
-                color: '#000',
-                borderRadius: '3px 3px 0 0',
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                top: 0, left: 0,
+                transform:     'translateY(-100%)',
+                background:    color,
+                color:         '#000',
+                borderRadius:  '3px 3px 0 0',
+                maxWidth:      '100%',
+                overflow:      'hidden',
+                textOverflow:  'ellipsis',
               }}
             >
               {zone.label?.trim() || `Zone ${i + 1}`}
@@ -187,11 +150,9 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
               <div
                 className="absolute flex items-center gap-1 px-1.5 py-1"
                 style={{
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  background: 'rgba(0,0,0,0.82)',
-                  borderTop: `1px solid ${color}55`,
+                  bottom:      0, left: 0, right: 0,
+                  background:  'rgba(0,0,0,0.82)',
+                  borderTop:   `1px solid ${color}55`,
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -199,7 +160,7 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
                   type="text"
                   placeholder="Label this zone…"
                   value={zone.label ?? ''}
-                  onChange={(e) => updateLabel(id, e.target.value)}
+                  onChange={(e) => updateLabel(zone.id!, e.target.value)}
                   className="flex-1 text-[11px] bg-transparent text-white outline-none min-w-0"
                   style={{ caretColor: color }}
                   autoFocus
@@ -211,7 +172,7 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    deleteZone(id)
+                    deleteZone(zone.id!)
                   }}
                   className="flex-shrink-0 p-0.5 rounded hover:bg-red-500/20 transition-colors"
                   style={{ color: '#ff7070' }}
@@ -226,24 +187,25 @@ export function ZoneSelector({ imageUrl, zones, onChange, readonly = false }: Pr
 
       {previewStyle && (
         <div
+          key="__preview__"
           className="absolute pointer-events-none"
           style={{
             ...previewStyle,
-            border: '2px dashed #2563EB',
+            border:     '2px dashed #2563EB',
             background: 'rgba(37,99,235,0.1)',
-            boxSizing: 'border-box',
+            boxSizing:  'border-box',
           }}
         />
       )}
 
-      {localZones.length === 0 && !drawing && !readonly && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {zones.length === 0 && !drawing && !readonly && (
+        <div key="__hint__" className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
             className="px-4 py-2.5 rounded-xl text-sm font-medium"
             style={{
-              background: 'rgba(0,0,0,0.6)',
-              border: '1px dashed rgba(255,255,255,0.3)',
-              color: 'rgba(255,255,255,0.85)',
+              background:    'rgba(0,0,0,0.6)',
+              border:        '1px dashed rgba(255,255,255,0.3)',
+              color:         'rgba(255,255,255,0.85)',
               backdropFilter: 'blur(4px)',
             }}
           >

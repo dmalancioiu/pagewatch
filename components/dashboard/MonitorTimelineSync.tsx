@@ -55,8 +55,19 @@ function clickViewerTab(kind: 'diff' | 'current') {
 function setTimelineInfo(snapshot: SnapshotItem, hasChange: boolean) {
   const info = document.querySelector<HTMLElement>('.md-tl-info > span')
   if (!info) return
+<<<<<<< react-selected-capture-state
 
   info.innerHTML = `Viewing <b>${fmtDate(snapshot.taken_at)}</b>, ${hasChange ? '<span style="color:#EF4444">change detected</span>' : '<span style="color:#16A34A">clean capture</span>'}`
+=======
+  // Only update existing child nodes — never replace innerHTML (breaks React reconciliation)
+  const bold = info.querySelector('b')
+  if (bold) bold.textContent = fmtDate(snapshot.taken_at)
+  const colored = info.querySelector('span')
+  if (colored) {
+    colored.textContent = hasChange ? 'change detected' : 'clean capture'
+    colored.style.color = hasChange ? '#EF4444' : '#16A34A'
+  }
+>>>>>>> main
 }
 
 function updateViewerFooter(snapshot: SnapshotItem, alert?: AlertItem) {
@@ -65,8 +76,9 @@ function updateViewerFooter(snapshot: SnapshotItem, alert?: AlertItem) {
 
   for (const footer of footers) {
     if (footer.textContent?.toLowerCase().includes('latest capture')) {
-      const label = footer.querySelector('span')
-      if (label) label.innerHTML = `Selected capture <b>${date}</b>`
+      // Update the <b> inside the label span only
+      const labelBold = footer.querySelector('span b')
+      if (labelBold) labelBold.textContent = date
 
       const meta = Array.from(footer.children).find((child) => child.tagName.toLowerCase() === 'em') as HTMLElement | undefined
       if (meta) meta.textContent = `${bytes(snapshot.file_size_bytes)} · normalized viewport`
@@ -88,13 +100,15 @@ function setPlayButton(playing: boolean) {
     const text = item.textContent?.trim().toLowerCase() ?? ''
     return item.dataset.timelinePlay === 'true' || text.includes('play') || text.includes('stop')
   })
-
   if (!button) return
-
   button.dataset.timelinePlay = 'true'
-  button.innerHTML = playing
-    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>Stop'
-    : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>Play'
+  // Use a data attribute for play state — never replace innerHTML on a React-managed node
+  button.dataset.playing = playing ? 'true' : ''
+  // Update only the existing text node (last child) for Play/Stop label
+  const lastChild = button.lastChild
+  if (lastChild?.nodeType === Node.TEXT_NODE) {
+    lastChild.textContent = playing ? 'Stop' : 'Play'
+  }
 }
 
 export function MonitorTimelineSync({ snapshots, alertBySnapshotId }: Props) {
