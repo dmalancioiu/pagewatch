@@ -6,7 +6,7 @@ import {
   getSeverityDotColor,
   getSeverityClasses,
   getAlertTypeLabel,
-  formatDiffPct,
+  formatTechnicalDiffPct,
   getDiffPctColor,
 } from '@/lib/utils/alerts'
 import { acknowledgeAlert, dismissAlert } from '@/lib/actions/alerts'
@@ -30,6 +30,10 @@ export function AlertCard({ alert }: { alert: Alert }) {
 
   const pageUrl  = (alert as any).monitored_urls?.url  ?? null
   const pageName = (alert as any).monitored_urls?.name ?? null
+  const technicalDiff = formatTechnicalDiffPct(alert.diff_pct)
+  const displayTitle = alert.ai_summary || alert.summary
+    ? 'Relevant change detected'
+    : alert.title.replace(/^Page changed/i, 'Relevant change detected')
 
   async function handleAcknowledge() {
     setLoading(true)
@@ -68,23 +72,21 @@ export function AlertCard({ alert }: { alert: Alert }) {
             </div>
 
             {/* Title + summary */}
-            <h3 className="font-semibold text-white/90 text-sm leading-snug">{alert.title}</h3>
+            <h3 className="font-semibold text-white/90 text-sm leading-snug">{displayTitle}</h3>
             <p className="text-white/45 text-sm mt-1 leading-relaxed">{alert.summary}</p>
 
-            {/* Diff percentage */}
+            {/* Technical diff, kept as secondary evidence rather than the alert reason */}
             {alert.diff_pct !== null && (
-              <div className="flex items-center gap-2 mt-2">
-                <span className={`text-sm font-semibold ${diffColor}`}>
-                  {formatDiffPct(alert.diff_pct)}
-                </span>
-              </div>
+              <p className={`text-xs mt-2 ${diffColor}`} title={technicalDiff}>
+                Evidence available · View before/after
+              </p>
             )}
 
             {/* Page URL */}
             {pageUrl && (
               <p className="text-xs text-white/25 mt-1.5 truncate font-mono">
                 {pageName && pageName !== pageUrl
-                  ? <><span className="text-white/40">{pageName}</span> — {pageUrl}</>
+                  ? <><span className="text-white/40">{pageName}</span> · {pageUrl}</>
                   : pageUrl
                 }
               </p>

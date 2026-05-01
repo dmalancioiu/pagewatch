@@ -32,7 +32,7 @@ export function getSeverityDotColor(severity: AlertSeverity): string {
 
 export function getAlertTypeLabel(type: AlertType): string {
   switch (type) {
-    case 'visual_change': return 'Visual Change'
+    case 'visual_change': return 'Relevant Change'
   }
 }
 
@@ -42,17 +42,17 @@ export function getAlertTypeIcon(type: AlertType): string {
   }
 }
 
-/** Format a diff percentage for display */
-export function formatDiffPct(pct: number | null): string {
-  if (pct === null) return '—'
-  return `${pct.toFixed(1)}% changed`
+/** Technical-only diff label for details/tooltips, not primary alert copy. */
+export function formatTechnicalDiffPct(pct: number | null): string {
+  if (pct === null) return 'No pixel diff recorded'
+  return `${pct.toFixed(1)}% of watched pixels changed`
 }
 
-/** Colour for the diff percentage badge */
+/** Colour for technical diff details */
 export function getDiffPctColor(pct: number | null): string {
   if (pct === null) return 'text-white/30'
   if (pct >= 50) return 'text-red-400'
   if (pct >= 25) return 'text-orange-400'
   if (pct >= 10) return 'text-yellow-400'
-  return 'text-emerald-400'
+  return 'text-white/35'
 }
