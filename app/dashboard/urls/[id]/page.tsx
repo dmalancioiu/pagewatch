@@ -5,6 +5,7 @@ import { getSignedUrls } from '@/lib/supabase/storage'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
+import { MonitorTimelineSync } from '@/components/dashboard/MonitorTimelineSync'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -14,7 +15,7 @@ function timeAgo(iso: string | null): string {
   const m = Math.floor(diff / 60000)
   if (m < 1) return 'Just now'
   if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
+  const h = Math.floor(m / 60000 / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
 }
@@ -120,6 +121,10 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         zones={urlData.zones ?? []}
         lastChecked={timeAgo(urlData.last_checked_at)}
         nextRun={nextCheckAt(urlData)}
+      />
+      <MonitorTimelineSync
+        snapshots={enrichedSnapshots}
+        alertBySnapshotId={alertBySnapshotId}
       />
       <MonitorSettingsRailSync
         monitorId={urlData.id}
