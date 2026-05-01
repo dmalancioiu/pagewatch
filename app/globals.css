@@ -540,3 +540,16 @@ input[type='range'].clean-slider::-moz-range-thumb {
 
 /* ─── Monitor row hover (workspace pages) ─── */
 .monitor-row:hover { background: #FAFAFA; }
+
+/* ─── Semantic alert UI: keep pixel diff as stored evidence, not primary copy ─── */
+.pw-diff-badge,
+.pw-ss-diff-num,
+.md-alert-head > span,
+.md-viewer-foot > span:nth-of-type(2),
+.md-tl-info > span {
+  display: none !important;
+}
+
+.md-inspector section:nth-of-type(2) .md-row:nth-of-type(3) {
+  display: none !important;
+}
