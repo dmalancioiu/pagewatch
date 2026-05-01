@@ -5,7 +5,6 @@ import { getSignedUrls } from '@/lib/supabase/storage'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
 import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
-import { MonitorTimelineSync } from '@/components/dashboard/MonitorTimelineSync'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -121,10 +120,6 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
         zones={urlData.zones ?? []}
         lastChecked={timeAgo(urlData.last_checked_at)}
         nextRun={nextCheckAt(urlData)}
-      />
-      <MonitorTimelineSync
-        snapshots={enrichedSnapshots}
-        alertBySnapshotId={alertBySnapshotId}
       />
       <MonitorSettingsRailSync
         monitorId={urlData.id}
