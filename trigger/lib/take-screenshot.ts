@@ -23,91 +23,6 @@ const SENSITIVITY_CONFIG: Record<NonNullable<Zone['sensitivity']>, { thresholdPc
   high:   { thresholdPct: 0.2, weight: 1.35 },
 }
 
-function sensitivityConfig(sensitivity: Zone['sensitivity']) {
-  return SENSITIVITY_CONFIG[sensitivity ?? 'normal']
-}
-
-function zoneAlertScore(diffPct: number, sensitivity: Zone['sensitivity']): number {
-  const { thresholdPct, weight } = sensitivityConfig(sensitivity)
-  if (diffPct <= 0) return 0
-
-  // Ratio crosses 1 when the zone passes the sensitivity threshold.
-  // log dampens huge diffs so one massive cosmetic shift doesn't dominate all context.
-  const ratio = diffPct / thresholdPct
-  const score = Math.log1p(ratio) * 34 * weight
-  return Math.max(0, Math.min(100, Number(score.toFixed(1))))
-}
-
-function aggregateAlertScore(zoneScores: ZoneDiffScore[], fallbackDiffPct: number): number {
-  if (zoneScores.length === 0) {
-    return Math.max(0, Math.min(100, Number((Math.log1p(fallbackDiffPct) * 20).toFixed(1))))
-  }
-
-  const maxZoneScore = Math.max(...zoneScores.map(z => z.alert_score))
-  const avgPassedScore = zoneScores
-    .filter(z => z.passes_threshold)
-    .reduce((sum, z, _, arr) => sum + z.alert_score / arr.length, 0)
-
-  // Bias toward the most important changed zone, with a small lift when multiple zones pass.
-  const multiZoneLift = Math.min(12, zoneScores.filter(z => z.passes_threshold).length * 3)
-  return Math.max(0, Math.min(100, Number((maxZoneScore * 0.78 + avgPassedScore * 0.22 + multiZoneLift).toFixed(1))))
-}
-
-/**
- * Crops a rectangular region (defined as relative 0–1 coordinates) from a PNG.
- * Returns a PNG buffer of just that region.
- */
-function cropZone(png: PNG, zone: Zone): Buffer | null {
-  const srcX = Math.max(0, Math.floor(zone.x      * png.width))
-  const srcY = Math.max(0, Math.floor(zone.y      * png.height))
-  const srcW = Math.min(png.width  - srcX, Math.ceil(zone.width  * png.width))
-  const srcH = Math.min(png.height - srcY, Math.ceil(zone.height * png.height))
-
-  if (srcW <= 0 || srcH <= 0) return null
-
-  const out = new PNG({ width: srcW, height: srcH })
-  PNG.bitblt(png, out, srcX, srcY, srcW, srcH, 0, 0)
-  return PNG.sync.write(out)
-}
-
-function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: number; totalPixels: number; diffPct: number } | null {
-  const srcX = Math.max(0, Math.floor(zone.x * Math.min(prevPng.width, currPng.width)))
-  const srcY = Math.max(0, Math.floor(zone.y * Math.min(prevPng.height, currPng.height)))
-  const srcW = Math.min(prevPng.width - srcX, currPng.width - srcX, Math.ceil(zone.width * Math.min(prevPng.width, currPng.width)))
-  const srcH = Math.min(prevPng.height - srcY, currPng.height - srcY, Math.ceil(zone.height * Math.min(prevPng.height, currPng.height)))
-
-  if (srcW <= 0 || srcH <= 0) return null
-
-  const prevSlice = new Uint8Array(srcW * srcH * 4)
-  const currSlice = new Uint8Array(srcW * srcH * 4)
-
-  for (let row = 0; row < srcH; row++) {
-    for (let col = 0; col < srcW; col++) {
-      const dst = (row * srcW + col) * 4
-      const sp = ((srcY + row) * prevPng.width + (srcX + col)) * 4
-      const sc = ((srcY + row) * currPng.width + (srcX + col)) * 4
-      prevSlice[dst] = prevPng.data[sp]
-      prevSlice[dst + 1] = prevPng.data[sp + 1]
-      prevSlice[dst + 2] = prevPng.data[sp + 2]
-      prevSlice[dst + 3] = prevPng.data[sp + 3]
-      currSlice[dst] = currPng.data[sc]
-      currSlice[dst + 1] = currPng.data[sc + 1]
-      currSlice[dst + 2] = currPng.data[sc + 2]
-      currSlice[dst + 3] = currPng.data[sc + 3]
-    }
-  }
-
-  const diffImg = new PNG({ width: srcW, height: srcH })
-  const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, srcW, srcH, { threshold: 0.1 })
-  const totalPixels = srcW * srcH
-
-  return {
-    changedPixels,
-    totalPixels,
-    diffPct: totalPixels > 0 ? (changedPixels / totalPixels) * 100 : 0,
-  }
-}
-
 const BLOCKED_DOMAINS = [
   'doubleclick.net',
   'googlesyndication.com',
@@ -204,6 +119,101 @@ const CSS_HIDE_SELECTORS = [
   '[class*="notification-prompt"]',
 ]
 
+function sensitivityConfig(sensitivity: Zone['sensitivity']) {
+  return SENSITIVITY_CONFIG[sensitivity ?? 'normal']
+}
+
+function zoneAlertScore(diffPct: number, sensitivity: Zone['sensitivity']): number {
+  const { thresholdPct, weight } = sensitivityConfig(sensitivity)
+  if (diffPct <= 0) return 0
+
+  const ratio = diffPct / thresholdPct
+  const score = Math.log1p(ratio) * 34 * weight
+  return Math.max(0, Math.min(100, Number(score.toFixed(1))))
+}
+
+function aggregateAlertScore(zoneScores: ZoneDiffScore[], fallbackDiffPct: number): number {
+  if (zoneScores.length === 0) {
+    return Math.max(0, Math.min(100, Number((Math.log1p(fallbackDiffPct) * 20).toFixed(1))))
+  }
+
+  const maxZoneScore = Math.max(...zoneScores.map(z => z.alert_score))
+  const avgPassedScore = zoneScores
+    .filter(z => z.passes_threshold)
+    .reduce((sum, z, _, arr) => sum + z.alert_score / arr.length, 0)
+  const multiZoneLift = Math.min(12, zoneScores.filter(z => z.passes_threshold).length * 3)
+
+  return Math.max(0, Math.min(100, Number((maxZoneScore * 0.78 + avgPassedScore * 0.22 + multiZoneLift).toFixed(1))))
+}
+
+function cropZone(png: PNG, zone: Zone): Buffer | null {
+  const srcX = Math.max(0, Math.floor(zone.x * png.width))
+  const srcY = Math.max(0, Math.floor(zone.y * png.height))
+  const srcW = Math.min(png.width - srcX, Math.ceil(zone.width * png.width))
+  const srcH = Math.min(png.height - srcY, Math.ceil(zone.height * png.height))
+
+  if (srcW <= 0 || srcH <= 0) return null
+
+  const out = new PNG({ width: srcW, height: srcH })
+  PNG.bitblt(png, out, srcX, srcY, srcW, srcH, 0, 0)
+  return PNG.sync.write(out)
+}
+
+function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: number; totalPixels: number; diffPct: number } | null {
+  const srcX = Math.max(0, Math.floor(zone.x * Math.min(prevPng.width, currPng.width)))
+  const srcY = Math.max(0, Math.floor(zone.y * Math.min(prevPng.height, currPng.height)))
+  const srcW = Math.min(prevPng.width - srcX, currPng.width - srcX, Math.ceil(zone.width * Math.min(prevPng.width, currPng.width)))
+  const srcH = Math.min(prevPng.height - srcY, currPng.height - srcY, Math.ceil(zone.height * Math.min(prevPng.height, currPng.height)))
+
+  if (srcW <= 0 || srcH <= 0) return null
+
+  const prevSlice = new Uint8Array(srcW * srcH * 4)
+  const currSlice = new Uint8Array(srcW * srcH * 4)
+
+  for (let row = 0; row < srcH; row++) {
+    for (let col = 0; col < srcW; col++) {
+      const dst = (row * srcW + col) * 4
+      const sp = ((srcY + row) * prevPng.width + (srcX + col)) * 4
+      const sc = ((srcY + row) * currPng.width + (srcX + col)) * 4
+
+      prevSlice[dst] = prevPng.data[sp]
+      prevSlice[dst + 1] = prevPng.data[sp + 1]
+      prevSlice[dst + 2] = prevPng.data[sp + 2]
+      prevSlice[dst + 3] = prevPng.data[sp + 3]
+      currSlice[dst] = currPng.data[sc]
+      currSlice[dst + 1] = currPng.data[sc + 1]
+      currSlice[dst + 2] = currPng.data[sc + 2]
+      currSlice[dst + 3] = currPng.data[sc + 3]
+    }
+  }
+
+  const diffImg = new PNG({ width: srcW, height: srcH })
+  const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, srcW, srcH, { threshold: 0.1 })
+  const totalPixels = srcW * srcH
+
+  return {
+    changedPixels,
+    totalPixels,
+    diffPct: totalPixels > 0 ? (changedPixels / totalPixels) * 100 : 0,
+  }
+}
+
+function semanticFallbackSummary(hasZones: boolean): string {
+  if (hasZones) {
+    return 'A watched zone changed in a way that passed its sensitivity setting. Open the before/after comparison to review the exact change.'
+  }
+
+  return 'A visual change was detected. Open the before/after comparison to review the exact change.'
+}
+
+function semanticAlertTitle(monUrl: any, passedZones: ZoneDiffScore[]): string {
+  const monitorName = monUrl.name || monUrl.url
+  const primaryZone = passedZones[0]?.label
+
+  if (primaryZone) return `${primaryZone} changed - ${monitorName}`
+  return `Relevant change detected - ${monitorName}`
+}
+
 async function preparePageForScreenshot(page: Page): Promise<void> {
   for (const selector of CLICK_SELECTORS) {
     try {
@@ -212,15 +222,17 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
         await el.click({ timeout: 800 })
         await page.waitForTimeout(250)
       }
-    } catch { /* best-effort */ }
+    } catch {}
   }
 
   await page.evaluate(() => {
     const ACCEPT_RE = /^(accept all|accept cookies?|allow all|allow cookies?|i accept|i agree|agree|got it|ok)$/i
     const CONTAINERS = '[class*="cookie"],[class*="consent"],[class*="gdpr"],[id*="cookie"],[id*="consent"]'
+
     for (const el of document.querySelectorAll<HTMLElement>(`${CONTAINERS} button, ${CONTAINERS} a[role="button"]`)) {
       if (ACCEPT_RE.test(el.innerText.trim())) el.click()
     }
+
     const TOP_ACCEPT_RE = /^(accept|accept all|accept cookies?|agree|i agree|ok|got it|allow all|allow cookies?)$/i
     for (const el of document.querySelectorAll<HTMLElement>('button, a[role="button"]')) {
       if (TOP_ACCEPT_RE.test(el.innerText.trim())) {
@@ -242,6 +254,7 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
       '[aria-label*="cookie" i]', '[aria-label*="consent" i]',
       '.modal-overlay',
     ]
+
     for (const sel of REMOVE_SELECTORS) {
       try {
         document.querySelectorAll(sel).forEach((el) => {
@@ -252,7 +265,7 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
             el.remove()
           }
         })
-      } catch { /* best-effort */ }
+      } catch {}
     }
   }).catch(() => {})
 
@@ -266,9 +279,9 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
 
       *, *::before, *::after {
         animation-duration: 0.001ms !important;
-        animation-delay:    0.001ms !important;
+        animation-delay: 0.001ms !important;
         transition-duration: 0.001ms !important;
-        transition-delay:    0.001ms !important;
+        transition-delay: 0.001ms !important;
       }
 
       ::-webkit-scrollbar { display: none !important; }
@@ -285,16 +298,16 @@ export async function processUrl(
   supabase: SupabaseClient,
   now: Date = new Date()
 ): Promise<{ diffPct: number | null; alerted: boolean }> {
-  const ts       = now.toISOString().replace(/[:.]/g, '-')
+  const ts = now.toISOString().replace(/[:.]/g, '-')
   const fullPage = monUrl.full_page !== false
-  const mode     = monUrl.mode ?? 'watch'
+  const mode = monUrl.mode ?? 'watch'
 
   const browser = await chromium.launch()
   let screenshotBuffer: Buffer
 
   try {
     const context = await browser.newContext({
-      locale:     'en-US',
+      locale: 'en-US',
       timezoneId: 'UTC',
       colorScheme: 'light',
       permissions: [],
@@ -331,12 +344,12 @@ export async function processUrl(
   const { data: snapshot, error: snapErr } = await supabase
     .from('screenshot_snapshots')
     .insert({
-      workspace_id:     monUrl.workspace_id,
+      workspace_id: monUrl.workspace_id,
       monitored_url_id: monUrl.id,
-      storage_path:     screenshotPath,
-      taken_at:         now.toISOString(),
-      file_size_bytes:  screenshotBuffer.length,
-      metadata:         { viewport_width: 1280, manual_run: monUrl._manual ?? false, full_page: fullPage },
+      storage_path: screenshotPath,
+      taken_at: now.toISOString(),
+      file_size_bytes: screenshotBuffer.length,
+      metadata: { viewport_width: 1280, manual_run: monUrl._manual ?? false, full_page: fullPage },
     })
     .select()
     .single()
@@ -368,7 +381,7 @@ export async function processUrl(
   const { data: prevBlob, error: prevDlErr } = await supabase.storage.from('screenshots').download(prevSnapshot.storage_path)
 
   if (prevDlErr || !prevBlob) {
-    logger.warn('Could not download previous screenshot — skipping diff', { url: monUrl.url })
+    logger.warn('Could not download previous screenshot. Skipping diff', { url: monUrl.url })
     return { diffPct: null, alerted: false }
   }
 
@@ -401,10 +414,15 @@ export async function processUrl(
         const dst = (row * width + col) * 4
         const sp = (row * prevPng.width + col) * 4
         const sc = (row * currPng.width + col) * 4
-        prevSlice[dst] = prevPng.data[sp]; prevSlice[dst + 1] = prevPng.data[sp + 1]
-        prevSlice[dst + 2] = prevPng.data[sp + 2]; prevSlice[dst + 3] = prevPng.data[sp + 3]
-        currSlice[dst] = currPng.data[sc]; currSlice[dst + 1] = currPng.data[sc + 1]
-        currSlice[dst + 2] = currPng.data[sc + 2]; currSlice[dst + 3] = currPng.data[sc + 3]
+
+        prevSlice[dst] = prevPng.data[sp]
+        prevSlice[dst + 1] = prevPng.data[sp + 1]
+        prevSlice[dst + 2] = prevPng.data[sp + 2]
+        prevSlice[dst + 3] = prevPng.data[sp + 3]
+        currSlice[dst] = currPng.data[sc]
+        currSlice[dst + 1] = currPng.data[sc + 1]
+        currSlice[dst + 2] = currPng.data[sc + 2]
+        currSlice[dst + 3] = currPng.data[sc + 3]
       }
     }
 
@@ -471,7 +489,7 @@ export async function processUrl(
       if (!diffUploadErr) diffStoragePath = diffPath
     }
   } catch (diffErr) {
-    logger.warn('Pixel comparison error — diff skipped', { url: monUrl.url, err: diffErr })
+    logger.warn('Pixel comparison error. Diff skipped', { url: monUrl.url, err: diffErr })
   }
 
   await supabase.from('screenshot_diffs').insert({
@@ -514,9 +532,9 @@ export async function processUrl(
           zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
         })
       } catch (aiErr) {
-        logger.warn('AI analysis error — defaulting to threshold-based alert', { url: monUrl.url, err: aiErr })
+        logger.warn('AI analysis error. Defaulting to semantic threshold-based alert', { url: monUrl.url, err: aiErr })
         shouldAlert = true
-        aiSummary = `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`
+        aiSummary = semanticFallbackSummary(Boolean(zoneCrops))
       }
     }
 
@@ -530,8 +548,8 @@ export async function processUrl(
         alert_type: 'visual_change',
         severity,
         status: 'open',
-        title: `Page changed — ${monUrl.name}`,
-        summary: aiSummary || `${diffPct.toFixed(1)}% of watched pixels changed on ${monUrl.url}`,
+        title: semanticAlertTitle(monUrl, passedZones),
+        summary: aiSummary || semanticFallbackSummary(Boolean(zoneCrops)),
         ai_summary: aiSummary || null,
         diff_pct: diffPct,
         diff_storage_path: diffStoragePath,
@@ -551,7 +569,7 @@ export async function processUrl(
       alerted = true
       logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), alertScore, aiSuppressed: false })
     } else {
-      logger.info('Alert suppressed by AI — change not relevant to watch instructions', {
+      logger.info('Alert suppressed by AI. Change not relevant to watch instructions', {
         url: monUrl.url,
         diffPct: diffPct.toFixed(1),
         alertScore,
@@ -559,7 +577,7 @@ export async function processUrl(
       })
     }
   } else {
-    logger.info('Alert skipped — no zone passed sensitivity threshold', {
+    logger.info('Alert skipped. No zone passed sensitivity threshold', {
       url: monUrl.url,
       diffPct: diffPct.toFixed(1),
       alertScore,
