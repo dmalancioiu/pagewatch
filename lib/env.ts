@@ -31,6 +31,13 @@ const envSchema = z.object({
   STRIPE_AGENCY_PRICE_ID:             opt,
   NEXT_PUBLIC_APP_URL:                z.string().default('http://localhost:3000'),
   ANTHROPIC_API_KEY:                  opt,
+  // Slack delivery (D4). All optional — the app must build and run, and the
+  // settings UI must show "not configured" rather than throw, with any subset
+  // of these unset. api.slack.com/apps → OAuth & Permissions (client id/secret)
+  // and Basic Information → App Credentials (signing secret).
+  SLACK_CLIENT_ID:                    opt,
+  SLACK_CLIENT_SECRET:                opt,
+  SLACK_SIGNING_SECRET:               opt,
 })
 
 export const env = envSchema.parse(process.env)

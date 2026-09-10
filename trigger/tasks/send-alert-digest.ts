@@ -19,19 +19,31 @@ export const sendAlertDigestTask = schedules.task({
 
     const { data: alerts } = await supabase
       .from('alerts')
-      .select('*, monitored_urls(url, name, check_frequency), workspaces(domain, owner_user_id)')
+      .select('*, monitored_urls(url, name, check_frequency, alerts_muted, alerts_snoozed_until), workspaces(domain, owner_user_id)')
       .eq('status', 'open')
       .gte('triggered_at', since)
       .order('severity', { ascending: false })
 
-    if (!alerts?.length) {
+    // A muted or snoozed monitor is muted everywhere, not just in Slack where
+    // the button lives. Filtering here rather than in the query keeps the
+    // snooze comparison in one timezone-safe place.
+    const deliverable = (alerts ?? []).filter((a: any) => {
+      const monitor = a.monitored_urls
+      if (monitor?.alerts_muted) return false
+      if (monitor?.alerts_snoozed_until && new Date(monitor.alerts_snoozed_until) > new Date()) {
+        return false
+      }
+      return true
+    })
+
+    if (!deliverable.length) {
       logger.info('No new alerts to send')
       return
     }
 
     // Group by workspace
-    const byWorkspace: Record<string, typeof alerts> = {}
-    for (const alert of alerts) {
+    const byWorkspace: Record<string, typeof deliverable> = {}
+    for (const alert of deliverable) {
       const wsId = alert.workspace_id
       if (!byWorkspace[wsId]) byWorkspace[wsId] = []
       byWorkspace[wsId].push(alert)

@@ -4,21 +4,42 @@ import { AlertTriangle, ArrowUpRight, Bell, Building2, CreditCard, Mail, User } 
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getEntitlements, toClientEntitlements } from '@/lib/entitlements'
 import { createServerClient } from '@/lib/supabase/server'
+import { parseSlackConfig } from '@/lib/slack'
+import { cheapestPlanWith } from '@/lib/plans'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Meter } from '@/components/ui/meter'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { SlackIntegrationCard, type SlackConnectionView } from './SlackIntegrationCard'
 
 export const metadata = { title: 'Settings — PageWatch' }
 
-export default async function SettingsPage() {
+interface SettingsPageProps {
+  searchParams: Promise<{ slack?: string }>
+}
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const workspace = await getWorkspace()
   if (!workspace) redirect('/dashboard')
 
+  const { slack: slackStatusParam } = await searchParams
+
   const supabase = await createServerClient()
-  const [{ data: channels }, { data: { user } }, entitlements] = await Promise.all([
-    supabase.from('notification_channels').select('*').eq('workspace_id', workspace.id),
+  const [{ data: channels }, { data: slackRow }, { data: { user } }, entitlements] = await Promise.all([
+    supabase.from('notification_channels').select('*').eq('workspace_id', workspace.id).eq('channel_type', 'email'),
+    // Selected separately, and narrowly, from the email channel above: this
+    // is the one query in the app that ever reads a Slack row's `config`
+    // (which holds the bot token), and only ever from this server component —
+    // never from a client component or a browser-side Supabase call. Only a
+    // sanitized projection (`slackConnection` below) is ever handed to
+    // `SlackIntegrationCard`; the token itself never leaves this scope.
+    supabase
+      .from('notification_channels')
+      .select('config, is_active')
+      .eq('workspace_id', workspace.id)
+      .eq('channel_type', 'slack')
+      .maybeSingle(),
     supabase.auth.getUser(),
     getEntitlements(),
   ])
@@ -28,6 +49,14 @@ export default async function SettingsPage() {
   const emailAddr = emailConfig.email ?? user?.email ?? '—'
   const emailFreq = emailConfig.frequency ?? 'daily'
   const client = entitlements ? toClientEntitlements(entitlements) : null
+
+  const slackConfig = slackRow ? parseSlackConfig(slackRow.config) : null
+  const slackConnection: SlackConnectionView = slackConfig
+    ? slackRow?.is_active && slackConfig.channelId && slackConfig.channelName
+      ? { status: 'connected', teamName: slackConfig.teamName, channelName: slackConfig.channelName }
+      : { status: 'pending_channel', teamName: slackConfig.teamName, channelName: null }
+    : { status: 'disconnected', teamName: null, channelName: null }
+  const slackUpgradePlanName = cheapestPlanWith('slack')?.name ?? 'Pro'
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
@@ -72,22 +101,12 @@ export default async function SettingsPage() {
             </Badge>
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded border border-dashed border-border px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="text-ui text-text-muted">Slack delivery</p>
-              <p className="text-meta text-text-faint">
-                {client?.features.slack ? 'Included in your plan.' : 'Available on the Pro plan.'}
-              </p>
-            </div>
-            {!client?.features.slack && (
-              <Link
-                href="/#pricing"
-                className="inline-flex shrink-0 items-center gap-1 text-meta font-medium text-accent hover:underline"
-              >
-                Upgrade <ArrowUpRight className="size-3" />
-              </Link>
-            )}
-          </div>
+          <SlackIntegrationCard
+            connection={slackConnection}
+            slackEnabled={!!client?.features.slack}
+            upgradePlanName={slackUpgradePlanName}
+            initialStatusParam={slackStatusParam}
+          />
         </CardContent>
       </Card>
 

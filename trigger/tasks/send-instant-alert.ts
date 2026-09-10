@@ -36,7 +36,7 @@ export const sendInstantAlertTask = task({
 
     const { data: alert, error } = await supabase
       .from('alerts')
-      .select('*, monitored_urls(url, name)')
+      .select('*, monitored_urls(url, name, alerts_muted, alerts_snoozed_until)')
       .eq('id', payload.alertId)
       .maybeSingle()
 
@@ -44,6 +44,26 @@ export const sendInstantAlertTask = task({
     if (!alert) {
       logger.warn('Instant alert skipped — alert not found', { alertId: payload.alertId })
       return { sent: false, reason: 'not_found' as const }
+    }
+
+    // Mute and snooze are set from the Slack action buttons, but they are a
+    // statement about the MONITOR, not about Slack. Someone who mutes a noisy
+    // monitor and then keeps getting emails about it has not been listened to.
+    const monitor = alert.monitored_urls as
+      | { alerts_muted?: boolean | null; alerts_snoozed_until?: string | null }
+      | null
+
+    if (monitor?.alerts_muted) {
+      logger.info('Instant alert skipped — monitor is muted', { alertId: alert.id })
+      return { sent: false, reason: 'muted' as const }
+    }
+
+    if (monitor?.alerts_snoozed_until && new Date(monitor.alerts_snoozed_until) > new Date()) {
+      logger.info('Instant alert skipped — monitor is snoozed', {
+        alertId: alert.id,
+        until: monitor.alerts_snoozed_until,
+      })
+      return { sent: false, reason: 'snoozed' as const }
     }
 
     if (alert.severity !== 'high' && alert.severity !== 'critical') {
