@@ -38,6 +38,12 @@ const envSchema = z.object({
   SLACK_CLIENT_ID:                    opt,
   SLACK_CLIENT_SECRET:                opt,
   SLACK_SIGNING_SECRET:               opt,
+  // Observability (see lib/observability.ts). Both optional — with neither
+  // set, captureError/captureMessage/withSpan log structured JSON to stdout
+  // instead of sending anywhere, which is exactly what a fresh clone with no
+  // env vars must still do without throwing.
+  OBSERVABILITY_DSN:                  opt,
+  OBSERVABILITY_ENVIRONMENT:          z.string().default('development'),
 })
 
 export const env = envSchema.parse(process.env)

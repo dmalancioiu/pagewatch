@@ -2,7 +2,10 @@ import { task, logger } from '@trigger.dev/sdk/v3'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { processUrl } from '../lib/take-screenshot'
 import { resolveWorkspacePlan, hasCheckQuota } from '../lib/entitlements'
-import { sendEmail } from '../lib/notify'
+import { sendEmail, manageNotificationsUrl } from '../lib/notify'
+import { renderMonitorFailingEmail } from '../../emails/MonitorFailing'
+import { renderMonitorPausedEmail } from '../../emails/MonitorPaused'
+import { captureError } from '../lib/observability'
 
 /**
  * Consecutive-failure thresholds that trigger a notification.
@@ -84,28 +87,24 @@ async function notifyOnFailureThreshold(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const monitorLabel = monitor.name || monitor.url
 
+  const manageUrl = manageNotificationsUrl(appUrl)
+
   if (newFailureCount === FAILURE_PAUSE_THRESHOLD) {
     await supabase.from('monitored_urls').update({ is_active: false }).eq('id', monitor.id)
+
+    const { html, text } = renderMonitorPausedEmail({
+      monitorLabel,
+      reason,
+      pauseThreshold: FAILURE_PAUSE_THRESHOLD,
+      appUrl,
+      manageUrl,
+    })
 
     await sendEmail({
       workspaceId: monitor.workspace_id,
       subject: `Monitoring paused — ${monitorLabel}`,
-      html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-        <div style="max-width:560px;margin:40px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-          <div style="background:#0f172a;padding:24px 32px;"><div style="color:white;font-size:20px;font-weight:700;">PageWatch</div></div>
-          <div style="padding:32px;">
-            <h1 style="color:#0f172a;font-size:18px;margin:0 0 12px;">We've paused monitoring for ${monitorLabel}</h1>
-            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 12px;">
-              ${FAILURE_PAUSE_THRESHOLD} checks in a row could not reach this page (most recently: <strong>${reason}</strong>),
-              so we stopped trying rather than keep spending your check quota on a target that isn't responding.
-            </p>
-            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px;">
-              Fix the URL or the site, then resume monitoring from the dashboard whenever it's ready.
-            </p>
-            <a href="${appUrl}/dashboard/urls" style="display:inline-block;background:#0f172a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Open Dashboard &rarr;</a>
-          </div>
-        </div>
-      </body></html>`,
+      html,
+      text,
       metadata: { kind: 'monitor_paused', monitored_url_id: monitor.id, consecutive_failures: newFailureCount },
     })
 
@@ -114,25 +113,20 @@ async function notifyOnFailureThreshold(
   }
 
   if (newFailureCount === FAILURE_NOTIFY_THRESHOLD) {
+    const { html, text } = renderMonitorFailingEmail({
+      monitorLabel,
+      reason,
+      failureThreshold: FAILURE_NOTIFY_THRESHOLD,
+      pauseThreshold: FAILURE_PAUSE_THRESHOLD,
+      appUrl,
+      manageUrl,
+    })
+
     await sendEmail({
       workspaceId: monitor.workspace_id,
       subject: `We can't reach ${monitorLabel}`,
-      html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-        <div style="max-width:560px;margin:40px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-          <div style="background:#0f172a;padding:24px 32px;"><div style="color:white;font-size:20px;font-weight:700;">PageWatch</div></div>
-          <div style="padding:32px;">
-            <h1 style="color:#0f172a;font-size:18px;margin:0 0 12px;">We can't reach ${monitorLabel}</h1>
-            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 12px;">
-              The last ${FAILURE_NOTIFY_THRESHOLD} checks in a row have failed. Most recent reason: <strong>${reason}</strong>.
-            </p>
-            <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px;">
-              We'll keep retrying automatically. If this doesn't clear up, we'll pause monitoring after
-              ${FAILURE_PAUSE_THRESHOLD} consecutive failures so it stops using your check quota.
-            </p>
-            <a href="${appUrl}/dashboard/urls" style="display:inline-block;background:#0f172a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Open Dashboard &rarr;</a>
-          </div>
-        </div>
-      </body></html>`,
+      html,
+      text,
       metadata: { kind: 'monitor_failing', monitored_url_id: monitor.id, consecutive_failures: newFailureCount },
     })
 
@@ -219,11 +213,23 @@ export const runSingleUrlTask = task({
         // The health write failing must not swallow the original capture
         // error — that's the one Trigger.dev's retry needs to see.
         logger.error('record_monitor_failure RPC failed', { url: monitor.url, error: rpcErr.message })
+        captureError(new Error(`record_monitor_failure RPC failed: ${rpcErr.message}`), {
+          monitorId: monitor.id,
+          workspaceId: monitor.workspace_id,
+        })
       } else if (typeof newFailureCount === 'number') {
         await notifyOnFailureThreshold(supabase, monitor, newFailureCount, reason)
       }
 
       logger.error('Capture failed', { url: monitor.url, reason })
+
+      // The capture error itself, sanitised the same way it is before it's
+      // ever shown to a customer or emailed to them: `reason` (never the raw
+      // `captureErr`, whose message can carry the monitor's own URL — and
+      // for a monitoring product, a URL can itself embed credentials) plus
+      // IDs only. `captureError`'s own redaction is a backstop, not the
+      // first line of defence.
+      captureError(captureErr, { monitorId: monitor.id, workspaceId: monitor.workspace_id, reason })
 
       // Rethrow unchanged (not `reason`) so Trigger.dev's retry/backoff logic
       // and its own run log keep seeing the real error.
@@ -233,6 +239,10 @@ export const runSingleUrlTask = task({
     const { error: successRpcErr } = await supabase.rpc('record_monitor_success', { monitor_id: monitor.id })
     if (successRpcErr) {
       logger.warn('record_monitor_success RPC failed', { url: monitor.url, error: successRpcErr.message })
+      captureError(new Error(`record_monitor_success RPC failed: ${successRpcErr.message}`), {
+        monitorId: monitor.id,
+        workspaceId: monitor.workspace_id,
+      })
     }
 
     logger.info('Capture complete', {

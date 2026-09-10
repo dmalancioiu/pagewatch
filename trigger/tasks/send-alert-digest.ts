@@ -1,6 +1,9 @@
 import { schedules, logger } from '@trigger.dev/sdk/v3'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { renderAlertDigestEmail, type DigestAlertItem } from '../../emails/AlertDigest'
+import { resolveAppUrl, manageNotificationsUrl } from '../lib/notify'
+import { captureError } from '../lib/observability'
 
 export const sendAlertDigestTask = schedules.task({
   id: 'send-alert-digest',
@@ -73,79 +76,30 @@ export const sendAlertDigestTask = schedules.task({
       const criticalCount = wsAlerts.filter((a) => a.severity === 'critical').length
       const highCount     = wsAlerts.filter((a) => a.severity === 'high').length
 
-      const severityBg: Record<string, string> = {
-        critical: '#fee2e2',
-        high:     '#fef3c7',
-        medium:   '#fefce8',
-        low:      '#f0fdf4',
-      }
-      const severityColor: Record<string, string> = {
-        critical: '#dc2626',
-        high:     '#d97706',
-        medium:   '#ca8a04',
-        low:      '#16a34a',
-      }
-
-      const alertRows = wsAlerts
-        .slice(0, 10)
-        .map((a: any) => {
-          const diffLabel = a.diff_pct !== null ? `${Number(a.diff_pct).toFixed(1)}% changed` : ''
-          const pageLabel = a.monitored_urls?.name ?? a.monitored_urls?.url ?? ''
-          return `
-          <tr>
-            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
-              <div style="font-weight:600;color:#0f172a;font-size:14px;">${a.title}</div>
-              <div style="color:#64748b;font-size:13px;margin-top:2px;">${a.summary}</div>
-              ${pageLabel ? `<div style="color:#94a3b8;font-size:11px;margin-top:4px;font-family:monospace;">${pageLabel}</div>` : ''}
-            </td>
-            <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap;vertical-align:top;">
-              <span style="background:${severityBg[a.severity] ?? '#f8fafc'};color:${severityColor[a.severity] ?? '#374151'};padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.05em;display:block;margin-bottom:4px;">${a.severity.toUpperCase()}</span>
-              ${diffLabel ? `<span style="color:#94a3b8;font-size:11px;">${diffLabel}</span>` : ''}
-            </td>
-          </tr>`
-        })
-        .join('')
-
       const domain   = (wsAlerts[0] as any).workspaces?.domain ?? ''
-      const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      const appUrl   = resolveAppUrl()
+      const manageUrl = manageNotificationsUrl(appUrl)
       const fromDomain = process.env.EMAIL_FROM_DOMAIN ?? 'yourdomain.com'
 
-      const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:600px;margin:40px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background:#0f172a;padding:24px 32px;">
-      <div style="color:white;font-size:20px;font-weight:700;margin:0;">PageWatch</div>
-      <div style="color:#94a3b8;font-size:13px;margin-top:4px;">Visual Change Digest</div>
-    </div>
-    <div style="padding:32px;">
-      <p style="color:#374151;font-size:15px;margin:0 0 8px;">Hi ${profile.full_name ?? 'there'},</p>
-      <p style="color:#374151;font-size:15px;margin:0 0 24px;">
-        You have <strong>${wsAlerts.length} page change alert${wsAlerts.length > 1 ? 's' : ''}</strong> in the last 24 hours${criticalCount > 0 ? ` — including <strong style="color:#dc2626;">${criticalCount} critical</strong>` : ''}.
-      </p>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
-        <thead>
-          <tr style="background:#f8fafc;">
-            <th style="padding:10px 16px;text-align:left;font-size:12px;color:#64748b;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Change</th>
-            <th style="padding:10px 16px;text-align:center;font-size:12px;color:#64748b;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;width:110px;">Severity</th>
-          </tr>
-        </thead>
-        <tbody>${alertRows}</tbody>
-      </table>
-      <div style="margin-top:28px;">
-        <a href="${appUrl}/dashboard/alerts" style="display:inline-block;background:#0f172a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">View All Alerts &rarr;</a>
-      </div>
-    </div>
-    <div style="padding:16px 32px;border-top:1px solid #f1f5f9;">
-      <p style="color:#94a3b8;font-size:12px;margin:0;">
-        PageWatch &middot; monitoring <strong>${domain}</strong> &middot;
-        <a href="${appUrl}/dashboard/settings" style="color:#94a3b8;text-decoration:underline;">Manage notifications</a>
-      </p>
-    </div>
-  </div>
-</body>
-</html>`
+      const digestAlerts: DigestAlertItem[] = wsAlerts.slice(0, 10).map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        summary: a.summary,
+        severity: a.severity,
+        diffPct: a.diff_pct !== null ? Number(a.diff_pct) : null,
+        pageLabel: a.monitored_urls?.name ?? a.monitored_urls?.url ?? '',
+      }))
+
+      const { html, text } = renderAlertDigestEmail({
+        recipientName: profile.full_name,
+        domain,
+        alerts: digestAlerts,
+        totalCount: wsAlerts.length,
+        criticalCount,
+        highCount,
+        appUrl,
+        manageUrl,
+      })
 
       try {
         await resend.emails.send({
@@ -153,6 +107,7 @@ export const sendAlertDigestTask = schedules.task({
           to:      profile.email,
           subject: `${criticalCount > 0 ? '🔴' : highCount > 0 ? '🟡' : '👁'} ${wsAlerts.length} page change alert${wsAlerts.length > 1 ? 's' : ''} — ${domain}`,
           html,
+          text,
         })
 
         await supabase.from('notification_events').insert(
@@ -168,6 +123,10 @@ export const sendAlertDigestTask = schedules.task({
         logger.info('Digest sent', { workspace: wsId, alertCount: wsAlerts.length })
       } catch (err) {
         logger.error('Failed to send digest', { workspace: wsId, err })
+        // A failed digest send must never fail the schedule that produced it
+        // (same rule `sendEmail`/`triggerInstantAlert` follow) — captured for
+        // visibility, not rethrown.
+        captureError(err, { workspaceId: wsId })
       }
     }
 

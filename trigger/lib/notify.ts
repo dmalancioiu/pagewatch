@@ -1,6 +1,27 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import type { sendInstantAlertTask } from '../tasks/send-instant-alert'
+import { captureError } from './observability'
+
+/**
+ * `NEXT_PUBLIC_APP_URL`, resolved once here so every template gets the same
+ * fallback the rest of this file already used inline
+ * (`process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'`).
+ */
+export function resolveAppUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+}
+
+/**
+ * Every template's unsubscribe/manage-notifications link. There is no
+ * per-email unsubscribe token/route yet (that would live in
+ * `app/dashboard/**`, out of scope here) — this points at the same settings
+ * page the pre-existing digest and instant-alert emails already linked
+ * "Manage notifications" to.
+ */
+export function manageNotificationsUrl(appUrl: string = resolveAppUrl()): string {
+  return `${appUrl}/dashboard/settings`
+}
 
 /**
  * The one place in the worker that sends email.
@@ -74,6 +95,8 @@ export interface SendEmailInput {
   workspaceId: string
   subject: string
   html: string
+  /** Plain-text alternative. Every template in `emails/` renders one alongside its HTML — pass it through so mail clients that prefer/require text get it. */
+  text?: string
   /** Ties the send to an alert for the audit trail. Omit for health emails. */
   alertId?: string
   /** Stored alongside the `notification_events` row, e.g. `{ kind: 'monitor_failing' }`. */
@@ -108,10 +131,15 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
       to: recipient.email,
       subject: input.subject,
       html: input.html,
+      ...(input.text ? { text: input.text } : {}),
     })
 
     if (error) {
       console.warn('[notify] send failed', input.workspaceId, error.message)
+      captureError(new Error(`Resend send failed: ${error.message}`), {
+        workspaceId: input.workspaceId,
+        alertId: input.alertId,
+      })
       return
     }
 
@@ -135,6 +163,7 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
     // the Resend client throwing outright (bad env, network) must land here,
     // not bubble into the caller's capture task.
     console.warn('[notify] sendEmail threw', err instanceof Error ? err.message : err)
+    captureError(err, { workspaceId: input.workspaceId, alertId: input.alertId })
   }
 }
 
@@ -161,5 +190,6 @@ export async function triggerInstantAlert(alertId: string): Promise<void> {
     // Same rule as sendEmail: failing to enqueue a notification must never
     // fail the capture that produced the alert. The digest still catches it.
     console.warn('[notify] triggerInstantAlert failed', alertId, err instanceof Error ? err.message : err)
+    captureError(err, { alertId })
   }
 }
