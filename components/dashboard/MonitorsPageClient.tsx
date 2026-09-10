@@ -1,134 +1,99 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRight, ArrowUpDown, Calendar, CheckCircle, CheckCircle2, Clock, Eye, LayoutGrid, List, Minus, Pause, Plus, Search, Target } from 'lucide-react'
+import { LayoutGrid, Plus } from 'lucide-react'
 import { useDashboard } from './DashboardShell'
+import { MonitorRow, type MonitorRowData } from './MonitorRow'
+import { Panel, PanelFooter } from '@/components/ui/panel'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-type MonitorItem = {
-  id: string
-  name?: string | null
-  url?: string | null
-  is_active?: boolean | null
-  mode?: string | null
-  check_frequency?: string | null
-  last_checked_at?: string | null
-  zones?: any[] | null
-  openAlertCount?: number
-  lastAlertDiffPct?: number | null
-  lastAlertSummary?: string | null
-  lastAlertCreatedAt?: string | null
-}
+type Status = 'attention' | 'healthy' | 'paused'
+type Filter = 'all' | Status
 
-type AlertItem = {
-  id: string
-  monitored_url_id: string
-  created_at: string | null
-  diff_pct: number | null
-  ai_summary: string | null
-  monitored_urls?: { name?: string | null; url?: string | null } | null
-}
-
-type Props = {
-  monitors: MonitorItem[]
-  alerts: AlertItem[]
-}
-
-function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return 'Never'
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'Just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
-function host(url: string | null | undefined) {
-  try { return new URL(url ?? '').hostname.replace(/^www\./, '') } catch { return url || 'unknown' }
-}
-
-function prettyFrequency(freq: string | null | undefined) {
-  if (!freq) return 'Daily'
-  return freq.charAt(0).toUpperCase() + freq.slice(1)
-}
-
-function scoreFor(monitor: MonitorItem) {
-  if (monitor.openAlertCount && monitor.openAlertCount > 0) {
-    const diff = Number(monitor.lastAlertDiffPct ?? 8)
-    return Math.max(52, Math.min(82, Math.round(88 - diff * 1.3)))
-  }
-  if (monitor.is_active === false) return 85
-  return Math.max(92, 99 - ((host(monitor.url).length + (monitor.name?.length ?? 0)) % 6))
-}
-
-function statusFor(monitor: MonitorItem) {
-  if (monitor.is_active === false) return 'paused'
-  if ((monitor.openAlertCount ?? 0) > 0) return 'alert'
+function classify(monitor: MonitorRowData): Status {
+  if (!monitor.is_active) return 'paused'
+  if ((monitor.consecutive_failures ?? 0) > 0 || monitor.openAlertCount > 0) return 'attention'
   return 'healthy'
 }
 
-function ScreenshotMock({ monitor }: { monitor: MonitorItem }) {
-  const h = host(monitor.url)
-  if (h.includes('linear')) return <LinearMock />
-  if (h.includes('github')) return <GithubMock />
-  if (h.includes('vercel')) return <VercelMock />
-  if (h.includes('lemon')) return <LemonMock />
-  if (h.includes('notion')) return <NotionMock />
-  if (h.includes('stripe')) return <StripeMock />
-  return <GenericMock />
+interface Props {
+  monitors: MonitorRowData[]
 }
 
-function StripeMock() { return <div style={{ background:'#FFFFFF', height:'100%', overflow:'hidden' }}><div style={{ height:20, background:'#fff', borderBottom:'1px solid #F3F4F6', display:'flex', alignItems:'center', padding:'0 10px', gap:6 }}><div style={{ width:20, height:7, borderRadius:2, background:'#0A2540' }} /><div style={{ flex:1 }} /><div style={{ width:10, height:5, borderRadius:2, background:'#E9ECEF' }} /><div style={{ width:10, height:5, borderRadius:2, background:'#E9ECEF' }} /><div style={{ width:22, height:7, borderRadius:3, background:'#635BFF' }} /></div><div style={{ padding:'10px 10px 0' }}><div style={{ width:'50%', height:8, borderRadius:3, background:'#111', margin:'0 auto 5px' }} /><div style={{ width:'75%', height:5, borderRadius:2, background:'#E9ECEF', margin:'0 auto 10px' }} /><div style={{ display:'flex', gap:5 }}>{[0,1,2].map(i => <div key={i} style={{ flex:1, border:i === 1 ? '2px solid #635BFF' : '1px solid #E5E7EB', borderRadius:6, padding:7, background:i === 1 ? '#F8F5FF' : '#fff' }}><div style={{ height:3, background:i === 1 ? '#DDD6FE' : '#E9ECEF', borderRadius:2, marginBottom:4 }} /><div style={{ height:8, background:i === 1 ? '#635BFF' : '#111', borderRadius:2, marginBottom:5 }} /><div style={{ display:'flex', flexDirection:'column', gap:2, marginBottom:5 }}><div style={{ height:2, background:i === 1 ? '#DDD6FE' : '#E9ECEF', borderRadius:1 }} /><div style={{ height:2, background:i === 1 ? '#DDD6FE' : '#E9ECEF', borderRadius:1, width:'80%' }} /><div style={{ height:2, background:i === 1 ? '#DDD6FE' : '#E9ECEF', borderRadius:1, width:'60%' }} /></div><div style={{ height:7, background:i === 1 ? '#635BFF' : i === 2 ? '#6B7280' : '#E9ECEF', borderRadius:3 }} /></div>)}</div></div></div> }
-function LinearMock() { return <div style={{ background:'#0D1117', height:'100%', display:'flex', overflow:'hidden' }}><div style={{ width:44, background:'#080C10', padding:'8px 6px', display:'flex', flexDirection:'column', gap:5, borderRight:'1px solid rgba(255,255,255,.05)' }}><div style={{ width:20, height:5, borderRadius:2, background:'#4C4C6B', marginBottom:4 }} />{[24,20,22,18,20].map((w,i)=><div key={i} style={{ width:w, height:3, borderRadius:1.5, background:i === 0 ? '#6366F1' : '#2A2A40' }} />)}</div><div style={{ flex:1, padding:'9px 8px', overflow:'hidden' }}><div style={{ width:'55%', height:4, background:'#2A2A40', borderRadius:2, marginBottom:8 }} /><div style={{ display:'flex', flexDirection:'column', gap:3 }}>{['#22D3EE','#A78BFA','#34D399','#F59E0B','#FB7185'].map((c,i)=><div key={c} style={{ height:14, background:i === 3 ? '#1C2030' : '#161B22', borderRadius:4, display:'flex', alignItems:'center', padding:'0 6px', gap:4, border:i === 3 ? '1px solid rgba(99,102,241,.25)' : undefined }}><div style={{ width:4, height:4, borderRadius:'50%', background:c, flexShrink:0 }} /><div style={{ flex:1, height:2, background:i === 3 ? '#3D3D5C' : '#2A2A40', borderRadius:1 }} /><div style={{ width:14 + i * 2, height:2, background:i === 3 ? '#3D3D5C' : '#2A2A40', borderRadius:1 }} /></div>)}</div></div></div> }
-function GithubMock() { return <div style={{ background:'#fff', height:'100%', overflow:'hidden' }}><div style={{ height:18, background:'#24292F', display:'flex', alignItems:'center', padding:'0 8px', gap:5 }}><div style={{ width:16, height:7, borderRadius:2, background:'rgba(255,255,255,.7)' }} /><div style={{ flex:1 }} /><div style={{ width:60, height:6, borderRadius:2, background:'rgba(255,255,255,.15)' }} /><div style={{ width:6, height:6, borderRadius:'50%', background:'rgba(255,255,255,.3)' }} /></div><div style={{ display:'flex', height:'calc(100% - 18px)' }}><div style={{ width:36, background:'#F6F8FA', borderRight:'1px solid #E5E7EB', padding:'6px 5px', display:'flex', flexDirection:'column', gap:3 }}>{[80,70,60,75,55].map((w,i)=><div key={i} style={{ height:3, background:i === 0 ? '#0969DA' : '#E5E7EB', borderRadius:1, width:`${w}%` }} />)}</div><div style={{ flex:1, padding:8, display:'flex', flexDirection:'column', gap:3 }}>{['#0969DA','#CF222E','#6E40C9','#1A7F37'].map((c,i)=><div key={c} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 5px', border:'1px solid #E5E7EB', borderRadius:4, background:i === 0 ? '#fff' : undefined }}><div style={{ width:8, height:8, borderRadius:2, background:c, flexShrink:0 }} /><div style={{ flex:1, height:2.5, background:'#E5E7EB', borderRadius:1 }} /><div style={{ width:16, height:4, borderRadius:2, background:i === 1 ? '#FFEBE9' : i === 2 ? '#F3E2FF' : '#DAFBE1', border:'1px solid #ACEEBB' }} /></div>)}</div></div></div> }
-function VercelMock() { return <div style={{ background:'#000', height:'100%', overflow:'hidden' }}><div style={{ height:18, display:'flex', alignItems:'center', padding:'0 10px', gap:8, borderBottom:'1px solid rgba(255,255,255,.06)' }}><div style={{ width:14, height:14, borderRadius:2, background:'#fff', display:'grid', placeItems:'center' }}><div style={{ width:8, height:8, background:'#000', borderRadius:1 }} /></div><div style={{ flex:1 }} />{[1,2,3].map(i=><div key={i} style={{ width:10, height:3, borderRadius:1, background:'rgba(255,255,255,.25)' }} />)}<div style={{ width:20, height:6, borderRadius:3, background:'#fff', marginLeft:4 }} /></div><div style={{ padding:'14px 10px', textAlign:'center' }}><div style={{ width:'80%', height:10, borderRadius:3, background:'rgba(255,255,255,.9)', margin:'0 auto 6px' }} /><div style={{ width:'65%', height:6, borderRadius:2, background:'rgba(255,255,255,.25)', margin:'0 auto 4px' }} /><div style={{ width:'50%', height:6, borderRadius:2, background:'rgba(255,255,255,.15)', margin:'0 auto 12px' }} /><div style={{ display:'flex', justifyContent:'center', gap:5, marginBottom:12 }}><div style={{ width:60, height:9, borderRadius:4, background:'#fff' }} /><div style={{ width:50, height:9, borderRadius:4, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.15)' }} /></div><div style={{ border:'1px solid rgba(255,255,255,.1)', borderRadius:6, padding:5, background:'rgba(255,255,255,.04)' }}><div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, marginBottom:3 }} /><div style={{ height:4, background:'rgba(255,255,255,.05)', borderRadius:2, width:'70%' }} /></div></div></div> }
-function LemonMock() { return <div style={{ background:'#7C3AED', height:'100%', overflow:'hidden' }}><div style={{ height:18, background:'#5B21B6', display:'flex', alignItems:'center', padding:'0 10px', gap:6 }}><div style={{ width:16, height:7, borderRadius:2, background:'rgba(255,255,255,.8)' }} /><div style={{ flex:1 }} /><div style={{ width:8, height:5, borderRadius:2, background:'rgba(255,255,255,.3)' }} /><div style={{ width:8, height:5, borderRadius:2, background:'rgba(255,255,255,.3)' }} /><div style={{ width:20, height:7, borderRadius:3, background:'rgba(255,255,255,.9)' }} /></div><div style={{ padding:'12px 10px' }}><div style={{ width:'70%', height:9, borderRadius:3, background:'rgba(255,255,255,.9)', margin:'0 auto 5px' }} /><div style={{ width:'85%', height:5, borderRadius:2, background:'rgba(255,255,255,.35)', margin:'0 auto 5px' }} /><div style={{ width:'55%', height:5, borderRadius:2, background:'rgba(255,255,255,.25)', margin:'0 auto 12px' }} /><div style={{ display:'flex', gap:5 }}>{[0,1].map(i=><div key={i} style={{ flex:1, background:i ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.12)', borderRadius:6, padding:6, border:i ? '1px solid rgba(255,255,255,.35)' : '1px solid rgba(255,255,255,.15)' }}><div style={{ height:4, background:i ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.3)', borderRadius:2, marginBottom:3 }} /><div style={{ height:7, background:i ? '#fff' : 'rgba(255,255,255,.7)', borderRadius:2, marginBottom:3 }} /><div style={{ height:6, background:i ? '#FACC15' : 'rgba(255,255,255,.2)', borderRadius:3 }} /></div>)}</div></div></div> }
-function NotionMock() { return <div style={{ background:'#fff', height:'100%', overflow:'hidden' }}><div style={{ height:18, background:'#fff', borderBottom:'1px solid #F3F4F6', display:'flex', alignItems:'center', padding:'0 10px', gap:6 }}><div style={{ width:8, height:8, borderRadius:2, background:'#111' }} /><div style={{ width:30, height:5, borderRadius:2, background:'#E9ECEF' }} /><div style={{ flex:1 }} /><div style={{ width:8, height:5, borderRadius:2, background:'#E9ECEF' }} /><div style={{ width:20, height:6, borderRadius:2, background:'#111' }} /></div><div style={{ display:'flex', height:'calc(100% - 18px)' }}><div style={{ width:38, background:'#F7F6F3', borderRight:'1px solid #E9ECEF', padding:'6px 5px', display:'flex', flexDirection:'column', gap:3 }}>{[90,70,80,60,75,55].map((w,i)=><div key={i} style={{ height:3, background:i === 0 ? '#CCC' : '#E9ECEF', borderRadius:1, width:`${w}%` }} />)}</div><div style={{ flex:1, padding:'10px 9px' }}><div style={{ width:'70%', height:8, borderRadius:3, background:'#111', marginBottom:6 }} /><div style={{ display:'flex', flexDirection:'column', gap:3, marginBottom:8 }}><div style={{ height:3, background:'#E9ECEF', borderRadius:1 }} /><div style={{ height:3, background:'#E9ECEF', borderRadius:1, width:'90%' }} /><div style={{ height:3, background:'#E9ECEF', borderRadius:1, width:'80%' }} /></div><div style={{ display:'flex', gap:4 }}>{[1,2,3].map(i=><div key={i} style={{ flex:1, height:28, borderRadius:4, border:'1px solid #E9ECEF', background:i === 2 ? '#fff' : '#F7F6F3' }} />)}</div></div></div></div> }
-function GenericMock() { return <div style={{ background:'#fff', height:'100%', overflow:'hidden' }}><div style={{ height:20, borderBottom:'1px solid #F3F4F6', display:'flex', alignItems:'center', padding:'0 10px', gap:6 }}><div style={{ width:18, height:7, borderRadius:2, background:'#2563EB' }} /><div style={{ flex:1 }} />{[1,2,3].map(i => <div key={i} style={{ width:12, height:5, borderRadius:2, background:'#E5E7EB' }} />)}</div><div style={{ padding:12 }}><div style={{ width:'65%', height:10, borderRadius:3, background:'#111827', margin:'0 auto 6px' }} /><div style={{ width:'86%', height:5, borderRadius:2, background:'#E5E7EB', margin:'0 auto 14px' }} /><div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>{[1,2,3,4].map(i => <div key={i} style={{ height:30, borderRadius:6, border:'1px solid #E5E7EB', background:i === 2 ? '#EFF6FF' : '#F9FAFB' }} />)}</div></div></div> }
+export function MonitorsPageClient({ monitors }: Props) {
+  const { openAddUrl, atMonitorLimit, entitlements } = useDashboard()
+  const [filter, setFilter] = useState<Filter>('all')
 
-function AlertThumb({ alert }: { alert: AlertItem }) {
-  const h = host(alert.monitored_urls?.url)
-  if (h.includes('lemon')) return <div className="pm-alert-thumb" style={{ background:'#7C3AED' }}><div style={{ background:'#5B21B6', height:5 }} /><div style={{ padding:3, display:'flex', gap:1.5 }}><div style={{ flex:2, background:'rgba(255,255,255,.12)', borderRadius:2, height:16 }} /><div style={{ flex:3, display:'flex', flexDirection:'column', gap:1.5 }}><div style={{ background:'rgba(255,255,255,.1)', borderRadius:1, height:4 }} /><div style={{ background:'rgba(255,255,255,.1)', borderRadius:1, height:4 }} /><div style={{ background:'rgba(255,255,255,.16)', borderRadius:1, height:4, border:'1px solid rgba(255,255,255,.3)' }} /></div></div></div>
-  return <div className="pm-alert-thumb" style={{ background:'#fff' }}><div style={{ background:'#0A2540', height:5 }} /><div style={{ padding:'2px 3px', display:'flex', gap:2 }}><div style={{ flex:1, background:'#EEF2FF', borderRadius:2, height:16, border:'1px solid #C7D2FE' }} /><div style={{ flex:1, background:'#F9FAFB', borderRadius:2, height:16, border:'1px solid #E5E7EB' }} /></div></div>
+  const counts = useMemo(() => {
+    const c = { attention: 0, healthy: 0, paused: 0 }
+    for (const m of monitors) c[classify(m)]++
+    return c
+  }, [monitors])
+
+  const filtered = filter === 'all' ? monitors : monitors.filter((m) => classify(m) === filter)
+
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h1 className="text-page-title text-text">Monitors</h1>
+          <span className="text-meta text-text-faint">{monitors.length}</span>
+        </div>
+        {atMonitorLimit ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>
+                <Button size="sm" iconLeft={<Plus className="size-3.5" />} disabled>
+                  Add monitor
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {entitlements.planName} includes {entitlements.limits.maxMonitors} monitors — Upgrade
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Button size="sm" iconLeft={<Plus className="size-3.5" />} onClick={() => openAddUrl()}>
+            Add monitor
+          </Button>
+        )}
+      </div>
+
+      {monitors.length > 0 && (
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+          <TabsList>
+            <TabsTrigger value="all">All {monitors.length}</TabsTrigger>
+            <TabsTrigger value="attention">Needs attention {counts.attention}</TabsTrigger>
+            <TabsTrigger value="healthy">Healthy {counts.healthy}</TabsTrigger>
+            <TabsTrigger value="paused">Paused {counts.paused}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
+      {monitors.length === 0 ? (
+        <EmptyState
+          icon={<LayoutGrid className="size-4" />}
+          title="No monitors yet"
+          description="Add a URL and PageWatch takes a baseline screenshot right away."
+          action={
+            <Button size="sm" onClick={() => openAddUrl()}>
+              Add monitor
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState title="Nothing here" description="No monitors match this filter." />
+      ) : (
+        <Panel>
+          {filtered.map((monitor) => (
+            <MonitorRow key={monitor.id} monitor={monitor} />
+          ))}
+          <PanelFooter>{filtered.length} monitor{filtered.length === 1 ? '' : 's'}</PanelFooter>
+        </Panel>
+      )}
+    </div>
+  )
 }
-
-function AlertStrip({ alerts }: { alerts: AlertItem[] }) {
-  if (alerts.length === 0) return null
-  return <section className="pm-alert-strip"><div className="pm-alert-strip-header"><span className="pm-dot pm-dot-r" /><span style={{ fontSize:12, fontWeight:750, color:'var(--pm-t1)' }}>Active alerts</span><span className="pm-open-count">{alerts.length} open</span><span style={{ marginLeft:'auto', fontSize:11, color:'var(--pm-t4)' }}>Requires review</span></div>{alerts.slice(0, 3).map(alert => <Link key={alert.id} href={`/dashboard/urls/${alert.monitored_url_id}`} className="pm-alert-row"><AlertThumb alert={alert} /><div style={{ flex:1, minWidth:0 }}><div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}><span style={{ fontSize:12.5, fontWeight:760, color:'var(--pm-t1)' }}>{alert.monitored_urls?.name || 'Untitled monitor'}</span><span style={{ fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize:10, color:'var(--pm-t4)' }}>{host(alert.monitored_urls?.url)}</span><span className="pm-diff-chip">{Number(alert.diff_pct ?? 0).toFixed(1)}% diff</span></div><p style={{ fontSize:11.5, color:'var(--pm-t3)', lineHeight:1.5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', margin:0 }}>{alert.ai_summary || 'A visual change was detected and needs review.'}</p></div><div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}><span style={{ fontSize:11, color:'var(--pm-t4)', whiteSpace:'nowrap' }}>{timeAgo(alert.created_at)}</span><button className="pm-btn-g small" type="button"><CheckCircle2 size={10} style={{ color:'#16A34A' }} />Resolve</button><span className="pm-btn-p small">View diff <ArrowRight size={10} /></span></div></Link>)}</section>
-}
-
-function MonitorCard({ monitor, listView }: { monitor: MonitorItem; listView: boolean }) {
-  const status = statusFor(monitor)
-  const score = scoreFor(monitor)
-  const zones = Array.isArray(monitor.zones) ? monitor.zones.length : 0
-  const changeCount = monitor.openAlertCount ?? 0
-  const isPaused = status === 'paused'
-  const href = `/dashboard/urls/${monitor.id}`
-  const healthClass = score >= 90 ? 'green' : score >= 75 ? 'amber' : 'red'
-  const statusText = status === 'alert' ? 'Alert' : status === 'paused' ? 'Paused' : 'Healthy'
-
-  return <Link href={href} className={`pm-monitor-card ${status === 'alert' ? 'is-alert' : ''} ${listView ? 'list' : ''}`} data-status={status}>
-    <div className="pm-card-preview"><ScreenshotMock monitor={monitor} />{isPaused && <div className="pm-paused-overlay"><div><Pause size={11} /><span>Monitoring paused</span></div></div>}<div className="pm-card-hover-mask"><div className="pm-card-open-pill"><ArrowRight size={12} /> Open monitor</div></div><div className={`pm-card-status-badge ${status}`}><span className={`pm-dot ${status === 'alert' ? 'pm-dot-r' : status === 'healthy' ? 'pm-dot-g' : 'pm-dot-gray'}`} style={{ width:5, height:5 }} />{statusText}</div><div className={`pm-health-badge ${healthClass}`}>{score}</div></div>
-    <div className="pm-card-body"><div><p className="pm-card-name">{monitor.name || 'Untitled monitor'}</p><p className="pm-card-url">{host(monitor.url)}</p></div><div className="pm-card-rule" /><div className="pm-card-status-row"><span className={`pm-c-badge ${status}`}><span className={`pm-dot ${status === 'alert' ? 'pm-dot-r' : status === 'healthy' ? 'pm-dot-g' : 'pm-dot-gray'}`} style={{ width:5, height:5 }} />{status === 'alert' ? `${changeCount} open change${changeCount === 1 ? '' : 's'}` : status === 'healthy' ? 'No changes' : 'Paused'}</span><span className="pm-card-score">Score <b>{score}</b>/100</span></div><div className="pm-card-meta"><span className="pm-meta-item"><Clock size={10} />{timeAgo(status === 'alert' ? monitor.lastAlertCreatedAt : monitor.last_checked_at)}</span><span className="pm-meta-item"><Calendar size={10} />{prettyFrequency(monitor.check_frequency)}</span><span className="pm-meta-item"><Target size={10} />{zones > 0 ? `${zones} zone${zones === 1 ? '' : 's'}` : 'Full page'}</span><span className="pm-meta-item">{status === 'alert' ? <AlertTriangle size={10} /> : status === 'healthy' ? <CheckCircle size={10} style={{ color:'#16A34A' }} /> : <Minus size={10} />}{status === 'paused' ? 'Paused' : `${changeCount} changes`}</span></div></div>
-  </Link>
-}
-
-export function MonitorsPageClient({ monitors, alerts }: Props) {
-  const { openAddUrl } = useDashboard()
-  const [filter, setFilter] = useState<'all' | 'alert' | 'healthy' | 'paused'>('all')
-  const [view, setView] = useState<'grid' | 'list'>('grid')
-  const counts = useMemo(() => ({
-    alert: monitors.filter(m => statusFor(m) === 'alert').length,
-    healthy: monitors.filter(m => statusFor(m) === 'healthy').length,
-    paused: monitors.filter(m => statusFor(m) === 'paused').length,
-  }), [monitors])
-  const filtered = filter === 'all' ? monitors : monitors.filter(m => statusFor(m) === filter)
-
-  return <div className="pm-page"><style jsx global>{css}</style><header className="pm-topbar"><div style={{ display:'flex', alignItems:'center', gap:6, minWidth:0 }}><p style={{ fontSize:14, fontWeight:760, color:'var(--pm-t1)', letterSpacing:'-.022em', whiteSpace:'nowrap', margin:0 }}>Monitors</p><span className="pm-count-chip">{monitors.length}</span></div><div style={{ flex:1 }} /><div style={{ position:'relative' }}><Search size={12} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--pm-t4)', pointerEvents:'none' }} /><input className="pm-search" placeholder="Search monitors..." /></div><div className="pm-view-toggle"><button onClick={() => setView('grid')} className={view === 'grid' ? 'active' : ''}><LayoutGrid size={12} /></button><button onClick={() => setView('list')} className={view === 'list' ? 'active' : ''}><List size={12} /></button></div><button className="pm-btn-p" onClick={openAddUrl}><Plus size={13} strokeWidth={2.4} />Add monitor</button></header><main className="pm-content"><AlertStrip alerts={alerts} /><div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16, flexWrap:'wrap' }}><button className={`pm-filter-pill ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>All <span style={{ opacity:.6 }}>{monitors.length}</span></button><button className={`pm-filter-pill ${filter === 'alert' ? 'active' : ''}`} onClick={() => setFilter('alert')}><span className="pm-dot pm-dot-r" style={{ width:5, height:5, marginRight:3 }} />Alert {counts.alert}</button><button className={`pm-filter-pill ${filter === 'healthy' ? 'active' : ''}`} onClick={() => setFilter('healthy')}><span className="pm-dot pm-dot-g" style={{ width:5, height:5, marginRight:3 }} />Healthy {counts.healthy}</button><button className={`pm-filter-pill ${filter === 'paused' ? 'active' : ''}`} onClick={() => setFilter('paused')}><span className="pm-dot pm-dot-gray" style={{ width:5, height:5, marginRight:3 }} />Paused {counts.paused}</button><div style={{ flex:1 }} /><span style={{ fontSize:11.5, color:'var(--pm-t4)' }}>Sorted by: Last checked</span><button className="pm-btn-g" style={{ fontSize:11, padding:'4px 9px' }}><ArrowUpDown size={10} />Sort</button></div><div className={`pm-monitor-grid ${view === 'list' ? 'list' : ''}`}>{filtered.map(monitor => <MonitorCard key={monitor.id} monitor={monitor} listView={view === 'list'} />)}<button className="pm-add-card" onClick={openAddUrl}><div><Plus size={16} /></div><p>Add monitor</p><span>Track any URL with zones, AI instructions & smart alerts</span></button></div></main></div>
-}
-
-const css = `
-:root{--pm-bg:#F7F8FA;--pm-surface:#fff;--pm-border:#E5E7EB;--pm-border-s:#F3F4F6;--pm-t1:#111827;--pm-t2:#374151;--pm-t3:#6B7280;--pm-t4:#9CA3AF;--pm-t5:#D1D5DB;--pm-blue:#2563EB;--pm-blue-s:#EFF6FF;--pm-green:#16A34A;--pm-red:#EF4444;--pm-amber:#F59E0B;--pm-r:12px;--pm-r-sm:8px;--pm-sh:0 1px 2px rgba(0,0,0,.05),0 1px 3px rgba(0,0,0,.04);--pm-sh-md:0 4px 12px rgba(0,0,0,.06),0 2px 4px rgba(0,0,0,.04);--pm-sh-lg:0 12px 40px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.04)}.pm-page{height:100vh;overflow:hidden;background:var(--pm-bg);color:var(--pm-t1);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.5}.pm-topbar{height:52px;flex-shrink:0;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--pm-border);display:flex;align-items:center;padding:0 20px;gap:10px;z-index:40}.pm-content{height:calc(100vh - 52px);overflow-y:auto;padding:24px 24px 48px}.pm-count-chip{font-size:11px;font-weight:650;color:var(--pm-t4);background:var(--pm-border-s);padding:2px 7px;border-radius:99px;border:1px solid var(--pm-border)}.pm-search{height:30px;width:200px;border:1px solid var(--pm-border);border-radius:var(--pm-r-sm);padding:0 10px 0 28px;font-size:12px;color:var(--pm-t1);background:#fff;font-family:inherit;outline:none;transition:border-color .15s}.pm-search:focus{border-color:rgba(37,99,235,.4);box-shadow:0 0 0 3px rgba(37,99,235,.08)}.pm-btn-p,.pm-btn-g{display:inline-flex;align-items:center;gap:5px;border-radius:var(--pm-r-sm);font-size:12px;white-space:nowrap;text-decoration:none;cursor:pointer}.pm-btn-p{padding:6px 12px;background:var(--pm-blue);color:#fff;border:0;font-weight:600;letter-spacing:-.01em;box-shadow:0 2px 8px rgba(37,99,235,.24)}.pm-btn-p:hover{background:#1D4ED8;box-shadow:0 4px 14px rgba(37,99,235,.32)}.pm-btn-g{padding:6px 11px;background:#fff;color:var(--pm-t2);border:1px solid var(--pm-border);font-weight:500}.pm-btn-g:hover{background:#F9FAFB;border-color:#D1D5DB}.small{font-size:11px;padding:5px 10px}.pm-view-toggle{display:flex;background:#F3F4F6;border-radius:7px;padding:2px;gap:1px}.pm-view-toggle button{width:28px;height:24px;border:0;border-radius:5px;background:transparent;display:flex;align-items:center;justify-content:center;color:var(--pm-t4)}.pm-view-toggle button.active{background:#fff;color:var(--pm-t2);box-shadow:var(--pm-sh)}@keyframes pmPg{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.45)}50%{box-shadow:0 0 0 4px rgba(22,163,74,0)}}@keyframes pmPr{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 4px rgba(239,68,68,0)}}.pm-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}.pm-dot-g{background:#16A34A;animation:pmPg 3s ease infinite}.pm-dot-r{background:#EF4444;animation:pmPr 1.8s ease infinite}.pm-dot-gray{background:#9CA3AF}.pm-alert-strip{margin-bottom:22px}.pm-alert-strip-header{display:flex;align-items:center;gap:7px;margin-bottom:10px}.pm-open-count{font-size:11px;font-weight:700;color:var(--pm-red);background:rgba(239,68,68,.08);padding:2px 7px;border-radius:99px;border:1px solid rgba(239,68,68,.16)}.pm-alert-row{background:#fff;border:1px solid rgba(239,68,68,.14);border-left:3px solid var(--pm-red);border-radius:var(--pm-r-sm);padding:11px 14px;display:flex;align-items:center;gap:14px;cursor:pointer;box-shadow:var(--pm-sh);transition:box-shadow .14s,transform .14s;margin-bottom:6px;text-decoration:none}.pm-alert-row:hover{box-shadow:0 4px 20px rgba(239,68,68,.09),var(--pm-sh);transform:translateX(2px)}.pm-alert-thumb{width:38px;height:28px;border-radius:5px;overflow:hidden;flex-shrink:0;border:1px solid rgba(239,68,68,.14)}.pm-diff-chip{font-size:10px;font-weight:800;color:var(--pm-red);background:rgba(239,68,68,.08);padding:1px 7px;border-radius:99px;border:1px solid rgba(239,68,68,.16)}.pm-filter-pill{height:28px;padding:0 12px;border-radius:99px;font-size:11.5px;font-weight:550;border:1px solid var(--pm-border);transition:all .1s;background:transparent;color:var(--pm-t3);display:inline-flex;align-items:center}.pm-filter-pill.active{background:var(--pm-t1);color:#fff;border-color:var(--pm-t1)}.pm-filter-pill:not(.active):hover{background:#F9FAFB;color:var(--pm-t2)}.pm-monitor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}.pm-monitor-grid.list{grid-template-columns:1fr}.pm-monitor-card{background:var(--pm-surface);border:1px solid var(--pm-border);border-radius:var(--pm-r);overflow:hidden;cursor:pointer;box-shadow:var(--pm-sh);display:flex;flex-direction:column;transition:box-shadow .2s,transform .2s,border-color .2s;position:relative;text-decoration:none;color:inherit;min-width:0}.pm-monitor-card:hover{box-shadow:var(--pm-sh-lg);transform:translateY(-2px)}.pm-monitor-card.is-alert{border-color:rgba(239,68,68,.18)}.pm-monitor-card.is-alert:hover{border-color:rgba(239,68,68,.34)}.pm-monitor-card.is-alert:after{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--pm-red)}.pm-monitor-card.list{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:190px}.pm-card-preview{height:160px;position:relative;overflow:hidden;flex-shrink:0;background:#F9FAFB}.pm-monitor-card.list .pm-card-preview{height:100%}.pm-card-hover-mask{position:absolute;inset:0;background:rgba(15,23,42,0);display:flex;align-items:center;justify-content:center;transition:background .18s;pointer-events:none}.pm-monitor-card:hover .pm-card-hover-mask{background:rgba(15,23,42,.38)}.pm-card-open-pill{display:flex;align-items:center;gap:6px;padding:7px 16px;background:#fff;border-radius:99px;font-size:12px;font-weight:650;color:var(--pm-t1);box-shadow:0 4px 20px rgba(0,0,0,.22);transform:translateY(8px);opacity:0;transition:transform .18s,opacity .18s}.pm-monitor-card:hover .pm-card-open-pill{transform:translateY(0);opacity:1}.pm-card-status-badge{position:absolute;bottom:9px;left:9px;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:10px;font-weight:720;backdrop-filter:blur(6px)}.pm-card-status-badge.healthy{background:rgba(22,163,74,.15);color:#15803D;border:1px solid rgba(22,163,74,.25)}.pm-card-status-badge.alert{background:rgba(239,68,68,.15);color:#DC2626;border:1px solid rgba(239,68,68,.25)}.pm-card-status-badge.paused{background:rgba(107,114,128,.15);color:#6B7280;border:1px solid rgba(107,114,128,.22)}.pm-health-badge{position:absolute;top:9px;right:9px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:820;letter-spacing:-.03em;backdrop-filter:blur(8px);background:rgba(255,255,255,.9)}.pm-health-badge.green{color:#15803D;border:1.5px solid rgba(22,163,74,.3)}.pm-health-badge.amber{color:#B45309;border:1.5px solid rgba(245,158,11,.3)}.pm-health-badge.red{color:#B91C1C;border:1.5px solid rgba(239,68,68,.3)}.pm-paused-overlay{position:absolute;inset:0;background:rgba(255,255,255,.55);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center}.pm-paused-overlay div{display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fff;border-radius:99px;border:1px solid var(--pm-border);box-shadow:var(--pm-sh);font-size:11px;font-weight:650;color:var(--pm-t3)}.pm-card-body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:0;flex:1}.pm-card-name{font-size:13.5px;font-weight:740;color:var(--pm-t1);letter-spacing:-.02em;line-height:1.3;margin:0}.pm-card-url{font-size:10.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--pm-t4);margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pm-card-rule{height:1px;background:var(--pm-border-s);margin:10px 0}.pm-card-status-row{display:flex;align-items:center;justify-content:space-between;gap:8px}.pm-c-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;font-size:10.5px;font-weight:700}.pm-c-badge.alert{color:#DC2626;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.16)}.pm-c-badge.healthy{color:#15803D;background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.16)}.pm-c-badge.paused{color:#6B7280;background:rgba(107,114,128,.07);border:1px solid rgba(107,114,128,.14)}.pm-card-score{font-size:11px;font-weight:600;color:var(--pm-t3)}.pm-card-score b{font-weight:800;color:var(--pm-t2)}.pm-card-meta{display:flex;align-items:center;gap:12px;margin-top:9px;flex-wrap:wrap}.pm-meta-item{display:flex;align-items:center;gap:3px;font-size:10.5px;color:var(--pm-t4);font-weight:500}.pm-add-card{border:2px dashed var(--pm-t5);border-radius:var(--pm-r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;min-height:260px;transition:border-color .15s,background .15s;background:transparent}.pm-add-card:hover{border-color:#9CA3AF;background:rgba(0,0,0,.01)}.pm-add-card div{width:38px;height:38px;border-radius:10px;border:2px dashed var(--pm-t5);display:flex;align-items:center;justify-content:center;color:var(--pm-t4)}.pm-add-card p{font-size:13px;font-weight:600;color:var(--pm-t3);margin:0}.pm-add-card span{font-size:11.5px;color:var(--pm-t5);text-align:center;max-width:150px;line-height:1.5}@media(max-width:880px){.pm-topbar{gap:6px;padding:0 12px}.pm-search{width:150px}.pm-alert-row{align-items:flex-start}.pm-alert-row>div:last-child{display:none}.pm-monitor-card.list{grid-template-columns:1fr}.pm-monitor-card.list .pm-card-preview{height:160px}.pm-content{padding:16px}}
-`

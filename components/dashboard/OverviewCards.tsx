@@ -1,97 +1,55 @@
-import { BellRing, Clock, Globe, ShieldAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-interface StatCardProps {
-  label:    string
-  value:    string | number
-  sublabel?: string
-  icon:     React.ReactNode
-  variant?: 'default' | 'critical'
+interface MetricProps {
+  label: string
+  value: string | number
+  tone?: 'warn' | 'critical'
 }
 
-function StatCard({ label, value, sublabel, icon, variant = 'default' }: StatCardProps) {
-  const isCritical = variant === 'critical'
-
+function Metric({ label, value, tone }: MetricProps) {
   return (
-    <div
-      className={`rounded-xl border p-5 relative overflow-hidden transition-colors ${
-        isCritical
-          ? 'border-red-500/20 bg-red-500/[0.04]'
-          : 'border-white/[0.06] bg-white/[0.015]'
-      }`}
-    >
-      {isCritical && (
-        <div className="absolute inset-0 bg-red-500/[0.04] pointer-events-none" />
-      )}
-      <div className="flex items-start justify-between mb-4 relative z-10">
-        <p className={`text-sm font-medium ${isCritical ? 'text-red-400/80' : 'text-white/45'}`}>
-          {label}
-        </p>
-        <div className={`${isCritical ? 'text-red-500' : 'text-white/20'}`}>
-          {icon}
-        </div>
-      </div>
-      <div className="flex items-baseline gap-2 relative z-10">
-        <p className={`text-3xl font-semibold tracking-tight ${isCritical ? 'text-white' : 'text-white/90'}`}>
-          {value}
-        </p>
-        {sublabel && (
-          <p className={`text-xs ${isCritical ? 'text-red-400/60' : 'text-white/30'}`}>
-            {sublabel}
-          </p>
+    <span className="flex items-baseline gap-1.5 text-meta text-text-muted">
+      <span
+        className={cn(
+          'tabular-nums text-ui-medium',
+          tone === 'critical' ? 'text-critical' : tone === 'warn' ? 'text-warn' : 'text-text'
         )}
-      </div>
-    </div>
+      >
+        {value}
+      </span>
+      {label}
+    </span>
   )
 }
 
 interface OverviewCardsProps {
-  openAlerts:    number
-  criticalAlerts: number
-  urlsTracked:   number
-  lastChecked:   string | null
+  openAlerts: number
+  failingMonitors: number
+  activeMonitors: number
+  checksToday: number
 }
 
+/**
+ * Compact metric strip — deliberately not four big stat cards (design system:
+ * the feed of what changed is the page, this is a one-line status readout
+ * above it).
+ */
 export function OverviewCards({
   openAlerts,
-  criticalAlerts,
-  urlsTracked,
-  lastChecked,
+  failingMonitors,
+  activeMonitors,
+  checksToday,
 }: OverviewCardsProps) {
-  const lastCheckedLabel = lastChecked
-    ? new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
-        Math.round((new Date(lastChecked).getTime() - Date.now()) / (1000 * 60 * 60)),
-        'hour',
-      )
-    : 'Never'
-
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard
-        label="Open Alerts"
-        value={openAlerts}
-        sublabel="unresolved"
-        icon={<BellRing className="w-4 h-4" />}
-        variant={openAlerts > 0 ? 'critical' : 'default'}
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-md border border-border bg-panel px-3.5 py-2">
+      <Metric label={openAlerts === 1 ? 'open alert' : 'open alerts'} value={openAlerts} tone={openAlerts > 0 ? 'critical' : undefined} />
+      <Metric
+        label={failingMonitors === 1 ? 'monitor failing' : 'monitors failing'}
+        value={failingMonitors}
+        tone={failingMonitors > 0 ? 'warn' : undefined}
       />
-      <StatCard
-        label="Critical"
-        value={criticalAlerts}
-        sublabel="high priority"
-        icon={<ShieldAlert className="w-4 h-4" />}
-        variant={criticalAlerts > 0 ? 'critical' : 'default'}
-      />
-      <StatCard
-        label="URLs Monitored"
-        value={urlsTracked}
-        sublabel="active"
-        icon={<Globe className="w-4 h-4" />}
-      />
-      <StatCard
-        label="Last Checked"
-        value={lastCheckedLabel}
-        sublabel="screenshot"
-        icon={<Clock className="w-4 h-4" />}
-      />
+      <Metric label="active monitors" value={activeMonitors} />
+      <Metric label="checks today" value={checksToday} />
     </div>
   )
 }

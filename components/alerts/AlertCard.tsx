@@ -1,122 +1,123 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import { Check, X } from 'lucide-react'
 import type { Alert } from '@/lib/types/database.types'
-import {
-  getSeverityDotColor,
-  getSeverityClasses,
-  getAlertTypeLabel,
-  formatTechnicalDiffPct,
-  getDiffPctColor,
-} from '@/lib/utils/alerts'
+import { SeverityBadge } from '@/components/ui/severity-badge'
+import { IconButton } from '@/components/ui/icon-button'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/ToastProvider'
 import { acknowledgeAlert, dismissAlert } from '@/lib/actions/alerts'
-import { X } from 'lucide-react'
 
-export function AlertCard({ alert }: { alert: Alert }) {
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus]   = useState(alert.status)
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'Just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function host(url: string | null | undefined) {
+  try {
+    return new URL(url ?? '').hostname.replace(/^www\./, '')
+  } catch {
+    return url || ''
+  }
+}
+
+interface AlertCardProps {
+  alert: Alert
+}
+
+/**
+ * One alert row — grouped-by-day list is composed by the alerts page, this
+ * is a single row inside it, with Acknowledge/Dismiss as row actions.
+ *
+ * `acknowledgeAlert`/`dismissAlert` (lib/actions/alerts.ts) are still the
+ * legacy server actions — they throw rather than returning `ActionResult`.
+ * lib/** is off-limits to this pass, so they are called through try/catch
+ * here rather than the new action() convention.
+ */
+export function AlertCard({ alert }: AlertCardProps) {
+  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [status, setStatus] = useState(alert.status)
 
   if (status === 'dismissed') return null
 
-  const dotColor   = getSeverityDotColor(alert.severity)
-  const badgeClass = getSeverityClasses(alert.severity)
-  const typeLabel  = getAlertTypeLabel(alert.alert_type)
-  const diffColor  = getDiffPctColor(alert.diff_pct)
+  const name = alert.monitored_urls?.name || 'Untitled monitor'
+  const url = alert.monitored_urls?.url ?? ''
+  const isOpen = status === 'open'
 
-  const timeAgo = new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
-    Math.round((new Date(alert.triggered_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-    'day',
-  )
-
-  const pageUrl  = (alert as any).monitored_urls?.url  ?? null
-  const pageName = (alert as any).monitored_urls?.name ?? null
-  const technicalDiff = formatTechnicalDiffPct(alert.diff_pct)
-  const displayTitle = alert.ai_summary || alert.summary
-    ? 'Relevant change detected'
-    : alert.title.replace(/^Page changed/i, 'Relevant change detected')
-
-  async function handleAcknowledge() {
-    setLoading(true)
-    await acknowledgeAlert(alert.id)
-    setStatus('acknowledged')
-    setLoading(false)
+  function handleAcknowledge() {
+    startTransition(async () => {
+      try {
+        await acknowledgeAlert(alert.id)
+        setStatus('acknowledged')
+      } catch (err) {
+        toast({
+          title: 'Could not acknowledge alert',
+          description: err instanceof Error ? err.message : undefined,
+          tone: 'error',
+        })
+      }
+    })
   }
 
-  async function handleDismiss() {
-    setLoading(true)
-    await dismissAlert(alert.id)
-    setStatus('dismissed')
-    setLoading(false)
+  function handleDismiss() {
+    startTransition(async () => {
+      try {
+        await dismissAlert(alert.id)
+        setStatus('dismissed')
+      } catch (err) {
+        toast({
+          title: 'Could not dismiss alert',
+          description: err instanceof Error ? err.message : undefined,
+          tone: 'error',
+        })
+      }
+    })
   }
 
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.025] hover:border-white/10 transition-all p-5">
-      <div className="flex items-start justify-between gap-4">
-
-        {/* Left */}
-        <div className="flex items-start gap-4 flex-1 min-w-0">
-          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotColor}`} />
-
-          <div className="flex-1 min-w-0">
-            {/* Badges */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${badgeClass}`}>
-                {alert.severity.toUpperCase()}
-              </span>
-              <span className="text-[11px] text-white/35 font-medium bg-white/[0.05] px-2 py-0.5 rounded border border-white/[0.06]">
-                {typeLabel}
-              </span>
-              {status === 'acknowledged' && (
-                <span className="text-[11px] text-white/25 font-medium">Acknowledged</span>
-              )}
-            </div>
-
-            {/* Title + summary */}
-            <h3 className="font-semibold text-white/90 text-sm leading-snug">{displayTitle}</h3>
-            <p className="text-white/45 text-sm mt-1 leading-relaxed">{alert.summary}</p>
-
-            {/* Technical diff, kept as secondary evidence rather than the alert reason */}
-            {alert.diff_pct !== null && (
-              <p className={`text-xs mt-2 ${diffColor}`} title={technicalDiff}>
-                Evidence available · View before/after
-              </p>
-            )}
-
-            {/* Page URL */}
-            {pageUrl && (
-              <p className="text-xs text-white/25 mt-1.5 truncate font-mono">
-                {pageName && pageName !== pageUrl
-                  ? <><span className="text-white/40">{pageName}</span> · {pageUrl}</>
-                  : pageUrl
-                }
-              </p>
-            )}
-          </div>
+    <div className="flex items-start gap-3 border-b border-border px-3.5 py-3 last:border-b-0">
+      <Link href={`/dashboard/urls/${alert.monitored_url_id}`} className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-ui-medium text-text">{name}</span>
+          {url && <span className="font-mono text-meta text-text-faint">{host(url)}</span>}
+          <SeverityBadge severity={alert.severity} size="sm" />
+          {!isOpen && <span className="text-meta text-text-faint">Acknowledged</span>}
         </div>
+        {/* Plain-English change first — the percentage is secondary metadata (design system §7). */}
+        <p className="mt-0.5 line-clamp-2 text-ui text-text-muted">
+          {alert.ai_summary || alert.summary || 'A visual change was detected.'}
+        </p>
+      </Link>
 
-        {/* Right */}
-        <div className="flex flex-col items-end gap-3 shrink-0">
-          <span className="text-xs text-white/25">{timeAgo}</span>
-          {status === 'open' && (
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={handleAcknowledge}
-                disabled={loading}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.06] text-white/60 hover:bg-white/10 hover:text-white border border-white/[0.06] disabled:opacity-50 transition-colors"
-              >
-                Acknowledge
-              </button>
-              <button
-                onClick={handleDismiss}
-                disabled={loading}
-                className="text-xs px-2 py-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.04] border border-white/[0.04] disabled:opacity-50 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="whitespace-nowrap text-meta text-text-faint">
+          {timeAgo(alert.triggered_at ?? alert.created_at)}
+        </span>
+        {isOpen && (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={<Check className="size-3.5" />}
+              onClick={handleAcknowledge}
+              disabled={isPending}
+            >
+              Acknowledge
+            </Button>
+            <IconButton aria-label="Dismiss alert" size="sm" onClick={handleDismiss} disabled={isPending}>
+              <X className="size-3.5" />
+            </IconButton>
+          </>
+        )}
       </div>
     </div>
   )

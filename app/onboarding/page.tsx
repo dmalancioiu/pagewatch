@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
-import { SetupCommand } from '@/components/onboarding/SetupCommand'
 export const metadata = {
   title: 'Setup — PageWatch',
 }
@@ -34,7 +33,7 @@ export default async function OnboardingPage() {
     .single()
 
   return (
-    <SetupCommand
+    <OnboardingWizard
       userEmail={profile?.email ?? user.email ?? ''}
       userName={profile?.full_name ?? ''}
     />

@@ -1,19 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Target, MousePointer2, Trash2, Info } from 'lucide-react'
-import { ZoneSelector } from './ZoneSelector'
+import { useEffect, useState } from 'react'
+import { Target, MousePointer2, Trash2, Info } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { ZoneSelector, zoneTone } from './ZoneSelector'
 import type { Zone } from './ZoneSelector'
 import type { ZoneSensitivity } from '@/lib/types/database.types'
 import { useToast } from '@/components/ui/ToastProvider'
-
-const ZONE_PALETTE = [
-  '#2563EB', '#16A34A', '#D97706', '#9333EA', '#0891B2', '#DC2626', '#7C3AED', '#0EA5E9',
-]
-
-const BLUE = '#2563EB'
-
-function zoneColor(i: number) { return ZONE_PALETTE[i % ZONE_PALETTE.length] }
+import { cn } from '@/lib/utils'
 
 interface Props {
   isOpen: boolean
@@ -21,11 +27,23 @@ interface Props {
   imageUrl: string
   zones: Zone[]
   onChange: (zones: Zone[]) => void
+  /** Plan ceiling on zone count for this monitor — disables drawing past it. */
+  maxZones?: number
 }
 
-export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange }: Props) {
+const SENSITIVITIES: ZoneSensitivity[] = ['low', 'normal', 'high']
+
+export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange, maxZones }: Props) {
   const [localZones, setLocalZones] = useState<Zone[]>(zones)
   const { success, info } = useToast()
+
+  // Re-seed local edits from the latest saved zones each time the dialog opens.
+  useEffect(() => {
+    if (isOpen) setLocalZones(zones)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  const atLimit = typeof maxZones === 'number' && localZones.length >= maxZones
 
   function handleDone() {
     onChange(localZones)
@@ -33,14 +51,20 @@ export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange }
     onClose()
   }
 
-  function handleClose() {
-    setLocalZones(zones) // discard
-    //info('Changes discarded')
-    onClose()
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setLocalZones(zones) // discard unsaved edits
+      onClose()
+    }
+  }
+
+  function handleZonesDrawn(next: Zone[]) {
+    if (atLimit && next.length > localZones.length) return
+    setLocalZones(next)
   }
 
   function updateZone(id: string, patch: Partial<Zone>) {
-    setLocalZones(prev => prev.map(z => z.id === id ? { ...z, ...patch } : z))
+    setLocalZones((prev) => prev.map((z) => (z.id === id ? { ...z, ...patch } : z)))
   }
 
   function updateSensitivity(id: string, sensitivity: ZoneSensitivity) {
@@ -49,7 +73,7 @@ export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange }
   }
 
   function deleteZone(id: string) {
-    setLocalZones(prev => prev.filter(z => z.id !== id))
+    setLocalZones((prev) => prev.filter((z) => z.id !== id))
     info('Zone removed')
   }
 
@@ -58,317 +82,156 @@ export function ZoneSelectorModal({ isOpen, onClose, imageUrl, zones, onChange }
     info('All zones cleared')
   }
 
-  if (!isOpen) return null
-
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(15,23,42,0.52)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        padding: 20,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif',
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
-    >
-      <div style={{
-        background: '#FFFFFF',
-        borderRadius: 18,
-        width: '100%',
-        maxWidth: 1180,
-        height: 'min(88vh, 860px)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        boxShadow: '0 40px 100px rgba(15,23,42,0.35), 0 0 0 0.5px rgba(15,23,42,0.08)',
-      }}>
-
-        {/* ── Header ── */}
-        <div style={{
-          padding: '16px 22px',
-          borderBottom: '0.5px solid rgba(15,23,42,0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'rgba(37,99,235,0.1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Target style={{ width: 17, height: 17, color: BLUE }} />
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="flex h-[min(88vh,860px)] w-[min(96vw,1180px)] max-w-none flex-col gap-0 p-0">
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border p-4 pr-12 sm:p-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-subtle text-accent">
+              <Target className="size-4" />
             </div>
-            <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                Focus Zones
-              </h2>
-              <p style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
-                Draw regions, then give each zone its own watch instruction.
-              </p>
+            <div className="min-w-0">
+              <DialogTitle>Focus zones</DialogTitle>
+              <DialogDescription>Draw regions, then give each one its own watch instruction.</DialogDescription>
             </div>
             {localZones.length > 0 && (
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: BLUE,
-                background: 'rgba(37,99,235,0.08)',
-                padding: '3px 9px', borderRadius: 99,
-                letterSpacing: '-0.01em',
-              }}>
+              <Badge tone="accent" className="shrink-0">
                 {localZones.length} zone{localZones.length !== 1 ? 's' : ''}
-              </span>
+                {typeof maxZones === 'number' ? ` / ${maxZones}` : ''}
+              </Badge>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            style={{
-              width: 30, height: 30, borderRadius: '50%',
-              background: 'rgba(15,23,42,0.06)', border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            }}
-          >
-            <X style={{ width: 15, height: 15, color: '#64748B' }} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* ── Body ── */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', overflow: 'hidden', minHeight: 0 }}>
-
-          {/* Screenshot canvas */}
-          <div style={{
-            overflow: 'auto',
-            background: '#F8FAFC',
-            padding: 28,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}>
-            {/* Instruction banner */}
-            <div style={{
-              width: '100%', maxWidth: 900, marginBottom: 14,
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '9px 14px',
-              background: 'rgba(37,99,235,0.06)',
-              borderRadius: 10,
-              border: '0.5px solid rgba(37,99,235,0.16)',
-            }}>
-              <MousePointer2 style={{ width: 13, height: 13, color: BLUE, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: BLUE, fontWeight: 500 }}>
-                Click and drag on the screenshot below to draw a focus zone. Select a zone to rename it.
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[1fr_320px]">
+          {/* Canvas */}
+          <div className="flex flex-col items-center overflow-auto bg-bg-subtle p-4 sm:p-6">
+            <div className="mb-3 flex w-full max-w-3xl items-center gap-2 rounded-md border border-accent/30 bg-accent-subtle px-3 py-2 text-meta text-accent">
+              <MousePointer2 className="size-3.5 shrink-0" />
+              <span>
+                {atLimit
+                  ? `Zone limit reached (${maxZones}). Remove one to draw another.`
+                  : 'Click and drag on the screenshot to draw a focus zone. Select a zone to rename it.'}
               </span>
             </div>
-
-            <div style={{
-              width: '100%', maxWidth: 900,
-              borderRadius: 10, overflow: 'hidden',
-              boxShadow: '0 2px 20px rgba(15,23,42,0.12), 0 0 0 0.5px rgba(15,23,42,0.1)',
-            }}>
-              <ZoneSelector imageUrl={imageUrl} zones={localZones} onChange={setLocalZones} />
+            <div className="w-full max-w-3xl overflow-hidden rounded-md border border-border shadow-card">
+              <ZoneSelector imageUrl={imageUrl} zones={localZones} onChange={handleZonesDrawn} />
             </div>
           </div>
 
-          {/* Right panel — zone list */}
-          <div style={{
-            borderLeft: '0.5px solid rgba(15,23,42,0.08)',
-            background: '#FAFAFA',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}>
-
-            {/* Panel header */}
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: '0.5px solid rgba(15,23,42,0.06)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Zone instructions
-              </span>
+          {/* Zone list */}
+          <div className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-panel md:border-l md:border-t-0">
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4">
+              <span className="text-label uppercase text-text-faint">Zone instructions</span>
               {localZones.length > 0 && (
                 <button
+                  type="button"
                   onClick={clearZones}
-                  style={{
-                    padding: '3px 9px',
-                    background: 'rgba(239,68,68,0.07)',
-                    color: '#EF4444',
-                    border: 'none', borderRadius: 6,
-                    fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  }}
+                  className="rounded-sm px-1.5 py-0.5 text-meta font-medium text-critical transition-colors duration-120 hover:bg-critical/10"
                 >
                   Clear all
                 </button>
               )}
             </div>
 
-            {/* Zone list */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', minHeight: 0 }}>
+            <div className="flex-1 overflow-y-auto p-3">
               {localZones.length === 0 ? (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  justifyContent: 'center', height: '100%', padding: '32px 20px', textAlign: 'center',
-                }}>
-                  <div style={{
-                    width: 52, height: 52, borderRadius: 14,
-                    background: 'rgba(15,23,42,0.04)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-                  }}>
-                    <Target style={{ width: 22, height: 22, color: '#94A3B8' }} />
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+                  <div className="flex size-11 items-center justify-center rounded-md bg-bg-subtle text-text-faint">
+                    <Target className="size-5" />
                   </div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#64748B', marginBottom: 6 }}>No zones yet</p>
-                  <p style={{ fontSize: 12, color: '#94A3B8', lineHeight: 1.6 }}>
-                    Draw a rectangle on the screenshot to focus monitoring on specific regions.
-                  </p>
+                  <div>
+                    <p className="text-ui-medium text-text">No zones yet</p>
+                    <p className="mt-1 text-meta text-text-muted">
+                      Draw a rectangle on the screenshot to focus monitoring on specific regions.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                localZones.map((zone, i) => {
-                  const color = zoneColor(i)
-                  const sensitivity = zone.sensitivity ?? 'normal'
-                  return (
-                    <div
-                      key={zone.id}
-                      style={{
-                        padding: '11px 12px', marginBottom: 8,
-                        background: 'white', borderRadius: 12,
-                        border: `0.5px solid ${color}33`,
-                        boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
-                        <div style={{
-                          width: 14, height: 14, borderRadius: 4,
-                          background: color, flexShrink: 0,
-                          boxShadow: `0 0 0 2px ${color}22`,
-                        }} />
-                        <input
-                          type="text"
-                          value={zone.label ?? ''}
-                          onChange={(e) => updateZone(zone.id, { label: e.target.value })}
-                          placeholder={`Zone ${i + 1}`}
-                          style={{
-                            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                            fontSize: 13, fontWeight: 650, color: '#0F172A',
-                            fontFamily: 'inherit', minWidth: 0,
-                          }}
+                <div className="flex flex-col gap-2">
+                  {localZones.map((zone, i) => {
+                    const tone = zoneTone(i)
+                    const sensitivity = zone.sensitivity ?? 'normal'
+                    return (
+                      <div key={zone.id} className="rounded-md border border-border bg-panel-raised p-2.5">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className={cn('size-3 shrink-0 rounded-sm', tone.dot)} />
+                          <input
+                            type="text"
+                            value={zone.label ?? ''}
+                            onChange={(e) => updateZone(zone.id, { label: e.target.value })}
+                            placeholder={`Zone ${i + 1}`}
+                            className="min-w-0 flex-1 bg-transparent text-ui-medium text-text outline-none placeholder:text-text-faint"
+                          />
+                          <IconButton
+                            aria-label={`Delete ${zone.label || `zone ${i + 1}`}`}
+                            variant="danger"
+                            size="sm"
+                            onClick={() => deleteZone(zone.id)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </IconButton>
+                        </div>
+
+                        <label className="mb-1 block text-label uppercase text-text-faint">Watch instruction</label>
+                        <Textarea
+                          rows={3}
+                          value={zone.instruction ?? ''}
+                          onChange={(e) => updateZone(zone.id, { instruction: e.target.value })}
+                          placeholder={`e.g. Alert me if ${zone.label || 'this zone'} changes.`}
+                          className="text-meta"
                         />
-                        <button
-                          onClick={() => deleteZone(zone.id)}
-                          style={{
-                            width: 26, height: 26, borderRadius: 7,
-                            background: 'transparent', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            color: '#94A3B8',
-                            transition: 'background 0.15s, color 0.15s',
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#EF4444' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#94A3B8' }}
-                        >
-                          <Trash2 style={{ width: 13, height: 13 }} />
-                        </button>
-                      </div>
 
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-                        Watch instruction
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={zone.instruction ?? ''}
-                        onChange={(e) => updateZone(zone.id, { instruction: e.target.value })}
-                        placeholder={`e.g. Alert me if ${zone.label || 'this zone'} changes.`}
-                        style={{
-                          width: '100%', resize: 'vertical', minHeight: 64,
-                          padding: '8px 9px', borderRadius: 8,
-                          border: '1px solid #E5E7EB', outline: 'none',
-                          fontSize: 12, lineHeight: 1.45, color: '#0F172A',
-                          fontFamily: 'inherit', background: '#F8FAFC',
-                        }}
-                      />
-
-                      <div style={{ marginTop: 9 }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-                          Sensitivity
-                        </p>
-                        <div style={{ display: 'flex', gap: 5 }}>
-                          {(['low', 'normal', 'high'] as ZoneSensitivity[]).map(s => (
+                        <p className="mb-1.5 mt-2 text-label uppercase text-text-faint">Sensitivity</p>
+                        <div className="flex gap-1.5">
+                          {SENSITIVITIES.map((s) => (
                             <button
                               key={s}
+                              type="button"
                               onClick={() => updateSensitivity(zone.id, s)}
-                              style={{
-                                flex: 1, padding: '5px 0', borderRadius: 7,
-                                border: `1px solid ${sensitivity === s ? color : '#E5E7EB'}`,
-                                background: sensitivity === s ? `${color}12` : '#FFFFFF',
-                                color: sensitivity === s ? color : '#94A3B8',
-                                cursor: 'pointer', fontSize: 10, fontWeight: 700,
-                                textTransform: 'capitalize',
-                              }}
+                              className={cn(
+                                'flex-1 rounded border px-0 py-1 text-label capitalize transition-colors duration-120',
+                                sensitivity === s
+                                  ? 'border-accent bg-accent-subtle text-accent'
+                                  : 'border-border-strong text-text-faint hover:text-text'
+                              )}
                             >
                               {s}
                             </button>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  )
-                })
+                    )
+                  })}
+                </div>
               )}
             </div>
 
-            {/* How it works */}
-            <div style={{
-              padding: '14px 18px',
-              borderTop: '0.5px solid rgba(15,23,42,0.06)',
-              background: 'rgba(15,23,42,0.02)',
-            }}>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <Info style={{ width: 11, height: 11, color: '#94A3B8', marginTop: 1, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  How zones work
-                </span>
+            <div className="shrink-0 border-t border-border bg-bg-subtle px-4 py-3">
+              <div className="mb-1.5 flex items-center gap-1.5 text-label uppercase text-text-faint">
+                <Info className="size-3" />
+                How zones work
               </div>
               {[
                 'Only pixels inside zones are compared',
                 'Each zone can have a separate watch instruction',
-                'Zones save when you click Save Zones',
-              ].map(tip => (
-                <p key={tip} style={{ fontSize: 11, color: '#94A3B8', lineHeight: 1.6, paddingLeft: 17 }}>
+                'Zones save when you click Save zones',
+              ].map((tip) => (
+                <p key={tip} className="pl-4 text-meta text-text-muted">
                   · {tip}
                 </p>
               ))}
             </div>
-
-            {/* Action footer */}
-            <div style={{
-              padding: '14px 18px',
-              borderTop: '0.5px solid rgba(15,23,42,0.08)',
-              display: 'flex', gap: 8,
-            }}>
-              <button
-                onClick={handleClose}
-                style={{
-                  flex: 1, padding: '10px',
-                  background: 'rgba(15,23,42,0.05)', color: '#0F172A',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDone}
-                style={{
-                  flex: 2, padding: '10px',
-                  background: BLUE, color: 'white',
-                  border: 'none', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-                }}
-              >
-                Save Zones
-              </button>
-            </div>
           </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="mt-0 border-t border-border p-3 sm:p-4">
+          <DialogClose asChild>
+            <Button variant="secondary">Cancel</Button>
+          </DialogClose>
+          <Button onClick={handleDone}>Save zones</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

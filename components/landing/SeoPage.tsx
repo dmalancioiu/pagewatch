@@ -1,246 +1,161 @@
 import Link from 'next/link'
 import { ArrowRight, Check, Monitor } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 type Section = {
-    title: string
-    body: string
+  title: string
+  body: string
 }
 
 type Faq = {
-    question: string
-    answer: string
+  question: string
+  answer: string
 }
 
 type SeoPageProps = {
-    eyebrow: string
-    title: string
-    description: string
-    intro: string
-    problemTitle: string
-    problemBody: string
-    features: string[]
-    sections: Section[]
-    faqs: Faq[]
-    ctaTitle: string
-    ctaBody: string
+  eyebrow: string
+  title: string
+  description: string
+  intro: string
+  problemTitle: string
+  problemBody: string
+  features: string[]
+  sections: Section[]
+  faqs: Faq[]
+  ctaTitle: string
+  ctaBody: string
 }
 
-const BG = '#0a0a0a'
-const SURFACE = '#111111'
-const BORDER = 'rgba(255,255,255,0.07)'
-
+/**
+ * Shared shell for the SEO landing surfaces. Same visual system as the main
+ * landing page (tokens + primitives only) so an organic visitor lands
+ * somewhere that already looks like the product they're about to sign up
+ * for. Route files under app/*-monitoring etc. supply the copy and keep
+ * their existing metadata/slugs — only this shell changed.
+ */
 export function SeoPage({
-    eyebrow,
-    title,
-    description,
-    intro,
-    problemTitle,
-    problemBody,
-    features,
-    sections,
-    faqs,
-    ctaTitle,
-    ctaBody,
+  eyebrow,
+  title,
+  description,
+  intro,
+  problemTitle,
+  problemBody,
+  features,
+  sections,
+  faqs,
+  ctaTitle,
+  ctaBody,
 }: SeoPageProps) {
-    return (
-        <main style={{ background: BG, minHeight: '100vh' }}>
-            <section
-                style={{
-                    borderBottom: `1px solid ${BORDER}`,
-                    background:
-                        'radial-gradient(ellipse at top, rgba(0,255,136,0.08) 0%, transparent 55%)',
-                }}
-            >
-                <div className="max-w-5xl mx-auto px-6 py-24">
-                    <Link
-                        href="/"
-                        className="inline-flex items-center gap-2 mb-8 text-sm"
-                        style={{ color: 'rgba(255,255,255,0.5)' }}
-                    >
-                        <Monitor className="w-4 h-4" />
-                        PageWatch
-                    </Link>
+  return (
+    <main className="bg-bg">
+      <header className="border-b border-border">
+        <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-28">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-ui text-text-muted transition-colors duration-120 hover:text-text"
+          >
+            <Monitor className="size-4" aria-hidden />
+            PageWatch
+          </Link>
 
-                    <p
-                        className="text-xs font-semibold uppercase tracking-[0.15em] mb-4"
-                        style={{ color: '#00ff88' }}
-                    >
-                        {eyebrow}
-                    </p>
+          <Badge tone="accent" size="sm" className="mt-8">
+            {eyebrow}
+          </Badge>
 
-                    <h1
-                        className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-tight mb-6"
-                        style={{ maxWidth: '900px' }}
-                    >
-                        {title}
-                    </h1>
+          <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-display">
+            {title}
+          </h1>
 
-                    <p
-                        className="text-lg leading-relaxed mb-6"
-                        style={{ color: 'rgba(255,255,255,0.58)', maxWidth: '760px' }}
-                    >
-                        {description}
-                    </p>
+          <p className="mt-6 max-w-2xl text-ui text-text-muted">{description}</p>
+          <p className="mt-4 max-w-2xl text-ui text-text-faint">{intro}</p>
 
-                    <p
-                        className="text-base leading-relaxed"
-                        style={{ color: 'rgba(255,255,255,0.45)', maxWidth: '760px' }}
-                    >
-                        {intro}
-                    </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button asChild size="lg" iconRight={<ArrowRight className="size-4" aria-hidden />}>
+              <Link href="/login">Start free</Link>
+            </Button>
+            <Button asChild size="lg" variant="secondary">
+              <Link href="/#pricing">View pricing</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
-                    <div className="flex flex-wrap gap-3 mt-8">
-                        <Link
-                            href="/login"
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium"
-                            style={{
-                                background: '#00ff88',
-                                color: '#0a0a0a',
-                            }}
-                        >
-                            Start free
-                            <ArrowRight className="w-4 h-4" />
-                        </Link>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+          <div className="rounded-md border border-border bg-panel p-8 shadow-card">
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] text-text">
+              {problemTitle}
+            </h2>
+            <p className="mt-4 max-w-2xl text-ui text-text-muted">{problemBody}</p>
+          </div>
+        </div>
+      </section>
 
-                        <Link
-                            href="/#pricing"
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium"
-                            style={{
-                                border: `1px solid ${BORDER}`,
-                                color: 'white',
-                                background: 'rgba(255,255,255,0.02)',
-                            }}
-                        >
-                            View pricing
-                        </Link>
-                    </div>
-                </div>
-            </section>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-text">
+            Why teams use PageWatch
+          </h2>
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {features.map((feature) => (
+              <div
+                key={feature}
+                className="flex items-start gap-3 rounded-md border border-border bg-panel p-4"
+              >
+                <Check className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
+                <p className="text-ui text-text">{feature}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <section style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <div className="max-w-5xl mx-auto px-6 py-16">
-                    <div
-                        className="rounded-2xl p-8"
-                        style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
-                    >
-                        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-                            {problemTitle}
-                        </h2>
-                        <p
-                            className="text-base leading-relaxed"
-                            style={{ color: 'rgba(255,255,255,0.5)', maxWidth: '760px' }}
-                        >
-                            {problemBody}
-                        </p>
-                    </div>
-                </div>
-            </section>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+          <div className="flex flex-col gap-10">
+            {sections.map((section) => (
+              <div key={section.title}>
+                <h2 className="text-2xl font-semibold tracking-[-0.02em] text-text">
+                  {section.title}
+                </h2>
+                <p className="mt-4 max-w-2xl text-ui text-text-muted">{section.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <section style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <div className="max-w-5xl mx-auto px-6 py-16">
-                    <h2 className="text-3xl font-bold text-white mb-8">Why teams use PageWatch</h2>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-text">FAQ</h2>
+          <div className="mt-8 flex flex-col gap-3">
+            {faqs.map((faq) => (
+              <div key={faq.question} className="rounded-md border border-border bg-panel p-5">
+                <h3 className="text-ui-medium text-text">{faq.question}</h3>
+                <p className="mt-2 text-ui text-text-muted">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {features.map((feature) => (
-                            <div
-                                key={feature}
-                                className="rounded-xl p-4 flex items-start gap-3"
-                                style={{
-                                    background: 'rgba(255,255,255,0.02)',
-                                    border: `1px solid ${BORDER}`,
-                                }}
-                            >
-                                <Check className="w-5 h-5 mt-0.5" style={{ color: '#00ff88' }} />
-                                <p style={{ color: 'rgba(255,255,255,0.78)' }}>{feature}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <section style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <div className="max-w-5xl mx-auto px-6 py-16">
-                    <div className="space-y-12">
-                        {sections.map((section) => (
-                            <div key={section.title}>
-                                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
-                                    {section.title}
-                                </h2>
-                                <p
-                                    className="text-base leading-relaxed"
-                                    style={{ color: 'rgba(255,255,255,0.52)', maxWidth: '760px' }}
-                                >
-                                    {section.body}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <section style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <div className="max-w-5xl mx-auto px-6 py-16">
-                    <h2 className="text-3xl font-bold text-white mb-8">FAQ</h2>
-
-                    <div className="space-y-4">
-                        {faqs.map((faq) => (
-                            <div
-                                key={faq.question}
-                                className="rounded-xl p-5"
-                                style={{
-                                    background: 'rgba(255,255,255,0.02)',
-                                    border: `1px solid ${BORDER}`,
-                                }}
-                            >
-                                <h3 className="text-lg font-semibold text-white mb-2">{faq.question}</h3>
-                                <p style={{ color: 'rgba(255,255,255,0.5)' }}>{faq.answer}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <section>
-                <div className="max-w-5xl mx-auto px-6 py-20">
-                    <div
-                        className="rounded-2xl p-8"
-                        style={{
-                            background: 'linear-gradient(180deg, rgba(0,255,136,0.08), rgba(255,255,255,0.02))',
-                            border: `1px solid rgba(0,255,136,0.16)`,
-                        }}
-                    >
-                        <h2 className="text-3xl font-bold text-white mb-4">{ctaTitle}</h2>
-                        <p
-                            className="text-base leading-relaxed mb-6"
-                            style={{ color: 'rgba(255,255,255,0.55)', maxWidth: '700px' }}
-                        >
-                            {ctaBody}
-                        </p>
-
-                        <div className="flex flex-wrap gap-3">
-                            <Link
-                                href="/login"
-                                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium"
-                                style={{ background: '#00ff88', color: '#0a0a0a' }}
-                            >
-                                Start free
-                                <ArrowRight className="w-4 h-4" />
-                            </Link>
-                            <Link
-                                href="/"
-                                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium"
-                                style={{
-                                    border: `1px solid ${BORDER}`,
-                                    color: 'white',
-                                    background: 'rgba(255,255,255,0.02)',
-                                }}
-                            >
-                                Back to homepage
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    )
+      <section>
+        <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6">
+          <div className="rounded-md border border-accent bg-accent-subtle p-8">
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] text-text">{ctaTitle}</h2>
+            <p className="mt-4 max-w-xl text-ui text-text-muted">{ctaBody}</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button asChild size="lg">
+                <Link href="/login">Start free</Link>
+              </Button>
+              <Button asChild size="lg" variant="secondary">
+                <Link href="/">Back to homepage</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
 }

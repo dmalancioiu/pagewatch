@@ -2,129 +2,134 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  CalendarClock,
-  ChevronsUpDown,
-  Eye,
-  LayoutGrid,
-  LogOut,
-  Plus,
-  Settings,
-  Users,
-  Webhook,
-  Zap,
-} from 'lucide-react'
+import { Bell, Eye, LayoutGrid, LogOut, Plus, Settings } from 'lucide-react'
 import { useDashboard } from './DashboardShell'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { Button } from '@/components/ui/button'
+import { Meter } from '@/components/ui/meter'
+import { IconButton } from '@/components/ui/icon-button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
-const WORKSPACE = [
-  { href: '/dashboard/settings#team', label: 'Team', icon: Users },
-  { href: '/dashboard/settings#integrations', label: 'Integrations', icon: Webhook },
-  { href: '/dashboard/settings#reports', label: 'Reports', icon: CalendarClock },
+const NAV = [
+  { href: '/dashboard', label: 'Feed', icon: Eye, exact: true },
+  { href: '/dashboard/urls', label: 'Monitors', icon: LayoutGrid, exact: false },
+  { href: '/dashboard/alerts', label: 'Alerts', icon: Bell, exact: false },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings, exact: false },
 ]
 
 interface SidebarProps {
   domain: string
   userEmail: string
+  /** Called after a nav link or the add-monitor action fires — closes the mobile Sheet. */
+  onNavigate?: () => void
 }
 
-function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
-  href: string
-  label: string
-  icon: any
-  active: boolean
-  badge?: string | number
-  badgeTone?: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="pw-side-nav-item"
-      style={{
-        background: active ? '#EFF6FF' : 'transparent',
-        color: active ? '#2563EB' : '#6B7280',
-        fontWeight: active ? 650 : 500,
-      }}
-    >
-      {active && <span className="pw-side-active-bar" />}
-      <Icon size={14} strokeWidth={1.9} style={{ color: active ? '#2563EB' : undefined, flexShrink: 0 }} />
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      {badge !== undefined && badge !== null && <span className={`pw-side-badge ${badgeTone === 'red' ? 'red' : 'gray'}`}>{badge}</span>}
-    </Link>
-  )
-}
-
-export function Sidebar({ domain, userEmail }: SidebarProps) {
+/**
+ * Sidebar nav content. Rendered both as the static 224px column (≥860px) and
+ * inside a `Sheet` for narrower viewports — see `DashboardShell`.
+ */
+export function Sidebar({ domain, userEmail, onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const { openAddUrl, entitlements, atMonitorLimit } = useDashboard()
-
   const { usage, limits, planName, planId } = entitlements
-  const activeMonitorCount = usage.activeMonitors
-  const totalMonitorCount = usage.monitors
-  const monitorLimit = limits.maxMonitors
 
-  const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'
-  const displayEmail = userEmail || 'Account'
-  const activeLabel = `${activeMonitorCount} monitor${activeMonitorCount === 1 ? '' : 's'} active`
-
-  const nav = [
-    { href: '/dashboard', label: 'Feed', icon: Zap, exact: true },
-    { href: '/dashboard/urls', label: 'Monitors', icon: LayoutGrid, badge: totalMonitorCount, badgeTone: 'gray' },
-    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-  ]
+  function handleAddMonitor() {
+    const opened = openAddUrl()
+    if (opened) onNavigate?.()
+  }
 
   return (
-    <aside className="pw-side">
-      <div className="pw-side-logo">
-        <div className="pw-side-logo-icon"><Eye size={14} style={{ color: 'white' }} strokeWidth={2.3} /></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 760, color: '#111827', letterSpacing: '-0.025em', lineHeight: 1, margin: 0 }}>PageWatch</p>
-          <p style={{ fontSize: 9.5, color: '#9CA3AF', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</p>
+    <div className="flex h-full w-full flex-col bg-panel">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+        <div className="flex size-6 shrink-0 items-center justify-center rounded bg-accent text-accent-fg">
+          <Eye className="size-3.5" />
         </div>
-        <button className="pw-side-signout" type="button" title={domain || 'Workspace'}><ChevronsUpDown size={12} /></button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-ui-medium leading-none text-text">PageWatch</p>
+          <p className="mt-0.5 truncate text-meta leading-none text-text-faint">{domain || userEmail}</p>
+        </div>
+        <ThemeToggle />
       </div>
 
-      <div className="pw-side-cta">
-        <button
-          className="pw-side-primary"
-          onClick={openAddUrl}
-          disabled={atMonitorLimit}
-          title={
-            atMonitorLimit
-              ? `${planName} includes ${monitorLimit} monitors. Upgrade to add more.`
-              : undefined
-          }
-        >
-          <Plus size={13} strokeWidth={2.4} /> Add monitor
-        </button>
+      <div className="px-3 pt-3">
+        {atMonitorLimit ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} className="block">
+                <Button className="w-full justify-center" size="sm" iconLeft={<Plus className="size-3.5" />} disabled>
+                  Add monitor
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {planName} includes {limits.maxMonitors} monitors. Upgrade for more.
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Button
+            className="w-full justify-center"
+            size="sm"
+            iconLeft={<Plus className="size-3.5" />}
+            onClick={handleAddMonitor}
+          >
+            Add monitor
+          </Button>
+        )}
       </div>
 
-      <nav className="pw-side-nav">
-        {nav.map(({ href, label, icon, exact, badge, badgeTone }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href)
-          return <NavItem key={href} href={href} label={label} icon={icon} active={active} badge={badge} badgeTone={badgeTone} />
-        })}
-        <p className="pw-side-section-label">Workspace</p>
-        {WORKSPACE.map(({ href, label, icon }) => <NavItem key={href} href={href} label={label} icon={icon} active={pathname === href} />)}
+      <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Dashboard">
+        <ul className="flex flex-col gap-0.5">
+          {NAV.map(({ href, label, icon: Icon, exact }) => {
+            const active = exact ? pathname === href : pathname.startsWith(href)
+            return (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex h-8 items-center gap-2 rounded px-2 text-ui transition-colors duration-120',
+                    active
+                      ? 'bg-accent-subtle font-medium text-accent'
+                      : 'text-text-muted hover:bg-panel-raised hover:text-text'
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
 
-      <div className="pw-side-bottom">
-        <div className="pw-side-status">
-          <span className="pw-live-dot" />
-          <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>{activeLabel}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9CA3AF' }}>{activeMonitorCount > 0 ? 'Live' : 'Idle'}</span>
+      <div className="flex flex-col gap-3 border-t border-border p-3">
+        <Meter
+          label="Monitors"
+          value={usage.monitors}
+          max={limits.maxMonitors}
+          tone={atMonitorLimit ? 'warn' : 'accent'}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-meta text-text-muted">{planName} plan</span>
+          {planId !== 'agency' && (
+            <Link
+              href="/dashboard/settings#billing"
+              onClick={onNavigate}
+              className="text-meta font-medium text-accent hover:underline"
+            >
+              Upgrade
+            </Link>
+          )}
         </div>
-        <div className="pw-side-account">
-          <div className="pw-side-avatar">{initials}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 11.5, fontWeight: 550, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{planName} plan</p>
-            <p style={{ fontSize: 9.5, color: atMonitorLimit ? '#DC2626' : '#9CA3AF', margin: 0 }}>{totalMonitorCount} / {monitorLimit} monitors used</p>
-          </div>
-          {planId !== 'agency' ? <Link href="/dashboard/settings#billing" className="pw-side-upgrade">Upgrade</Link> : null}
-          <form action="/api/auth/signout" method="post" style={{ flexShrink: 0 }}>
-            <button type="submit" className="pw-side-signout" title="Sign out"><LogOut size={12} /></button>
-          </form>
-        </div>
+        <form action="/api/auth/signout" method="post" className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-meta text-text-faint">{userEmail || 'Account'}</span>
+          <IconButton aria-label="Sign out" type="submit" size="sm">
+            <LogOut className="size-3.5" />
+          </IconButton>
+        </form>
       </div>
-    </aside>
+    </div>
   )
 }

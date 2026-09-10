@@ -2,21 +2,33 @@
 
 import { Plus } from 'lucide-react'
 import { useDashboard } from './DashboardShell'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
+/** Standalone "Add monitor" trigger — plan-gated with a Tooltip, never silently hidden. */
 export function AddMonitorButton() {
-  const { openAddUrl } = useDashboard()
+  const { openAddUrl, atMonitorLimit, entitlements } = useDashboard()
+
+  if (!atMonitorLimit) {
+    return (
+      <Button size="sm" iconLeft={<Plus className="size-3.5" />} onClick={() => openAddUrl()}>
+        Add monitor
+      </Button>
+    )
+  }
+
   return (
-    <button
-      onClick={openAddUrl}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '7px 14px', background: '#2563EB', color: 'white',
-        borderRadius: 7, fontSize: 12, fontWeight: 600, border: 'none',
-        cursor: 'pointer', boxShadow: '0 1px 4px rgba(37,99,235,0.25)',
-        letterSpacing: '-0.01em', fontFamily: 'inherit',
-      }}
-    >
-      <Plus style={{ width: 14, height: 14 }} /> Add Monitor
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0}>
+          <Button size="sm" iconLeft={<Plus className="size-3.5" />} disabled>
+            Add monitor
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {entitlements.planName} includes {entitlements.limits.maxMonitors} monitors — Upgrade
+      </TooltipContent>
+    </Tooltip>
   )
 }

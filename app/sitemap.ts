@@ -10,8 +10,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
         '/competitor-website-monitoring',
         '/website-change-history',
         '/website-monitoring-for-agencies',
-        '/light',
         '/login',
+        '/terms',
+        '/privacy',
+        '/acceptable-use',
+        '/subprocessors',
     ].map((route) => ({
         url: `${baseUrl}${route}`,
         lastModified: new Date(),

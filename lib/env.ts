@@ -23,7 +23,11 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY:                  opt,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: opt,
   STRIPE_WEBHOOK_SECRET:              opt,
-  STRIPE_STARTER_PRICE_ID:            opt,
+  // One per self-serve paid plan in lib/plans.ts. The names must track the
+  // PlanId values — the old STARTER/AGENCY pair predated the plan catalog and
+  // is what let the pricing page, the database and checkout drift apart.
+  STRIPE_PRO_PRICE_ID:                opt,
+  STRIPE_BUSINESS_PRICE_ID:           opt,
   STRIPE_AGENCY_PRICE_ID:             opt,
   NEXT_PUBLIC_APP_URL:                z.string().default('http://localhost:3000'),
   ANTHROPIC_API_KEY:                  opt,

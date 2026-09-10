@@ -1,652 +1,334 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createWorkspace } from '@/lib/actions/workspace'
-import { addUrlsToMonitor, saveNotificationChannel, completeOnboardingStep } from '@/lib/actions/onboarding'
+import {
+  addUrlsToMonitor,
+  saveNotificationChannel,
+  completeOnboardingStep,
+} from '@/lib/actions/onboarding'
+import { PLANS, PLAN_ORDER, FREQUENCY_LABELS } from '@/lib/plans'
 import type { CheckFrequency } from '@/lib/types/database.types'
+import { Button } from '@/components/ui/button'
+import { Field } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, ArrowRight, Check, Monitor, AlertCircle } from 'lucide-react'
 
 interface OnboardingWizardProps {
   userEmail: string
   userName: string
 }
 
-interface UrlRow {
-  url:  string
-  name: string
-}
+const STEP_LABELS = ['What to watch', 'How often', 'Confirm'] as const
 
-interface FormData {
-  domain:           string
-  siteName:         string
-  siteType:         string
-  niche:            string
-  urls:             UrlRow[]
-  checkFrequency:   CheckFrequency
-  thresholdPct:     number
-  emailEnabled:     boolean
-  emailFrequency:   string
-}
-
-const STEPS = [
-  {
-    key:         'domain',
-    label:       'Domain',
-    title:       'Name your workspace',
-    description: 'This is how your workspace is labelled in the dashboard. It does not have to match a domain exactly.',
-  },
-  {
-    key:         'business_context',
-    label:       'Context',
-    title:       'Give us a bit of context',
-    description: 'Optional — helps keep the dashboard copy relevant to your situation.',
-  },
-  {
-    key:         'urls',
-    label:       'URLs',
-    title:       'Which pages do you want to watch?',
-    description: 'Paste full URLs, one per line. We\'ll take screenshots on your chosen schedule and alert you when something changes.',
-  },
-  {
-    key:         'monitoring_prefs',
-    label:       'Monitoring',
-    title:       'How closely should we watch?',
-    description: 'Set how often we check each page and how much change triggers an alert.',
-  },
-  {
-    key:         'alert_preferences',
-    label:       'Alerts',
-    title:       'How do you want to be notified?',
-    description: 'Set your notification cadence. You can change this any time from Settings.',
-  },
-  {
-    key:         'review',
-    label:       'Review',
-    title:       'Review and start monitoring',
-    description: 'Quick check, then we create the workspace and begin watching.',
-  },
-] as const
-
-const SITE_TYPE_OPTIONS = [
-  { value: 'blog',      label: 'Blog / Content site' },
-  { value: 'saas',      label: 'SaaS / Software' },
-  { value: 'ecommerce', label: 'E-commerce' },
-  { value: 'local',     label: 'Local business' },
-  { value: 'agency',    label: 'Agency' },
-  { value: 'other',     label: 'Other' },
+const FREQUENCY_OPTIONS: { value: CheckFrequency; blurb: string }[] = [
+  { value: 'weekly', blurb: 'A check once a week. Good for stable pages.' },
+  { value: 'daily', blurb: 'A check once a day. The right default for most pages.' },
+  { value: 'hourly', blurb: 'A check every hour. For pages that move fast.' },
 ]
 
-const FREQUENCY_OPTIONS: { value: CheckFrequency; label: string; description: string }[] = [
-  { value: 'hourly', label: 'Hourly',  description: 'Check every hour. Best for high-traffic pages or frequent deployments.' },
-  { value: 'daily',  label: 'Daily',   description: 'Check once a day. Good default for most pages.' },
-  { value: 'weekly', label: 'Weekly',  description: 'Check once a week. Good for stable marketing or docs pages.' },
-]
+/**
+ * New workspaces are created on the free plan (the `plan` column's DB
+ * default) — nothing has been paid for yet at this point in the funnel, so
+ * that is the correct allowance to gate against here. `lib/entitlements.ts`
+ * re-checks the real workspace plan server-side regardless; this only
+ * decides what the wizard shows as available up front.
+ */
+const STARTING_PLAN = PLANS.free
 
-const THRESHOLD_OPTIONS = [
-  { value: 2,  label: 'Sensitive',  description: 'Alert on small changes — 2% of pixels or more.' },
-  { value: 5,  label: 'Balanced',   description: 'Alert on meaningful changes — 5% of pixels or more.' },
-  { value: 15, label: 'Tolerant',   description: 'Alert only on large changes — 15% of pixels or more.' },
-]
-
-const NOTIFICATION_OPTIONS = [
-  { value: 'weekly',  label: 'Weekly digest',   description: 'One summary email each week.' },
-  { value: 'daily',   label: 'Daily digest',    description: 'A daily summary when something changed.' },
-  { value: 'instant', label: 'Instant alerts',  description: 'Email as soon as a change is detected.' },
-]
-
-function normalizeDomain(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .replace(/\/$/, '')
-}
-
-function deriveName(url: string): string {
-  try {
-    const { hostname, pathname } = new URL(url.startsWith('http') ? url : `https://${url}`)
-    const path = pathname.replace(/\/$/, '')
-    return path ? `${hostname}${path}` : hostname
-  } catch {
-    return url
+function cheapestPlanNaming(frequency: CheckFrequency): string | null {
+  for (const id of PLAN_ORDER) {
+    const plan = PLANS[id]
+    if (plan.limits.allowedFrequencies.includes(frequency)) return plan.name
   }
+  return null
 }
 
-function parseUrls(text: string): UrlRow[] {
-  const seen = new Set<string>()
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((url) => {
-      if (seen.has(url)) return false
-      seen.add(url)
-      return true
-    })
-    .map((url) => ({ url, name: deriveName(url) }))
-}
-
-function ModalStepPill({
-  index, active, completed, label, onClick,
-}: {
-  index: number; active: boolean; completed: boolean; label: string; onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex min-w-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition ${
-        active
-          ? 'border-slate-900 bg-slate-900 text-white'
-          : completed
-          ? 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-          : 'border-slate-200 bg-white text-slate-400'
-      }`}
-    >
-      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-        active ? 'bg-white text-slate-900' : completed ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
-      }`}>
-        {completed ? '✓' : index + 1}
-      </span>
-      <span className="truncate">{label}</span>
-    </button>
-  )
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1.5 text-sm font-semibold capitalize text-slate-900">{value}</div>
-    </div>
-  )
-}
-
-function SectionIntro({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="mb-8">
-      <h2 className="text-[30px] font-semibold tracking-tight text-slate-950">{title}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{description}</p>
-    </div>
-  )
-}
-
-function ChoiceCard({
-  title, description, selected, onClick,
-}: {
-  title: string; description: string; selected: boolean; onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-2xl border p-4 text-left transition ${
-        selected
-          ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-          : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm font-semibold">{title}</div>
-          <div className={`mt-1.5 text-sm leading-6 ${selected ? 'text-slate-300' : 'text-slate-500'}`}>
-            {description}
-          </div>
-        </div>
-        <div className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border ${
-          selected ? 'border-white bg-white' : 'border-slate-300 bg-white'
-        }`}>
-          {selected && <div className="m-1 h-3 w-3 rounded-full bg-slate-900" />}
-        </div>
-      </div>
-    </button>
-  )
-}
-
-function ReviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-      <div className="text-sm font-medium text-slate-500">{label}</div>
-      <div className="max-w-[60%] text-right text-sm font-semibold capitalize text-slate-900">{value}</div>
-    </div>
-  )
+function deriveWorkspaceName(rawUrl: string): { name: string; domain: string } {
+  try {
+    const full = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
+    const hostname = new URL(full).hostname.replace(/^www\./, '')
+    return { name: hostname, domain: hostname }
+  } catch {
+    return { name: 'My workspace', domain: 'workspace' }
+  }
 }
 
 export function OnboardingWizard({ userEmail, userName }: OnboardingWizardProps) {
   const router = useRouter()
-  const [step, setStep]       = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState<string | null>(null)
-  const [urlText, setUrlText] = useState('')
+  const [step, setStep] = useState(0)
+  const [url, setUrl] = useState('')
+  const [watchDescription, setWatchDescription] = useState('')
+  const [frequency, setFrequency] = useState<CheckFrequency>('daily')
+  const [urlError, setUrlError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
-  const [form, setForm] = useState<FormData>({
-    domain:         '',
-    siteName:       '',
-    siteType:       'saas',
-    niche:          '',
-    urls:           [],
-    checkFrequency: 'daily',
-    thresholdPct:   5,
-    emailEnabled:   true,
-    emailFrequency: 'daily',
-  })
+  const canContinueFromStep0 = url.trim().length > 2
 
-  const currentStep = STEPS[step]
-  const progress    = ((step + 1) / STEPS.length) * 100
-
-  function updateForm(updates: Partial<FormData>) {
-    setForm((prev) => ({ ...prev, ...updates }))
+  function goNext() {
+    if (step === 0 && !canContinueFromStep0) {
+      setUrlError('Enter the URL you want to watch.')
+      return
+    }
+    setUrlError(null)
+    setStep((s) => Math.min(STEP_LABELS.length - 1, s + 1))
   }
 
-  function handleUrlTextChange(text: string) {
-    setUrlText(text)
-    const parsed = parseUrls(text)
-    // preserve any custom names the user may have already typed
-    const existingNames = new Map(form.urls.map((u) => [u.url, u.name]))
-    updateForm({
-      urls: parsed.map((row) => ({
-        url:  row.url,
-        name: existingNames.get(row.url) ?? row.name,
-      })),
-    })
+  function goBack() {
+    setFormError(null)
+    setStep((s) => Math.max(0, s - 1))
   }
 
-  function updateUrlName(index: number, name: string) {
-    const updated = [...form.urls]
-    updated[index] = { ...updated[index], name }
-    updateForm({ urls: updated })
-  }
+  function handleLaunch() {
+    setFormError(null)
+    startTransition(async () => {
+      const fullUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`
+      const { name, domain } = deriveWorkspaceName(fullUrl)
 
-  async function handleLaunch() {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const normalizedDomain = normalizeDomain(form.domain) || 'workspace'
-      const workspace = await createWorkspace(form.siteName || normalizedDomain, normalizedDomain)
-      const wsId = workspace.id
-
-      if (form.urls.length > 0) {
-        await addUrlsToMonitor(
-          wsId,
-          form.urls.map((u) => ({
-            url:             u.url.startsWith('http') ? u.url : `https://${u.url}`,
-            name:            u.name,
-            check_frequency: form.checkFrequency,
-            threshold_pct:   form.thresholdPct,
-          }))
-        )
+      let workspace: { id: string }
+      try {
+        workspace = await createWorkspace(name, domain)
+      } catch {
+        setFormError('We could not create your workspace. Try again in a moment.')
+        return
       }
 
-      if (form.emailEnabled) {
-        await saveNotificationChannel(wsId, userEmail, form.emailFrequency)
+      const res = await addUrlsToMonitor(workspace.id, [
+        {
+          url: fullUrl,
+          check_frequency: frequency,
+          watch_description: watchDescription.trim() || null,
+        },
+      ])
+
+      if (!res.ok) {
+        if (res.kind === 'validation' && res.fieldErrors?.urls?.[0]) {
+          setUrlError(res.fieldErrors.urls[0])
+          setStep(0)
+        } else {
+          setFormError(res.message)
+        }
+        return
       }
 
-      await completeOnboardingStep(wsId, 'review', {
-        site_type:       form.siteType,
-        niche:           form.niche,
-        check_frequency: form.checkFrequency,
-        threshold_pct:   form.thresholdPct,
-      })
+      // Best-effort — the workspace and monitor already exist either way, so
+      // a hiccup here shouldn't strand the user on the wizard.
+      try {
+        if (userEmail) await saveNotificationChannel(workspace.id, userEmail, 'daily')
+        await completeOnboardingStep(workspace.id, 'review', { check_frequency: frequency })
+      } catch {
+        // non-fatal
+      }
 
       router.push('/dashboard')
       router.refresh()
-    } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong while setting up your workspace.')
-    } finally {
-      setLoading(false)
-    }
+    })
   }
-
-  function canProceed() {
-    if (step === 0) return normalizeDomain(form.domain).length > 2 || form.siteName.length > 1
-    if (step === 2) return form.urls.length > 0
-    return true
-  }
-
-  function nextStep() {
-    if (!canProceed()) return
-    if (step < STEPS.length - 1) setStep((prev) => prev + 1)
-  }
-
-  function prevStep() {
-    if (step > 0) setStep((prev) => prev - 1)
-  }
-
-  const thresholdLabel = THRESHOLD_OPTIONS.find((t) => t.value === form.thresholdPct)?.label ?? 'Balanced'
-  const frequencyLabel = FREQUENCY_OPTIONS.find((f) => f.value === form.checkFrequency)?.label ?? 'Daily'
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/28 backdrop-blur-[3px]">
-      <div className="flex min-h-screen items-center justify-center p-4 lg:p-6">
-        <div className="w-full max-w-[1080px] overflow-hidden rounded-[32px] border border-white/70 bg-white shadow-[0_30px_120px_rgba(15,23,42,0.20)]">
-
-          {/* Header */}
-          <div className="border-b border-slate-100 px-5 py-4 sm:px-7 sm:py-5">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">PageWatch</div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    Welcome{userName ? `, ${userName}` : ''}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    Set up your workspace while the dashboard waits behind this panel.
-                  </div>
-                </div>
-                <div className="hidden rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 sm:block">
-                  {step + 1} of {STEPS.length}
-                </div>
-              </div>
-
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-slate-900 transition-all" style={{ width: `${progress}%` }} />
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {STEPS.map((item, index) => (
-                  <ModalStepPill
-                    key={item.key}
-                    index={index}
-                    active={index === step}
-                    completed={index < step}
-                    label={item.label}
-                    onClick={() => { if (index < step) setStep(index) }}
-                  />
-                ))}
-              </div>
+    <div className="flex min-h-screen items-center justify-center bg-bg px-4 py-12">
+      <div className="w-full max-w-lg overflow-hidden rounded-md border border-border bg-panel shadow-popover">
+        {/* Header */}
+        <div className="flex flex-col gap-4 border-b border-border px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded bg-accent text-accent-fg">
+                <Monitor className="size-3.5" aria-hidden />
+              </span>
+              <span className="text-ui-medium text-text">
+                {userName ? `Welcome, ${userName.split(' ')[0]}` : 'Welcome'}
+              </span>
             </div>
+            <span className="text-meta text-text-faint">
+              Step {step + 1} of {STEP_LABELS.length}
+            </span>
           </div>
 
-          {/* Body */}
-          <div className="grid min-h-[650px] gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="px-5 py-6 sm:px-7 sm:py-8 lg:px-8">
+          <div className="h-1 overflow-hidden rounded-full bg-bg-subtle">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-150 ease-out"
+              style={{ width: `${((step + 1) / STEP_LABELS.length) * 100}%` }}
+            />
+          </div>
+        </div>
 
-              {/* ── Step 0: Domain / Workspace name ── */}
-              {step === 0 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div className="space-y-5">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">Site or company name</label>
-                      <input
-                        type="text"
-                        placeholder="Acme"
-                        value={form.siteName}
-                        onChange={(e) => updateForm({ siteName: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">Primary domain <span className="text-slate-400 font-normal">(used as workspace label)</span></label>
-                      <input
-                        type="text"
-                        placeholder="acme.com"
-                        value={form.domain}
-                        onChange={(e) => updateForm({ domain: normalizeDomain(e.target.value) })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                      />
-                      <p className="mt-2 text-xs text-slate-500">No protocol, no www. Used as a label only — you monitor individual URLs in step 3.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        {/* Body */}
+        <div className="min-h-[320px] px-6 py-7">
+          {step === 0 && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 className="text-page-title text-text">What do you want to watch?</h1>
+                <p className="mt-1.5 text-ui text-text-muted">
+                  Add the page you want us to keep an eye on, and tell us what matters in
+                  plain language — we pass that straight to the AI that writes your alerts.
+                </p>
+              </div>
 
-              {/* ── Step 1: Business context ── */}
-              {step === 1 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div className="space-y-6">
-                    <div>
-                      <label className="mb-3 block text-sm font-medium text-slate-700">Site type</label>
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        {SITE_TYPE_OPTIONS.map((option) => (
-                          <ChoiceCard
-                            key={option.value}
-                            selected={form.siteType === option.value}
-                            title={option.label}
-                            description="Used to set sensible defaults."
-                            onClick={() => updateForm({ siteType: option.value })}
-                          />
-                        ))}
+              <Field label="Page URL" htmlFor="onboarding-url" error={urlError ?? undefined} required>
+                <Input
+                  id="onboarding-url"
+                  prefix="https://"
+                  placeholder="acme.com/pricing"
+                  value={url.replace(/^https?:\/\//, '')}
+                  onChange={(e) => {
+                    setUrl(e.target.value)
+                    if (urlError) setUrlError(null)
+                  }}
+                  autoFocus
+                />
+              </Field>
+
+              <Field
+                label="What matters to you"
+                htmlFor="onboarding-watch-desc"
+                description="Optional, but this is what makes the alert useful — Claude reads it before deciding whether to notify you."
+              >
+                <Textarea
+                  id="onboarding-watch-desc"
+                  autoGrow
+                  maxRows={4}
+                  placeholder="Tell me if the price or the free-trial length changes"
+                  value={watchDescription}
+                  onChange={(e) => setWatchDescription(e.target.value)}
+                />
+              </Field>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 className="text-page-title text-text">How often should we check?</h1>
+                <p className="mt-1.5 text-ui text-text-muted">
+                  You&apos;re starting on the {STARTING_PLAN.name} plan. You can change this
+                  any time from monitor settings.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                {FREQUENCY_OPTIONS.map((option) => {
+                  const allowed = STARTING_PLAN.limits.allowedFrequencies.includes(option.value)
+                  const active = frequency === option.value
+                  const unlockedBy = !allowed ? cheapestPlanNaming(option.value) : null
+
+                  const card = (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={!allowed}
+                      onClick={() => allowed && setFrequency(option.value)}
+                      title={!allowed && unlockedBy ? `${unlockedBy} unlocks this` : undefined}
+                      className={
+                        active
+                          ? 'w-full rounded-md border-2 border-accent bg-accent-subtle p-4 text-left transition-colors duration-120'
+                          : 'w-full rounded-md border border-border-strong bg-panel p-4 text-left transition-colors duration-120 hover:bg-panel-raised disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-panel'
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-ui-medium text-text">
+                          {FREQUENCY_LABELS[option.value]}
+                        </span>
+                        {active && <Check className="size-4 text-accent" aria-hidden />}
                       </div>
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">Describe your product or use case <span className="text-slate-400 font-normal">(optional)</span></label>
-                      <textarea
-                        rows={3}
-                        placeholder="E.g. SaaS pricing page for a B2B analytics tool"
-                        value={form.niche}
-                        onChange={(e) => updateForm({ niche: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+                      <p className="mt-1 text-meta text-text-muted">{option.blurb}</p>
+                    </button>
+                  )
 
-              {/* ── Step 2: URLs ── */}
-              {step === 2 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">URLs to monitor</label>
-                    <textarea
-                      rows={10}
-                      placeholder={`https://acme.com\nhttps://acme.com/pricing\nhttps://acme.com/features`}
-                      value={urlText}
-                      onChange={(e) => handleUrlTextChange(e.target.value)}
-                      className="w-full rounded-[24px] border border-slate-300 px-4 py-4 font-mono text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-200"
-                    />
-                    <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                      <span>{form.urls.length} URL{form.urls.length !== 1 ? 's' : ''} detected</span>
-                      <span>Duplicates removed automatically</span>
-                    </div>
+                  if (allowed) return card
 
-                    {form.urls.length > 0 && (
-                      <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-200">
-                        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          <div>URL</div>
-                          <div>Display name</div>
-                        </div>
-                        <div className="max-h-[320px] overflow-auto">
-                          {form.urls.map((row, i) => (
-                            <div
-                              key={`${row.url}-${i}`}
-                              className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
-                            >
-                              <div className="truncate text-xs font-mono text-slate-500">{row.url}</div>
-                              <input
-                                type="text"
-                                value={row.name}
-                                onChange={(e) => updateUrlName(i, e.target.value)}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-slate-900"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                  return (
+                    <Tooltip key={option.value}>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={0} className="block">
+                          {card}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {unlockedBy
+                          ? `${unlockedBy} unlocks ${FREQUENCY_LABELS[option.value].toLowerCase()} checks.`
+                          : 'Not available on your plan.'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
-              {/* ── Step 3: Monitoring preferences ── */}
-              {step === 3 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div className="space-y-8">
-                    <div>
-                      <div className="mb-3 text-sm font-medium text-slate-700">Check frequency</div>
-                      <div className="grid gap-3 lg:grid-cols-3">
-                        {FREQUENCY_OPTIONS.map((option) => (
-                          <ChoiceCard
-                            key={option.value}
-                            title={option.label}
-                            description={option.description}
-                            selected={form.checkFrequency === option.value}
-                            onClick={() => updateForm({ checkFrequency: option.value })}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-3 text-sm font-medium text-slate-700">Change sensitivity</div>
-                      <div className="grid gap-3 lg:grid-cols-3">
-                        {THRESHOLD_OPTIONS.map((option) => (
-                          <ChoiceCard
-                            key={option.value}
-                            title={option.label}
-                            description={option.description}
-                            selected={form.thresholdPct === option.value}
-                            onClick={() => updateForm({ thresholdPct: option.value })}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+          {step === 2 && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 className="text-page-title text-text">Ready to start watching.</h1>
+                <p className="mt-1.5 text-ui text-text-muted">
+                  We&apos;ll take a first screenshot right away as your baseline. Alerts start
+                  once there&apos;s something to compare it against — your next check.
+                </p>
+              </div>
 
-              {/* ── Step 4: Alert preferences ── */}
-              {step === 4 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div className="space-y-8">
-                    <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
-                      <div className="flex items-start justify-between gap-6">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">Email notifications</div>
-                          <div className="mt-1 text-sm leading-6 text-slate-500">
-                            Alerts go to {userEmail || 'your email address'}.
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          aria-pressed={form.emailEnabled}
-                          onClick={() => updateForm({ emailEnabled: !form.emailEnabled })}
-                          className={`relative h-7 w-12 rounded-full transition ${form.emailEnabled ? 'bg-slate-900' : 'bg-slate-300'}`}
-                        >
-                          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${form.emailEnabled ? 'left-6' : 'left-1'}`} />
-                        </button>
-                      </div>
-                    </div>
+              <div className="flex flex-col gap-3 rounded-md border border-border bg-bg-subtle p-4">
+                <SummaryRow label="Monitor" value={url.replace(/^https?:\/\//, '') || '—'} />
+                <Separator />
+                <SummaryRow
+                  label="Watching for"
+                  value={watchDescription.trim() || 'Any meaningful visual change'}
+                />
+                <Separator />
+                <SummaryRow label="Check frequency" value={FREQUENCY_LABELS[frequency]} />
+                <Separator />
+                <SummaryRow
+                  label="Alerts"
+                  value={userEmail ? `Email — ${userEmail}` : 'Email not set'}
+                />
+              </div>
 
-                    <div>
-                      <div className="mb-3 text-sm font-medium text-slate-700">Email frequency</div>
-                      <div className="grid gap-3 lg:grid-cols-3">
-                        {NOTIFICATION_OPTIONS.map((option) => (
-                          <ChoiceCard
-                            key={option.value}
-                            title={option.label}
-                            description={option.description}
-                            selected={form.emailFrequency === option.value}
-                            onClick={() => updateForm({ emailFrequency: option.value })}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Step 5: Review ── */}
-              {step === 5 && (
-                <div>
-                  <SectionIntro title={currentStep.title} description={currentStep.description} />
-                  <div className="space-y-3">
-                    <ReviewRow label="Workspace"          value={form.siteName || normalizeDomain(form.domain) || 'Not set'} />
-                    <ReviewRow label="Domain"             value={normalizeDomain(form.domain) || 'Not set'} />
-                    <ReviewRow label="Site type"          value={SITE_TYPE_OPTIONS.find((o) => o.value === form.siteType)?.label || form.siteType} />
-                    <ReviewRow label="URLs to monitor"    value={`${form.urls.length} page${form.urls.length !== 1 ? 's' : ''}`} />
-                    <ReviewRow label="Check frequency"    value={frequencyLabel} />
-                    <ReviewRow label="Change sensitivity" value={thresholdLabel} />
-                    <ReviewRow label="Email alerts"       value={form.emailEnabled ? form.emailFrequency : 'Disabled'} />
-                  </div>
-
-                  {error && (
-                    <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {error}
-                    </div>
-                  )}
+              {formError && (
+                <div className="flex items-start gap-2 rounded-md border border-critical/30 bg-critical-subtle p-3 text-ui text-critical">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{formError}</span>
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Sidebar summary */}
-            <aside className="border-t border-slate-100 bg-slate-50/70 px-5 py-6 sm:px-7 lg:border-l lg:border-t-0 lg:px-6">
-              <div className="sticky top-0 space-y-4">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Live setup</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Updates as you fill things in.
-                  </div>
-                </div>
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goBack}
+            disabled={step === 0}
+            iconLeft={<ArrowLeft className="size-3.5" aria-hidden />}
+            className={step === 0 ? 'invisible' : undefined}
+          >
+            Back
+          </Button>
 
-                <StatCard label="Workspace"    value={form.siteName || normalizeDomain(form.domain) || 'Not set'} />
-                <StatCard label="Domain"       value={normalizeDomain(form.domain) || 'Not set'} />
-                <StatCard label="URLs"         value={`${form.urls.length}`} />
-                <StatCard label="Frequency"    value={frequencyLabel} />
-                <StatCard label="Sensitivity"  value={thresholdLabel} />
-                <StatCard label="Alerts"       value={form.emailEnabled ? form.emailFrequency : 'off'} />
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Notifications</div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">{userEmail}</div>
-                  <div className="mt-1 text-sm text-slate-500">{form.emailEnabled ? 'Enabled' : 'Disabled'}</div>
-                </div>
-              </div>
-            </aside>
-          </div>
-
-          {/* Footer nav */}
-          <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <button
-              type="button"
-              onClick={prevStep}
-              disabled={step === 0 || loading}
-              className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Back
-            </button>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {step === 2 && (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  disabled={loading}
-                  className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                >
-                  Skip for now
-                </button>
-              )}
-
-              {step < STEPS.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  disabled={!canProceed() || loading}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Continue
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleLaunch}
-                  disabled={loading}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {loading ? 'Creating workspace…' : 'Start monitoring'}
-                </button>
-              )}
-            </div>
-          </div>
-
+          {step < STEP_LABELS.length - 1 ? (
+            <Button onClick={goNext} iconRight={<ArrowRight className="size-3.5" aria-hidden />}>
+              Continue
+            </Button>
+          ) : (
+            <Button onClick={handleLaunch} loading={isPending}>
+              {isPending ? 'Setting up…' : 'Start monitoring'}
+            </Button>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-meta text-text-muted">{label}</span>
+      <span className="max-w-[65%] truncate text-right text-ui-medium text-text">{value}</span>
     </div>
   )
 }

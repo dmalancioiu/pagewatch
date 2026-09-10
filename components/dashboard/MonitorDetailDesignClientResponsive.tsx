@@ -1,278 +1,301 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { useOptimistic, useState, useTransition } from 'react'
+import { AlertTriangle, ArrowLeft, ChevronRight, ExternalLink, Maximize2, Pause, Play } from 'lucide-react'
+import { StatusDot } from '@/components/ui/status-dot'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { useToast } from '@/components/ui/ToastProvider'
+import { pauseMonitoredUrl } from '@/lib/actions/websites'
+import { triggerManualRun } from '@/lib/actions/run-now'
+import { acknowledgeAlert } from '@/lib/actions/alerts'
+import type { Zone } from '@/lib/types/database.types'
+import { ResizableInspectorLayout } from '@/app/dashboard/urls/[id]/ResizableInspectorLayout'
+import { UrlDetailClient, type AlertWithUrls, type SnapshotWithUrl } from '@/app/dashboard/urls/[id]/UrlDetailClient'
+import { UrlDetailSettings } from '@/app/dashboard/urls/[id]/UrlDetailSettings'
 import { FullscreenMonitorViewer } from '@/components/dashboard/FullscreenMonitorViewer'
-import {
-  Activity,
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Camera,
-  CheckCircle2,
-  ChevronRight,
-  Columns2,
-  Download,
-  ExternalLink,
-  Filter,
-  HeartPulse,
-  History,
-  Image,
-  Info,
-  Maximize2,
-  MoreHorizontal,
-  MoveHorizontal,
-  MousePointerClick,
-  Pause,
-  Play,
-  Plus,
-  Save,
-  Target,
-} from 'lucide-react'
-import { ZoneSelector } from '@/components/dashboard/ZoneSelector'
-import { updateMonitoredUrl } from '@/lib/actions/websites'
+import { DiffViewerModal } from '@/components/dashboard/DiffViewerModal'
 
-type AlertItem = {
+interface MonitorFields {
   id: string
-  diff_pct: number | null
-  severity: string | null
-  status: string
-  created_at: string
-  ai_summary?: string | null
-  metadata?: any
-  beforeUrl: string | null
-  afterUrl: string | null
-  diffUrl: string | null
+  url: string
+  name: string
+  check_frequency: 'hourly' | 'daily' | 'weekly'
+  check_hour: number | null
+  threshold_pct: number
+  full_page: boolean
+  watch_description: string | null
+  is_active: boolean
+  consecutive_failures: number
+  last_error: string | null
+  last_error_at: string | null
+  last_success_at: string | null
 }
 
-type SnapshotItem = {
-  id: string
-  storage_path: string
-  taken_at: string
-  file_size_bytes: number | null
-  signedUrl: string | null
-}
-
-type Zone = {
-  id?: string
-  x: number
-  y: number
-  width: number
-  height: number
-  label?: string
-  instruction?: string
-  sensitivity?: 'low' | 'normal' | 'high'
-}
-
-type Props = {
-  monitor: any
-  openAlert: AlertItem | null
-  snapshots: SnapshotItem[]
-  alerts: AlertItem[]
-  alertBySnapshotId: Record<string, AlertItem>
+interface Props {
+  monitor: MonitorFields
   zones: Zone[]
+  snapshots: SnapshotWithUrl[]
+  alerts: AlertWithUrls[]
+  alertBySnapshotId: Record<string, AlertWithUrls>
+  openAlert: AlertWithUrls | null
   lastChecked: string
   nextRun: string
 }
 
-function host(url: string | null | undefined) {
-  try { return new URL(url ?? '').hostname.replace(/^www\./, '') } catch { return url || 'unknown' }
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'Never'
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-function fmtTime(iso?: string | null) {
-  if (!iso) return 'Never'
-  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-}
-
-function bytes(n: number | null) {
-  if (!n) return '—'
-  const kb = n / 1024
-  return kb < 1024 ? `${kb.toFixed(0)} KB` : `${(kb / 1024).toFixed(1)} MB`
-}
-
-function pct(v?: number | null) {
-  return Number(v ?? 0).toFixed(1)
-}
-
-function normalizeZones(zones: Zone[]) {
-  return zones.map((z, i) => ({
-    id: z.id ?? `zone-${i + 1}`,
-    x: z.x,
-    y: z.y,
-    width: z.width,
-    height: z.height,
-    label: z.label ?? `Zone ${i + 1}`,
-    instruction: z.instruction ?? '',
-    sensitivity: z.sensitivity ?? 'normal',
-  }))
-}
-
-function scoreFor(openAlert: AlertItem | null, zones: Zone[], snapshots: SnapshotItem[]) {
-  if (openAlert?.diff_pct != null) return Math.max(52, Math.min(84, Math.round(88 - Number(openAlert.diff_pct) * 1.3)))
-  if (!snapshots.length) return 80
-  return Math.min(99, 92 + Math.min(7, zones.length))
-}
-
-function severityLabel(alert: AlertItem | null) {
-  if (!alert?.severity) return 'Low severity'
-  return `${alert.severity.charAt(0).toUpperCase()}${alert.severity.slice(1)} severity`
-}
-
-function alertStatusLabel(alert: AlertItem | null) {
-  if (!alert) return 'Clean'
-  if (alert.status === 'open') return '1 open'
-  return alert.status.charAt(0).toUpperCase() + alert.status.slice(1)
-}
-
-function PlaceholderSite({ after = false }: { after?: boolean }) {
-  return (
-    <div className="md-placeholder-site">
-      <div className="ph-hero"><span /><i /><b /></div>
-      <div className="ph-nav"><span /><span /><span /><span /><span /></div>
-      <div className="ph-cards">
-        {[0, 1, 2].map((i) => <div key={i} className={i === 1 ? 'active' : ''}><b /><p /><p />{after && i === 1 ? <em /> : null}</div>)}
-      </div>
-    </div>
-  )
-}
-
-function ViewportShot({ url, after = false }: { url?: string | null; after?: boolean }) {
-  return (
-    <div className="md-shot-stage">
-      <div className="md-browser-frame">
-        <div className="md-browser-chrome"><i /><i /><i /><span /></div>
-        <div className="md-browser-viewport">
-          {url ? <img src={url} alt="Monitor capture" /> : <PlaceholderSite after={after} />}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TimelineThumb({ snap, changed, selected, onClick }: { snap: SnapshotItem; changed?: boolean; selected?: boolean; onClick: () => void }) {
-  return (
-    <button className={`md-tl-cap ${changed ? 'changed' : ''} ${selected ? 'selected' : ''}`} onClick={onClick}>
-      <div className="md-tl-thumb">{snap.signedUrl ? <img src={snap.signedUrl} alt="" /> : <PlaceholderSite after={changed} />}</div>
-      <div className="md-tl-time">{fmtTime(snap.taken_at)}</div>
-    </button>
-  )
-}
-
-export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapshots, alerts, alertBySnapshotId, zones, lastChecked, nextRun }: Props) {
-  const [tab, setTab] = useState<'diff' | 'current' | 'zones'>('diff')
-  const [handle, setHandle] = useState(50)
-  const [selectedId, setSelectedId] = useState(snapshots[0]?.id ?? '')
-  const [localZones, setLocalZones] = useState<any[]>(normalizeZones(zones))
-  const [isSavingZones, startSavingZones] = useTransition()
-  const [fsOpen, setFsOpen] = useState(false)
-
-  const latest = snapshots[0] ?? null
-  const selectedIndex = Math.max(0, snapshots.findIndex((s) => s.id === selectedId))
-  const selected = snapshots[selectedIndex] ?? latest
-  const comparisonBase = snapshots[selectedIndex + 1] ?? snapshots[1] ?? null
-  const selectedAlert = selected ? alertBySnapshotId[selected.id] ?? null : null
-  const bannerAlert = openAlert ?? alerts[0] ?? null
-  const viewerAlert = selectedAlert ?? (selected?.id === latest?.id ? bannerAlert : null)
-  const currentAfter = viewerAlert?.afterUrl ?? selected?.signedUrl ?? latest?.signedUrl ?? null
-  const beforeUrl = viewerAlert?.beforeUrl ?? comparisonBase?.signedUrl ?? null
-  const currentCaptureUrl = selected?.signedUrl ?? currentAfter
-  const zoneImageUrl = selected?.signedUrl ?? latest?.signedUrl ?? currentAfter ?? ''
-  const status = !monitor.is_active ? 'Paused' : openAlert ? 'Alert' : 'Healthy'
-  const score = scoreFor(openAlert, localZones, snapshots)
-  const healthTone = score >= 90 ? 'Good' : score >= 75 ? 'Fair' : 'Needs review'
-  const changedZone = viewerAlert?.metadata?.zone_scores?.[0]?.label || localZones[0]?.label || 'Full page'
-  const isLatestSelected = !selected || selected.id === latest?.id
-
-  const timeline = useMemo(() => snapshots.slice(0, 14), [snapshots])
-
-  function drag(e: React.PointerEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setHandle(Math.max(8, Math.min(92, ((e.clientX - rect.left) / rect.width) * 100)))
+function host(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
   }
+}
 
-  function saveZones() {
-    startSavingZones(async () => {
-      await updateMonitoredUrl({ id: monitor.id, zones: localZones })
+type StatusKind = 'paused' | 'failing' | 'alert' | 'healthy'
+
+const STATUS_LABEL: Record<StatusKind, string> = {
+  paused: 'Paused',
+  failing: 'Failing',
+  alert: 'Alert',
+  healthy: 'Healthy',
+}
+const STATUS_TONE: Record<StatusKind, 'neutral' | 'warn' | 'critical' | 'ok'> = {
+  paused: 'neutral',
+  failing: 'warn',
+  alert: 'critical',
+  healthy: 'ok',
+}
+
+export function MonitorDetailDesignClientResponsive({
+  monitor,
+  zones: initialZones,
+  snapshots,
+  alerts,
+  alertBySnapshotId,
+  openAlert,
+  lastChecked,
+  nextRun,
+}: Props) {
+  const router = useRouter()
+  const toast = useToast()
+
+  const [isActive, setOptimisticActive] = useOptimistic(monitor.is_active, (_state, next: boolean) => next)
+  const [isPausePending, startPause] = useTransition()
+  const [isRunPending, startRun] = useTransition()
+  const [isResolvePending, startResolve] = useTransition()
+
+  const [zones, setZones] = useState<Zone[]>(initialZones)
+  const [selectedId, setSelectedId] = useState<string | null>(snapshots[0]?.id ?? null)
+  const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null)
+  const [fullscreenOpen, setFullscreenOpen] = useState(false)
+  const [fullscreenTab, setFullscreenTab] = useState<'diff' | 'current'>('diff')
+  const [diffModalOpen, setDiffModalOpen] = useState(false)
+
+  const activeAlert = openAlert && openAlert.id !== dismissedAlertId ? openAlert : null
+
+  const selectedIndex = Math.max(0, snapshots.findIndex((s) => s.id === selectedId))
+  const selected = snapshots[selectedIndex] ?? snapshots[0] ?? null
+  const previous = snapshots[selectedIndex + 1] ?? null
+  const selectedAlert = selected ? alertBySnapshotId[selected.id] ?? null : null
+  const afterUrl = selectedAlert?.afterUrl ?? selected?.signedUrl ?? null
+  const beforeUrl = selectedAlert?.beforeUrl ?? previous?.signedUrl ?? null
+  const diffUrl = selectedAlert?.diffUrl ?? null
+  const triggeredRegion = (selectedAlert?.metadata?.zone_scores as any[] | undefined)?.find((z) => z.passes_threshold)?.label
+
+  const statusKind: StatusKind = !isActive ? 'paused' : monitor.consecutive_failures > 0 ? 'failing' : activeAlert ? 'alert' : 'healthy'
+
+  function handleTogglePause() {
+    const next = !isActive
+    startPause(async () => {
+      setOptimisticActive(next)
+      const res = await pauseMonitoredUrl({ id: monitor.id, paused: !next })
+      if (!res.ok) {
+        toast.error('Could not update monitor', res.message)
+        return
+      }
+      toast.success(next ? 'Monitor resumed' : 'Monitor paused')
+      router.refresh()
     })
   }
 
-  function addQuickZone() {
-    setLocalZones(prev => [...prev, {
-      id: `zone-${Date.now()}`,
-      x: 0.12,
-      y: 0.16,
-      width: 0.72,
-      height: 0.28,
-      label: `Zone ${prev.length + 1}`,
-      instruction: '',
-      sensitivity: 'normal',
-    }])
+  function handleRunNow() {
+    startRun(async () => {
+      const res = await triggerManualRun({ id: monitor.id })
+      if (!res.ok) {
+        if (res.kind === 'entitlement') {
+          toast.toast({
+            title: 'Could not start manual check',
+            description: res.message,
+            tone: 'error',
+            action: res.upgradeTo ? { label: `Upgrade to ${res.upgradeTo}`, href: '/dashboard/settings/billing' } : undefined,
+          })
+        } else {
+          toast.error('Could not start manual check', res.message)
+        }
+        return
+      }
+      toast.success('Manual check started', 'Refresh in a moment to see the latest capture.')
+      router.refresh()
+    })
   }
 
-  function selectSnapshot(snap: SnapshotItem) {
-    setSelectedId(snap.id)
-    setTab(alertBySnapshotId[snap.id] ? 'diff' : 'current')
+  function handleResolveAlert() {
+    if (!activeAlert) return
+    const id = activeAlert.id
+    startResolve(async () => {
+      try {
+        await acknowledgeAlert(id)
+        setDismissedAlertId(id)
+        toast.success('Alert resolved')
+        router.refresh()
+      } catch (error) {
+        toast.error('Could not resolve alert', error instanceof Error ? error.message : 'Something went wrong. Please try again.')
+      }
+    })
+  }
+
+  function openFullscreen() {
+    setFullscreenTab(beforeUrl && afterUrl ? 'diff' : 'current')
+    setFullscreenOpen(true)
   }
 
   return (
-    <div className="md-page">
-      <header className="md-topbar">
-        <Link href="/dashboard/urls" className="md-back"><ArrowLeft size={12} /></Link>
-        <div className="md-vline" />
-        <div className="md-crumbs"><Link href="/dashboard/urls">Monitors</Link><ChevronRight size={11} /><span>{monitor.name}</span><em className={status.toLowerCase()}><i />{status}</em></div>
-        <a className="md-url" href={monitor.url} target="_blank" rel="noreferrer">{host(monitor.url)}<ExternalLink size={9} /></a>
-        <div className="md-grow" />
-        <div className="md-checks"><div><Calendar size={11} /><span><small>Last check</small><b>{lastChecked}</b></span></div><i /><div><Calendar size={11} /><span><small>Next run</small><b>{nextRun}</b></span></div></div>
-        <button className="md-btn-g sm"><Activity size={11} />Run Now</button>
-        <button className="md-btn-g sm"><Pause size={11} />Pause</button>
-        <button className="md-btn-g sm icon"><MoreHorizontal size={13} /></button>
+    <div className="flex flex-col gap-3 px-3 py-3 sm:px-5 sm:py-4">
+      <header className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <Link
+          href="/dashboard/urls"
+          aria-label="Back to monitors"
+          className="flex size-7 shrink-0 items-center justify-center rounded border border-border text-text-muted transition-colors duration-120 hover:bg-panel-raised hover:text-text"
+        >
+          <ArrowLeft className="size-3.5" />
+        </Link>
+
+        <div className="flex min-w-0 items-center gap-1.5 text-meta">
+          <Link href="/dashboard/urls" className="whitespace-nowrap text-text-faint hover:text-text">
+            Monitors
+          </Link>
+          <ChevronRight className="size-3 shrink-0 text-text-faint" />
+          <span className="truncate text-ui-medium text-text">{monitor.name}</span>
+        </div>
+
+        <span className="inline-flex items-center gap-1.5">
+          <StatusDot tone={STATUS_TONE[statusKind]} pulse={statusKind === 'healthy'} />
+          <Badge tone={statusKind === 'healthy' ? 'ok' : statusKind === 'alert' ? 'critical' : statusKind === 'failing' ? 'warn' : 'neutral'} size="sm">
+            {STATUS_LABEL[statusKind]}
+          </Badge>
+        </span>
+
+        <a
+          href={monitor.url}
+          target="_blank"
+          rel="noreferrer"
+          className="hidden items-center gap-1 truncate font-mono text-meta text-text-faint hover:text-text sm:inline-flex"
+        >
+          {host(monitor.url)}
+          <ExternalLink className="size-3" />
+        </a>
+
+        <div className="flex-1" />
+
+        <span className="hidden text-meta text-text-faint md:inline">
+          Last check <span className="text-text-muted">{lastChecked}</span>
+        </span>
+        <span className="hidden text-meta text-text-faint md:inline">
+          Next run <span className="text-text-muted">{nextRun}</span>
+        </span>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleRunNow}
+          loading={isRunPending}
+          disabled={!isActive}
+          title={isActive ? 'Run this monitor now' : 'Resume this monitor before running it manually'}
+        >
+          Run now
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={isActive ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+          onClick={handleTogglePause}
+          loading={isPausePending}
+        >
+          {isActive ? 'Pause' : 'Resume'}
+        </Button>
       </header>
 
-      <div className="md-body">
-        <main className="md-main">
-          {bannerAlert && <section className="md-alert"><div className="md-alert-icon"><AlertTriangle size={13} /></div><div><div className="md-alert-head"><b>Change detected</b><span>+{pct(bannerAlert.diff_pct)}% diff</span><em>{severityLabel(bannerAlert)}</em><small>{fmtDate(bannerAlert.created_at)}</small></div><p>{bannerAlert.ai_summary || 'A meaningful visual change was detected on this monitored page.'}</p></div><div className="md-alert-actions"><button className="md-btn-g sm"><CheckCircle2 size={10} />Resolve</button><button className="md-btn-p sm" onClick={() => setFsOpen(true)}>View in full<ArrowRight size={10} /></button></div></section>}
+      {statusKind === 'failing' && monitor.last_error && (
+        <div className="flex items-center gap-2 rounded-md border border-warn/30 bg-warn-subtle px-3 py-2 text-meta text-warn">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{monitor.last_error}</span>
+        </div>
+      )}
 
-          <section className="md-viewer">
-            <div className="md-viewer-header"><button className={tab === 'diff' ? 'active' : ''} onClick={() => setTab('diff')}><Columns2 size={12} />Diff comparison</button><button className={tab === 'current' ? 'active' : ''} onClick={() => setTab('current')}><Image size={12} />Current capture</button><button className={tab === 'zones' ? 'active' : ''} onClick={() => setTab('zones')}><Target size={12} />Zone editor</button><div className="md-grow" /><span>{tab === 'zones' ? 'Drag to draw zones' : 'Drag to compare'}</span><button className="md-btn-g sm" onClick={() => setFsOpen(true)}><Maximize2 size={10} />Fullscreen</button></div>
-
-            {tab === 'diff' && <><div className="md-diff" onPointerDown={drag} onPointerMove={(e) => e.buttons === 1 && drag(e)}><div className="md-after"><ViewportShot url={currentAfter} after /></div><div className="md-before" style={{ clipPath: `inset(0 ${100 - handle}% 0 0)` }}><ViewportShot url={beforeUrl} /></div><div className="md-label before">BEFORE</div><div className="md-label after">AFTER</div><div className="md-handle" style={{ left: `${handle}%` }}><div><MoveHorizontal size={14} /></div></div></div><div className="md-viewer-foot"><span>Changed region <b>{changedZone}</b></span><i /><span>Pixel diff <b className="red">+{pct(viewerAlert?.diff_pct)}%</b></span><i /><span>Preview <b>Normalized viewport</b></span><div className="md-grow" /><em>{fmtDate(viewerAlert?.created_at ?? selected?.taken_at)}</em></div></>}
-
-            {tab === 'current' && <><div className="md-current"><ViewportShot url={currentCaptureUrl} after /></div><div className="md-viewer-foot"><span>{isLatestSelected ? 'Latest capture' : 'Selected capture'} <b>{fmtDate(selected?.taken_at)}</b></span><em>{bytes(selected?.file_size_bytes ?? null)} · normalized viewport</em><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Download</button></div></>}
-
-            {tab === 'zones' && <><div className="md-zones">{zoneImageUrl ? <div className="md-zone-selector-shell"><ZoneSelector imageUrl={zoneImageUrl} zones={localZones} onChange={setLocalZones} /></div> : <ViewportShot after />}</div><div className="md-viewer-foot"><Info size={12} /><em>Draw zones on the real screenshot canvas. The preview tab always uses a normalized browser viewport.</em><div className="md-grow" /><button className="md-btn-g sm" onClick={addQuickZone}><Plus size={10} />Add zone</button><button className="md-btn-p sm" onClick={saveZones} disabled={isSavingZones}>{isSavingZones ? 'Saving...' : 'Save zones'}</button></div></>}
-          </section>
-
-          <section className="md-timeline"><div className="md-timeline-head"><History size={13} /><b>Capture timeline</b><span>{snapshots.length} total</span><div className="md-grow" /><button className="md-btn-g sm"><Play size={10} className="green" />Play</button><button className="md-btn-g sm"><Filter size={10} />Changes only</button></div><div className="md-timeline-scroll"><div className="md-tl-group"><p>Recent</p><div>{timeline.map((snap, index) => <TimelineThumb key={snap.id} snap={snap} changed={Boolean(alertBySnapshotId[snap.id])} selected={(selected?.id ?? '') === snap.id || index === 0 && !selectedId} onClick={() => selectSnapshot(snap)} />)}</div></div></div><div className="md-tl-info"><MousePointerClick size={11} /><span>Viewing <b>{fmtDate(selected?.taken_at)}</b>{alertBySnapshotId[selected?.id ?? ''] ? `, change detected (+${pct(alertBySnapshotId[selected?.id ?? '']?.diff_pct)}%)` : ', clean capture'}</span><div className="md-grow" /><button className="md-btn-g sm"><Download size={10} />Export</button></div></section>
-        </main>
-
-        <aside className="md-inspector"><div className="md-inspector-save"><div><b>Monitor settings</b><span>{monitor.name}</span></div><button className="md-btn-p sm"><Save size={10} />Save</button></div><section><label><HeartPulse size={10} />Health score</label><div className="md-score"><svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="28" fill="none" stroke="#F3F4F6" strokeWidth="7"/><circle cx="36" cy="36" r="28" fill="none" stroke={score >= 90 ? '#16A34A' : score >= 75 ? '#F59E0B' : '#EF4444'} strokeWidth="7" strokeDasharray={`${(score / 100) * 175.9} 175.9`} strokeLinecap="round" transform="rotate(-90 36 36)"/><text x="36" y="40" textAnchor="middle" fontSize="16" fontWeight="800" fill="#111827">{score}</text></svg><div><b>{healthTone}</b><p><i className="red" />{alerts.length} changes detected</p><p><i className="green" />{snapshots.length ? '94%' : '—'} uptime</p><p><i className="green" />{localZones.length} zones configured</p></div></div></section><section><label><Activity size={10} />{isLatestSelected ? 'Latest snapshot' : 'Selected capture'}</label><Row k="Captured" v={fmtDate(selected?.taken_at)} /><Row k="Alert status" v={alertStatusLabel(selectedAlert)} pill={selectedAlert ? 'red' : 'green'} /><Row k="Pixel diff" v={`+${pct(selectedAlert?.diff_pct)}%`} red={Boolean(selectedAlert)} /><Row k="File size" v={bytes(selected?.file_size_bytes ?? null)} mono /><Row k="Total checks" v={String(snapshots.length)} /><Row k="Changes found" v={String(alerts.length)} red /></section><section><label><Calendar size={10} />Schedule</label><div className="md-freq"><button className={monitor.check_frequency === 'hourly' ? 'active' : ''}>Hourly</button><button className={!monitor.check_frequency || monitor.check_frequency === 'daily' ? 'active' : ''}>Daily</button><button className={monitor.check_frequency === 'weekly' ? 'active' : ''}>Weekly</button></div><Row k="Run at (UTC)" v={monitor.check_hour != null ? `${monitor.check_hour}:00` : '9:00 AM'} /></section><section><label><Camera size={10} />Capture</label><Toggle title="Full page scroll" subtitle="Capture entire page height" on={monitor.full_page !== false} /><Toggle title="Hide cookie banners" subtitle="Dismiss overlays before capture" on /></section><section><label><Target size={10} />Zones</label>{localZones.length ? localZones.map((z, i) => <div key={z.id ?? i} className="md-zone-chip"><i style={{ background: i === 0 ? '#2563EB' : '#16A34A' }} /><div><b>{z.label || `Zone ${i + 1}`}</b><span>{z.instruction || z.sensitivity || 'Visual changes'}</span></div></div>) : <p className="md-muted">No custom zones yet.</p>}<button className="md-btn-g sm full" onClick={() => setTab('zones')}><Plus size={10} />Add zone</button></section><section><label><Info size={10} />AI instruction</label><textarea defaultValue={monitor.watch_description || 'Only alert me when pricing, CTA, or layout changes could affect conversion.'} /><button className="md-btn-g sm full">Update instruction</button></section></aside>
-      </div>
-      <FullscreenMonitorViewer
-        open={fsOpen}
-        onOpenChange={setFsOpen}
-        initialTab={tab}
-        monitorName={monitor.name ?? monitor.url}
-        snapshots={snapshots}
-        alerts={alerts}
-        openAlert={viewerAlert}
-        zones={localZones}
-        onZonesChange={setLocalZones}
+      <ResizableInspectorLayout
+        main={
+          <UrlDetailClient
+            snapshots={snapshots}
+            alertBySnapshotId={alertBySnapshotId}
+            openAlert={activeAlert}
+            onResolveAlert={handleResolveAlert}
+            isResolvingAlert={isResolvePending}
+            selectedId={selected?.id ?? null}
+            onSelectSnapshot={setSelectedId}
+            onOpenFullscreen={openFullscreen}
+          />
+        }
+        inspector={
+          <UrlDetailSettings
+            monitor={monitor}
+            zones={zones}
+            onZonesChange={setZones}
+            latestSnapshotUrl={snapshots[0]?.signedUrl ?? null}
+            selectedAlert={selectedAlert}
+            selectedCapture={selected ? { taken_at: selected.taken_at, file_size_bytes: selected.file_size_bytes } : null}
+            isActive={isActive}
+            isPausePending={isPausePending}
+            onTogglePause={handleTogglePause}
+            isRunPending={isRunPending}
+            onRunNow={handleRunNow}
+          />
+        }
       />
+
+      <FullscreenMonitorViewer
+        open={fullscreenOpen}
+        onOpenChange={setFullscreenOpen}
+        tab={fullscreenTab}
+        onTabChange={setFullscreenTab}
+        monitorName={monitor.name}
+        beforeUrl={beforeUrl}
+        afterUrl={afterUrl}
+        currentUrl={selected?.signedUrl ?? afterUrl}
+        region={triggeredRegion ?? zones[0]?.label ?? 'Full page'}
+        aiSummary={selectedAlert?.ai_summary ?? null}
+        diffPct={selectedAlert?.diff_pct ?? null}
+        capturedAt={selected?.taken_at ?? null}
+      />
+
+      <DiffViewerModal
+        isOpen={diffModalOpen}
+        onClose={() => setDiffModalOpen(false)}
+        beforeUrl={beforeUrl}
+        afterUrl={afterUrl}
+        diffUrl={diffUrl}
+        defaultTab={diffUrl ? 'diff' : beforeUrl ? 'compare' : 'after'}
+        metadata={{
+          diffPct: selectedAlert?.diff_pct,
+          severity: selectedAlert?.severity,
+          timestamp: selected?.taken_at,
+          pageUrl: monitor.url,
+        }}
+      />
+
+      <button type="button" className="hidden" aria-hidden onClick={() => setDiffModalOpen(true)} />
     </div>
   )
 }
-
-function Row({ k, v, pill, red, mono }: { k: string; v: string; pill?: 'red' | 'green'; red?: boolean; mono?: boolean }) {
-  return <div className="md-row"><span>{k}</span>{pill ? <b className={`pill ${pill}`}>{v}</b> : <b className={`${red ? 'red' : ''} ${mono ? 'mono' : ''}`}>{v}</b>}</div>
-}
-
-function Toggle({ title, subtitle, on }: { title: string; subtitle: string; on: boolean }) {
-  return <div className="md-toggle"><div><b>{title}</b><span>{subtitle}</span></div><button className={on ? 'on' : ''}><i /></button></div>
-}
-

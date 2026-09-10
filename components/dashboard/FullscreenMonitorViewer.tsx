@@ -1,63 +1,32 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
-import {
-  Columns2, Download, Image, Maximize2,
-  Minimize2, MoveHorizontal, Target, X,
-} from 'lucide-react'
-import { ZoneSelector, type Zone } from '@/components/dashboard/ZoneSelector'
+import { useEffect, useState } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { Columns2, Download, Image as ImageIcon, Minimize2, MoveHorizontal, X } from 'lucide-react'
+import { IconButton } from '@/components/ui/icon-button'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface AlertItem {
-  id: string
-  diff_pct: number | null
-  severity: string | null
-  status: string
-  created_at: string
-  ai_summary?: string | null
-  metadata?: Record<string, any>
-  beforeUrl: string | null
-  afterUrl: string | null
-  diffUrl: string | null
-}
-
-interface SnapshotItem {
-  id: string
-  storage_path: string
-  taken_at: string
-  file_size_bytes: number | null
-  signedUrl: string | null
-}
-
-type Tab = 'diff' | 'current' | 'zones'
+type Tab = 'diff' | 'current'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  initialTab: Tab
+  tab: Tab
+  onTabChange: (tab: Tab) => void
   monitorName: string
-  snapshots: SnapshotItem[]
-  alerts: AlertItem[]
-  openAlert: AlertItem | null
-  zones: Zone[]
-  onZonesChange?: (zones: Zone[]) => void
+  beforeUrl: string | null
+  afterUrl: string | null
+  currentUrl: string | null
+  region: string
+  aiSummary: string | null
+  diffPct: number | null
+  capturedAt: string | null
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(iso?: string | null) {
   if (!iso) return 'Never'
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
-
-function fmtBytes(n: number | null) {
-  if (!n) return '—'
-  const kb = n / 1024
-  return kb < 1024 ? `${kb.toFixed(0)} KB` : `${(kb / 1024).toFixed(1)} MB`
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function fmtPct(v?: number | null) {
@@ -74,219 +43,165 @@ function triggerDownload(url: string, filename: string) {
   a.remove()
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
+/**
+ * Immersive fullscreen take on the same before/after/diff viewer — opened
+ * from the inline viewer's Fullscreen button or the `F` key. Built on the raw
+ * Radix Dialog primitives (not the centered `Dialog`) so it gets focus-trap,
+ * Escape-to-close and scroll-lock for free while filling the screen.
+ */
 export function FullscreenMonitorViewer({
   open,
   onOpenChange,
-  initialTab,
+  tab,
+  onTabChange,
   monitorName,
-  snapshots,
-  alerts,
-  openAlert,
-  zones,
-  onZonesChange,
+  beforeUrl,
+  afterUrl,
+  currentUrl,
+  region,
+  aiSummary,
+  diffPct,
+  capturedAt,
 }: Props) {
-  const [tab, setTab]       = useState<Tab>(initialTab)
   const [handle, setHandle] = useState(50)
-  const [mounted, setMounted] = useState(false)
+  const hasDiff = Boolean(beforeUrl && afterUrl)
 
-  // Mount guard — createPortal requires the DOM to exist
-  useEffect(() => { setMounted(true) }, [])
-
-  // Sync tab when caller opens with a different tab
-  useEffect(() => {
-    if (open) setTab(initialTab)
-  }, [open, initialTab])
-
-  // Lock body scroll and handle Escape while open
-  useEffect(() => {
-    if (!open) return
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = prevOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [open, onOpenChange])
-
-  // Derived values — computed fresh each render, no extra state
-  const latest      = snapshots[0] ?? null
-  const previous    = snapshots[1] ?? null
-  const activeAlert = openAlert ?? alerts[0] ?? null
-  const afterUrl    = activeAlert?.afterUrl ?? latest?.signedUrl ?? null
-  const beforeUrl   = activeAlert?.beforeUrl ?? previous?.signedUrl ?? null
-  const currentUrl  = latest?.signedUrl ?? afterUrl
-  const zoneImgUrl  = latest?.signedUrl ?? afterUrl
-  const hasDiff     = Boolean(beforeUrl && afterUrl)
-  const region      = activeAlert?.metadata?.zone_scores?.[0]?.label
-                   ?? zones[0]?.label
-                   ?? 'Full page'
-
-  const tabs = useMemo<Array<{ id: Tab; label: string; Icon: typeof Columns2; disabled: boolean }>>(() => [
-    { id: 'diff',    label: 'Diff comparison', Icon: Columns2, disabled: !hasDiff    },
-    { id: 'current', label: 'Current capture', Icon: Image,    disabled: !currentUrl },
-    { id: 'zones',   label: 'Zone editor',     Icon: Target,   disabled: !zoneImgUrl },
-  ], [hasDiff, currentUrl, zoneImgUrl])
+  const tabs: Array<{ id: Tab; label: string; Icon: typeof Columns2; disabled: boolean }> = [
+    { id: 'diff', label: 'Diff comparison', Icon: Columns2, disabled: !hasDiff },
+    { id: 'current', label: 'Current capture', Icon: ImageIcon, disabled: !currentUrl },
+  ]
 
   function onDrag(e: React.PointerEvent) {
     const rect = e.currentTarget.getBoundingClientRect()
     setHandle(Math.max(3, Math.min(97, ((e.clientX - rect.left) / rect.width) * 100)))
   }
 
-  function onZoneChange(next: Zone[]) {
-    onZonesChange?.(next)
-    window.dispatchEvent(
-      new CustomEvent('pagewatch:zones-updated', {
-        detail: { zones: next, source: 'fullscreen-viewer' },
-      })
-    )
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (tab !== 'diff') return
+    if (e.key === 'ArrowLeft') setHandle((h) => Math.max(3, h - 4))
+    else if (e.key === 'ArrowRight') setHandle((h) => Math.min(97, h + 4))
   }
 
-  if (!mounted || !open) return null
+  // Reset the slider each time the dialog opens so it doesn't carry a stale
+  // position from the previous capture.
+  useEffect(() => {
+    if (open) setHandle(50)
+  }, [open])
 
-  return createPortal(
-    <div className="pw-fso" role="dialog" aria-modal="true" aria-label="Fullscreen monitor viewer">
-      {/* Backdrop */}
-      <div className="pw-fso-backdrop" onClick={() => onOpenChange(false)} />
+  // 'F' closes fullscreen (it's the toggle), matching the inline viewer's shortcut.
+  useEffect(() => {
+    if (!open) return
+    function handler(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return
+      if (e.key === 'f' || e.key === 'F') onOpenChange(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onOpenChange])
 
-      {/* Shell */}
-      <div className="pw-fso-shell">
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-bg/95 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          className="fixed inset-0 z-50 flex flex-col bg-bg text-text outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          onKeyDown={onKeyDown}
+          aria-describedby={undefined}
+        >
+          <DialogPrimitive.Title className="sr-only">{monitorName} — fullscreen viewer</DialogPrimitive.Title>
 
-        {/* ── Header ── */}
-        <header className="pw-fso-header">
-          <div className="pw-fso-title">
-            <span className="pw-fso-title-icon"><Maximize2 size={14} /></span>
-            <div>
-              <b>{monitorName}</b>
-              <small>
-                {tab === 'diff'    && `Changed region: ${region}`}
-                {tab === 'current' && `Captured ${fmtDate(latest?.taken_at)}`}
-                {tab === 'zones'   && `${zones.length} zone${zones.length !== 1 ? 's' : ''} configured`}
-              </small>
+          <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3 sm:px-4">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-ui-medium text-text">{monitorName}</p>
+              <p className="truncate text-meta text-text-muted">
+                {tab === 'diff' ? `Changed region: ${region}` : `Captured ${fmtDate(capturedAt)}`}
+              </p>
             </div>
-          </div>
 
-          <nav className="pw-fso-tabs">
-            {tabs.map(({ id, label, Icon, disabled }) => (
-              <button
-                key={id}
-                type="button"
-                disabled={disabled}
-                className={tab === id ? 'active' : ''}
-                onClick={() => setTab(id)}
-              >
-                <Icon size={14} />{label}
-              </button>
-            ))}
-          </nav>
+            <nav className="hidden items-center gap-1 sm:flex">
+              {tabs.map(({ id, label, Icon, disabled }) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onTabChange(id)}
+                  className={cn(
+                    'flex h-8 items-center gap-1.5 rounded px-2.5 text-ui text-text-muted transition-colors duration-120',
+                    'hover:text-text disabled:pointer-events-none disabled:opacity-45',
+                    tab === id && 'bg-panel-raised text-text'
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  {label}
+                </button>
+              ))}
+            </nav>
 
-          <div className="pw-fso-actions">
             {tab === 'current' && currentUrl && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={<Download className="size-3.5" />}
                 onClick={() => triggerDownload(currentUrl, `${monitorName}-capture.png`)}
               >
-                <Download size={13} />Download
-              </button>
+                Download
+              </Button>
             )}
-            <button type="button" onClick={() => onOpenChange(false)}>
-              <Minimize2 size={13} />Exit
-            </button>
-            <button
-              type="button"
-              className="icon"
-              onClick={() => onOpenChange(false)}
-              aria-label="Close fullscreen viewer"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </header>
+            <IconButton aria-label="Exit fullscreen" onClick={() => onOpenChange(false)}>
+              <Minimize2 className="size-4" />
+            </IconButton>
+            <DialogPrimitive.Close asChild>
+              <IconButton aria-label="Close fullscreen viewer">
+                <X className="size-4" />
+              </IconButton>
+            </DialogPrimitive.Close>
+          </header>
 
-        {/* ── Main ── */}
-        <main className="pw-fso-main">
-
-          {/* Diff tab */}
-          {tab === 'diff' && hasDiff && (
-            <div
-              className="pw-fso-diff"
-              onPointerDown={onDrag}
-              onPointerMove={(e) => e.buttons === 1 && onDrag(e)}
-            >
-              <div className="pw-fso-layer after">
-                <img src={afterUrl!} alt="After capture" />
-              </div>
+          <main className="min-h-0 flex-1">
+            {tab === 'diff' && hasDiff && (
               <div
-                className="pw-fso-layer before"
-                style={{ clipPath: `inset(0 ${100 - handle}% 0 0)` }}
+                className="relative h-full select-none overflow-hidden bg-bg-subtle"
+                style={{ cursor: 'ew-resize' }}
+                onPointerDown={onDrag}
+                onPointerMove={(e) => e.buttons === 1 && onDrag(e)}
               >
-                <img src={beforeUrl!} alt="Before capture" />
-              </div>
-              <span className="pw-fso-badge before">Before</span>
-              <span className="pw-fso-badge after">After</span>
-              <div className="pw-fso-handle" style={{ left: `${handle}%` }}>
-                <span><MoveHorizontal size={16} /></span>
-              </div>
-              <footer className="pw-fso-footer">
-                <b>{region}</b>
-                <span>{activeAlert?.ai_summary || 'Compare the before and after captures.'}</span>
-                <em>
-                  {activeAlert?.diff_pct != null
-                    ? `${fmtPct(activeAlert.diff_pct)}% diff`
-                    : fmtDate(activeAlert?.created_at)}
-                </em>
-              </footer>
-            </div>
-          )}
-
-          {/* Current capture tab */}
-          {tab === 'current' && currentUrl && (
-            <div className="pw-fso-current">
-              <img src={currentUrl} alt="Current capture" />
-              <footer className="pw-fso-footer" style={{ position: 'static', margin: '18px 18px 0' }}>
-                <b>Selected capture</b>
-                <span>
-                  {fmtDate(latest?.taken_at)} · {fmtBytes(latest?.file_size_bytes ?? null)}
-                </span>
-              </footer>
-            </div>
-          )}
-
-          {/* Zone editor tab */}
-          {tab === 'zones' && zoneImgUrl && (
-            <div className="pw-fso-zones">
-              <div className="pw-fso-zone-canvas">
-                <div>
-                  <ZoneSelector
-                    imageUrl={zoneImgUrl}
-                    zones={zones}
-                    onChange={onZoneChange}
-                  />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={afterUrl!} alt="After capture" className="absolute inset-0 size-full object-contain" />
+                <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - handle}% 0 0)` }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={beforeUrl!} alt="Before capture" className="absolute inset-0 size-full object-contain" />
                 </div>
+                <span className="absolute left-5 top-4 rounded-sm bg-bg/80 px-2 py-1 text-label uppercase text-text">Before</span>
+                <span className="absolute right-5 top-4 rounded-sm bg-bg/80 px-2 py-1 text-label uppercase text-text">After</span>
+                <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-panel" style={{ left: `${handle}%` }} />
+                <div
+                  className="pointer-events-none absolute top-1/2 flex size-9 items-center justify-center rounded-full bg-panel shadow-popover"
+                  style={{ left: `${handle}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                  <MoveHorizontal className="size-4 text-text" />
+                </div>
+                <footer className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-md border border-border bg-panel-raised/95 px-3.5 py-2.5 shadow-popover backdrop-blur">
+                  <p className="text-ui-medium text-text">{region}</p>
+                  <p className="min-w-0 flex-1 truncate text-meta text-text-muted">
+                    {aiSummary || 'Compare the before and after captures.'}
+                  </p>
+                  <em className="shrink-0 font-mono text-meta not-italic text-text-faint">
+                    {diffPct != null ? `${fmtPct(diffPct)}% diff` : fmtDate(capturedAt)}
+                  </em>
+                </footer>
               </div>
-              <aside className="pw-fso-zone-aside">
-                <b>Fullscreen zone editor</b>
-                <p>
-                  Draw zones directly on the screenshot.
-                  Changes sync with the sidebar immediately.
-                </p>
-                {zones.length > 0
-                  ? zones.map((z, i) => (
-                      <span key={z.id ?? i}>{z.label || `Zone ${i + 1}`}</span>
-                    ))
-                  : <em>No zones yet — drag on the screenshot to create one.</em>}
-              </aside>
-            </div>
-          )}
+            )}
 
-        </main>
-      </div>
-    </div>,
-    document.body
+            {tab === 'current' && currentUrl && (
+              <div className="flex h-full items-start justify-center overflow-auto p-6">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={currentUrl} alt="Current capture" className="block max-w-[min(100%,1440px)] rounded-md border border-border shadow-popover" />
+              </div>
+            )}
+          </main>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }

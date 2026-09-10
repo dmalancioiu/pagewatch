@@ -1,9 +1,12 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { AddUrlModal } from './AddUrlModal'
 import { FirstScreenshotModal } from './FirstScreenshotModal'
+import { IconButton } from '@/components/ui/icon-button'
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import type { ClientEntitlements } from '@/lib/entitlements'
 import type { FeatureKey } from '@/lib/plans'
 
@@ -60,6 +63,7 @@ export function DashboardShell({
   entitlements,
 }: DashboardShellProps) {
   const [addOpen, setAddOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [createdMonitor, setCreatedMonitor] = useState<{ id: string; name: string } | null>(
     null
   )
@@ -89,10 +93,32 @@ export function DashboardShell({
 
   return (
     <DashboardCtx.Provider value={value}>
-      <div className="pw-shell">
-        <Sidebar domain={domain} userEmail={userEmail} />
-        <main className="pw-shell-main">{children}</main>
+      <div className="flex min-h-screen bg-bg">
+        {/* Static sidebar — design system §4: 224px, hairline right border. */}
+        <aside className="hidden w-56 shrink-0 border-r border-border min-[860px]:flex">
+          <Sidebar domain={domain} userEmail={userEmail} />
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Mobile top bar — the sidebar collapses below 860px into a Sheet. */}
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-panel px-3 min-[860px]:hidden">
+            <IconButton aria-label="Open navigation" onClick={() => setNavOpen(true)}>
+              <Menu className="size-4" />
+            </IconButton>
+            <span className="text-ui-medium text-text">PageWatch</span>
+          </div>
+
+          <main className="min-w-0 flex-1">{children}</main>
+        </div>
       </div>
+
+      <Sheet open={navOpen} onOpenChange={setNavOpen}>
+        <SheetContent side="left" className="max-w-[224px] gap-0 p-0">
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetDescription className="sr-only">Dashboard navigation</SheetDescription>
+          <Sidebar domain={domain} userEmail={userEmail} onNavigate={() => setNavOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
       {addOpen && (
         <AddUrlModal

@@ -38,7 +38,7 @@ export default async function DashboardLayout({
   // No workspace yet — the user landed here before finishing onboarding.
   if (!workspace) {
     return (
-      <div className="pw-setup-screen">
+      <div className="flex min-h-screen items-center justify-center bg-bg px-4 py-6">
         <SetupCommand userEmail={userEmail} userName={userName} />
       </div>
     )

@@ -4,7 +4,6 @@ import { getMonitoredUrlById } from '@/lib/actions/websites'
 import { getSignedUrls } from '@/lib/supabase/storage'
 import type { AlertWithUrls, SnapshotWithUrl } from './UrlDetailClient'
 import { MonitorDetailDesignClientResponsive } from '@/components/dashboard/MonitorDetailDesignClientResponsive'
-import { MonitorSettingsRailSync } from '@/components/dashboard/MonitorSettingsRailSync'
 
 export const metadata = { title: 'Monitor — PageWatch' }
 
@@ -73,7 +72,17 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
   const snapshotById = new Map<string, any>()
   for (const snapshot of snapshots) snapshotById.set(snapshot.id, snapshot)
 
-  const allPaths = [...snapshots.map((s: any) => s.storage_path), ...alerts.map((a: any) => a.diff_storage_path)].filter(Boolean)
+  // Thumbnails are written per capture at 480px and recorded on the snapshot's
+  // metadata. Signing them here keeps the timeline strip off the multi-megabyte
+  // full captures. Older snapshots predate thumbnails, hence the fallback.
+  const thumbPath = (snapshot: any): string | null =>
+    (snapshot.metadata?.thumb_path as string | undefined) ?? null
+
+  const allPaths = [
+    ...snapshots.map((s: any) => s.storage_path),
+    ...snapshots.map(thumbPath),
+    ...alerts.map((a: any) => a.diff_storage_path),
+  ].filter(Boolean) as string[]
   const signedUrlMap = await getSignedUrls(allPaths)
 
   const enrichedAlerts: AlertWithUrls[] = alerts.map((alert: any) => {
@@ -105,32 +114,24 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
     taken_at: snapshot.taken_at,
     file_size_bytes: snapshot.file_size_bytes,
     signedUrl: signedUrlMap.get(snapshot.storage_path) ?? null,
+    thumbUrl:
+      (thumbPath(snapshot) ? signedUrlMap.get(thumbPath(snapshot)!) : null) ??
+      signedUrlMap.get(snapshot.storage_path) ??
+      null,
   }))
 
   const openAlert = enrichedAlerts.find((alert) => alert.status === 'open') ?? null
 
   return (
-    <>
-      <MonitorDetailDesignClientResponsive
-        monitor={urlData}
-        openAlert={openAlert}
-        snapshots={enrichedSnapshots}
-        alerts={enrichedAlerts}
-        alertBySnapshotId={alertBySnapshotId}
-        zones={urlData.zones ?? []}
-        lastChecked={timeAgo(urlData.last_checked_at)}
-        nextRun={nextCheckAt(urlData)}
-      />
-      <MonitorSettingsRailSync
-        monitorId={urlData.id}
-        initialIsActive={urlData.is_active !== false}
-        hasOpenAlert={Boolean(openAlert)}
-        initialCheckFrequency={urlData.check_frequency ?? 'daily'}
-        initialCheckHour={urlData.check_hour ?? 10}
-        initialFullPage={urlData.full_page !== false}
-        initialWatchDescription={urlData.watch_description ?? null}
-        initialZones={urlData.zones ?? []}
-      />
-    </>
+    <MonitorDetailDesignClientResponsive
+      monitor={urlData}
+      openAlert={openAlert}
+      snapshots={enrichedSnapshots}
+      alerts={enrichedAlerts}
+      alertBySnapshotId={alertBySnapshotId}
+      zones={urlData.zones ?? []}
+      lastChecked={timeAgo(urlData.last_checked_at)}
+      nextRun={nextCheckAt(urlData)}
+    />
   )
 }
