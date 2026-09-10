@@ -11,6 +11,8 @@ import { normalizeUrl } from '../../lib/url'
 import type { Zone } from '../../lib/types/database.types'
 import { decodeToRaw, encodeCaptureWebp, encodeRawWebp, makeThumbnail, cropZoneWebp, type RawImage } from './image'
 import { diffExtracts, contentTextHash, type PageExtract } from '../../lib/content-diff'
+import { classifyChange, type ClassificationResult } from './classify-change'
+import { resolveRouting, type ChangeType } from '../../lib/change-types'
 
 interface ZoneDiffScore {
   label: string
@@ -732,6 +734,27 @@ export async function processUrl(
     : diffPct >= (monUrl.threshold_pct ?? 5) && !isBandedNoise
   let alerted = false
 
+  // ─── Change classification + routing (D2) ─────────────────────────────────
+  // Deterministic first (trigger/lib/classify-change.ts): most changes are
+  // obvious from the structured diff alone and this must not cost a model
+  // call. Zone-based monitors have no `ContentChange[]` to classify against,
+  // so they go straight to "ambiguous" — the same shouldRunAI call already
+  // being made below (if any) supplies the type instead of a second one.
+  const classification: ClassificationResult = contentGateApplies
+    ? classifyChange(contentDiff.changes, {
+        url: monUrl.url,
+        pageTitle: extract?.title ?? prevExtract?.title ?? null,
+        afterText: extract ? extract.text : null,
+      })
+    : { type: null, needsModel: true, reason: 'Zone-based monitor: no structured content changes to classify deterministically.' }
+
+  // Falls back to 'other' when ambiguous and the model either won't run
+  // (plan lacks aiSummaries, or this change didn't clear the floor) or fails
+  // — never left unset. Only overwritten below when `classification.needsModel`
+  // is true AND the AI call actually returns, so a confident deterministic
+  // answer is never second-guessed by the model.
+  let changeType: ChangeType = classification.type ?? 'other'
+
   if (isBandedNoise) {
     logger.info('Diff confined to a single edge band under 2%. Treating as chrome noise', {
       url: monUrl.url,
@@ -760,6 +783,10 @@ export async function processUrl(
         })
         shouldAlert = aiResult.shouldAlert
         aiSummary = aiResult.summary
+        // Only trust the model's classification when our own deterministic
+        // pass came back ambiguous — a confident deterministic answer (e.g.
+        // `price`, from kind alone) is never second-guessed by the model.
+        if (classification.needsModel) changeType = aiResult.changeType
         await recordUsage(supabase, monUrl.workspace_id, { aiCalls: 1 })
         logger.info('AI analysis complete', {
           url: monUrl.url,
@@ -771,6 +798,8 @@ export async function processUrl(
           zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
           contentChangeCount: contentGateApplies ? contentDiff.changes.length : null,
           textOnly: contentGateApplies && !forceImages && contentDiff.changes.length > 0,
+          changeType,
+          changeTypeSource: classification.needsModel ? 'model' : 'deterministic',
         })
       } catch (aiErr) {
         logger.warn('AI analysis error. Defaulting to semantic threshold-based alert', { url: monUrl.url, err: aiErr })
@@ -783,12 +812,25 @@ export async function processUrl(
       const severity =
         alertScore >= 85 ? 'critical' : alertScore >= 65 ? 'high' : alertScore >= 35 ? 'medium' : 'low'
 
+      // ─── Routing (D2) ─────────────────────────────────────────────────────
+      // `monUrl.change_routing` is jsonb straight off the row - untyped, and
+      // possibly null (the overwhelming majority of monitors, today). See
+      // migration 010: absent/malformed input degrades to 'alert', matching
+      // pre-D2 behaviour exactly.
+      const routing = resolveRouting(monUrl.change_routing, changeType)
+      // 'ignore' still writes the row (history is the product) but starts
+      // 'dismissed' instead of 'open' - the same status column the dashboard's
+      // dismiss action already writes - so it never enters the digest's
+      // `status = 'open'` query or an instant send, without touching either
+      // of those files.
+      const status = routing === 'ignore' ? 'dismissed' : 'open'
+
       const { data: createdAlert, error: alertErr } = await supabase.from('alerts').insert({
         workspace_id: monUrl.workspace_id,
         monitored_url_id: monUrl.id,
         alert_type: 'visual_change',
         severity,
-        status: 'open',
+        status,
         title: semanticAlertTitle(monUrl, passedZones),
         summary: aiSummary || semanticFallbackSummary(Boolean(zoneCrops)),
         ai_summary: aiSummary || null,
@@ -796,6 +838,7 @@ export async function processUrl(
         diff_storage_path: diffStoragePath,
         current_snapshot_id: snapshot.id,
         previous_snapshot_id: prevSnapshot.id,
+        change_type: changeType,
         metadata: {
           url: monUrl.url,
           threshold_pct: monUrl.threshold_pct,
@@ -809,6 +852,7 @@ export async function processUrl(
           // the content-diff gate doesn't apply to this monitor (zones) -
           // matches `contentChanges` passed to analyzeWithAI above.
           content_changes: contentGateApplies ? contentDiff.changes : null,
+          change_routing: routing,
         },
         triggered_at: now.toISOString(),
       })
@@ -818,14 +862,26 @@ export async function processUrl(
       if (alertErr) throw new Error(`Failed to create alert: ${alertErr.message}`)
 
       alerted = true
-      logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), alertScore, aiSuppressed: false })
+      logger.info('Alert created', {
+        url: monUrl.url,
+        diffPct: diffPct.toFixed(1),
+        alertScore,
+        aiSuppressed: false,
+        changeType,
+        routing,
+      })
 
       // High and critical changes go out immediately; everything else waits for
       // the daily digest. The task itself re-checks severity, the workspace's
       // plan and whether a notification was already sent, so enqueueing here is
       // safe and never double-sends. Fire-and-forget: a delivery problem must
       // not fail a capture that already succeeded.
-      if (createdAlert && (severity === 'critical' || severity === 'high')) {
+      //
+      // Routing gates this independently of severity: 'digest_only' waits for
+      // the daily digest no matter how severe the change scored, and 'ignore'
+      // never notifies at all (its 'dismissed' status above already keeps it
+      // out of the digest query too - this additionally skips the instant path).
+      if (createdAlert && routing === 'alert' && (severity === 'critical' || severity === 'high')) {
         await triggerInstantAlert(createdAlert.id)
       }
     } else {

@@ -1,3 +1,5 @@
+import type { ChangeType, ChangeRouting } from '../change-types'
+
 export type ZoneSensitivity = 'low' | 'normal' | 'high'
 
 export interface Zone {
@@ -86,6 +88,11 @@ export interface MonitoredUrl {
   alerts_muted: boolean
   /** Suppresses delivery until this moment passes, then resumes on its own. */
   alerts_snoozed_until: string | null
+  /**
+   * Per-change-type delivery routing. null means "alert on everything", which
+   * is what every monitor did before routing existed.
+   */
+  change_routing: Partial<Record<ChangeType, ChangeRouting>> | null
   // Monitor health (migration 006)
   consecutive_failures: number      // resets to 0 on the next successful capture
   last_error: string | null         // sanitised, human-readable — never a stack trace
@@ -126,6 +133,8 @@ export interface ScreenshotDiff {
 
 export interface Alert {
   id: string
+  /** What kind of change this was. Orthogonal to severity. */
+  change_type: ChangeType | null
   workspace_id: string
   monitored_url_id: string
   alert_type: AlertType

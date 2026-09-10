@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import sharp from 'sharp'
 import type { ContentChange } from '../../lib/content-diff'
+import { CHANGE_TYPE_INFO, CHANGE_TYPES, isChangeType, type ChangeType } from '../../lib/change-types'
 
 export interface ZoneCrop {
   label:        string   // e.g. "Zone 1" or user-provided label
@@ -13,6 +14,15 @@ export interface ZoneCrop {
 export interface AiAnalysisResult {
   shouldAlert: boolean
   summary: string   // Always populated: either Claude's description or a generic fallback
+  /**
+   * Best-fit `ChangeType` (lib/change-types.ts). Always populated — 'other'
+   * when the model has no better answer, no API key is set, or the call
+   * fails. The caller (`trigger/lib/take-screenshot.ts`) only trusts this
+   * when its own deterministic pass (`trigger/lib/classify-change.ts`) came
+   * back ambiguous; it is harmless, not wasted, to compute it on every call
+   * regardless, since it rides along on the one call already being made.
+   */
+  changeType: ChangeType
 }
 
 /**
@@ -41,11 +51,27 @@ const CLASSIFICATION_FORMAT: Anthropic.Messages.OutputConfig['format'] = {
         description:
           'A plain-English 1-2 sentence description of exactly what changed. Empty string when should_alert is false.',
       },
+      change_type: {
+        type: 'string',
+        enum: [...CHANGE_TYPES],
+        description:
+          'Best-fit category for what changed. Use "other" if nothing fits better.',
+      },
     },
-    required: ['should_alert', 'summary'],
+    required: ['should_alert', 'summary', 'change_type'],
     additionalProperties: false,
   },
 }
+
+/**
+ * One line per `ChangeType`, appended to every prompt variant below so the
+ * model has the same taxonomy `trigger/lib/classify-change.ts` checks
+ * deterministically first — this call only runs at all when that pass came
+ * back ambiguous (or zones/images are in play, where there's no
+ * `ContentChange[]` to run it against), so the model is the tiebreaker, not
+ * the first opinion.
+ */
+const CHANGE_TYPE_TAXONOMY_PROMPT = CHANGE_TYPES.map((t) => `- ${t}: ${CHANGE_TYPE_INFO[t].description}`).join('\n')
 
 /**
  * Downscale + re-encode an image before it goes to the model. A full-page
@@ -155,8 +181,8 @@ export async function analyzeWithAI(params: {
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    if (textOnly) return { shouldAlert: true, summary: summarizeContentChangesPlain(contentChanges!) }
-    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones) }
+    if (textOnly) return { shouldAlert: true, summary: summarizeContentChangesPlain(contentChanges!), changeType: 'other' }
+    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones), changeType: 'other' }
   }
 
   const client = new Anthropic({ apiKey })
@@ -201,7 +227,7 @@ export async function analyzeWithAI(params: {
       }
     } catch (encodeErr) {
       console.error('[analyzeWithAI] Image resize/encode failed, falling back to generic alert:', encodeErr)
-      return { shouldAlert: true, summary: genericSummary(diffPct, hasZones) }
+      return { shouldAlert: true, summary: genericSummary(diffPct, hasZones), changeType: 'other' }
     }
   }
 
@@ -224,6 +250,9 @@ export async function analyzeWithAI(params: {
       watchNote,
       ``,
       `Decide whether this is worth alerting the user about, and if so, describe it in one or two plain sentences (you may combine or rephrase the bullets above — do not just restate them verbatim). If none of these differences are things the user would care about (e.g. only volatile/noise content slipped through), decide not to alert.`,
+      ``,
+      `Also classify the change as exactly one of these types:`,
+      CHANGE_TYPE_TAXONOMY_PROMPT,
     ].join('\n')
   } else if (hasZones) {
     const zoneBrief = zoneCrops!.map((z, i) => {
@@ -263,6 +292,9 @@ export async function analyzeWithAI(params: {
       `Decide whether any zone changed in a way that matches its own watch instruction. If YES, describe exactly what changed in one or two plain sentences (mention the zone name when useful; if multiple zones changed, summarize without being verbose). If NO zone changed in a relevant way, decide not to alert.`,
       ``,
       `Ignore unrelated noise such as ads rotating, cookie banners, chat widgets, loading shimmer, tiny antialiasing differences, and timestamps unless a zone instruction explicitly asks to watch them.`,
+      ``,
+      `Also classify the change as exactly one of these types:`,
+      CHANGE_TYPE_TAXONOMY_PROMPT,
     ].join('\n')
   } else {
     // Full-page image comparison (extraction failed, or a layout-only change)
@@ -278,6 +310,9 @@ export async function analyzeWithAI(params: {
         sensitivityNote,
         ``,
         `Look at both screenshots carefully. Did something the user specifically cares about change? If YES, describe exactly what changed in one or two plain sentences (be specific, e.g. "The pricing plan changed from $29/mo to $39/mo" or "The hero headline now reads 'New: Enterprise Plan'"). If NO (the change is unrelated noise such as ads rotating, a timestamp updating, or minor layout shifts the user would not care about), decide not to alert.`,
+        ``,
+        `Also classify the change as exactly one of these types:`,
+        CHANGE_TYPE_TAXONOMY_PROMPT,
       ].filter(Boolean).join('\n')
     } else {
       prompt = [
@@ -285,6 +320,9 @@ export async function analyzeWithAI(params: {
         sensitivityNote,
         ``,
         `Look at both screenshots and describe what visually changed in one or two plain sentences. Be specific if you can (e.g. "The navigation bar colour changed from dark to light" or "New content appeared in the main hero section").`,
+        ``,
+        `Also classify the change as exactly one of these types:`,
+        CHANGE_TYPE_TAXONOMY_PROMPT,
       ].filter(Boolean).join('\n')
     }
   }
@@ -309,28 +347,35 @@ export async function analyzeWithAI(params: {
       .join('')
       .trim()
 
-    let parsed: { should_alert?: unknown; summary?: unknown } | null = null
+    let parsed: { should_alert?: unknown; summary?: unknown; change_type?: unknown } | null = null
     try {
       parsed = JSON.parse(text)
     } catch (parseErr) {
       console.error('[analyzeWithAI] Could not parse structured output, falling back to generic alert:', parseErr, text)
     }
 
+    const changeType: ChangeType = isChangeType(parsed?.change_type) ? parsed!.change_type : 'other'
+
     if (!parsed || typeof parsed.should_alert !== 'boolean') {
-      return { shouldAlert: true, summary: textOnly ? summarizeContentChangesPlain(contentChanges!) : genericSummary(diffPct, hasZones) }
+      return {
+        shouldAlert: true,
+        summary: textOnly ? summarizeContentChangesPlain(contentChanges!) : genericSummary(diffPct, hasZones),
+        changeType,
+      }
     }
 
-    if (!parsed.should_alert) return { shouldAlert: false, summary: '' }
+    if (!parsed.should_alert) return { shouldAlert: false, summary: '', changeType }
 
     const summary = typeof parsed.summary === 'string' && parsed.summary.trim() ? parsed.summary.trim() : null
     return {
       shouldAlert: true,
       summary: summary ?? (textOnly ? summarizeContentChangesPlain(contentChanges!) : genericSummary(diffPct, hasZones)),
+      changeType,
     }
   } catch (err) {
     console.error('[analyzeWithAI] Claude call failed, falling back to generic alert:', err)
-    if (textOnly) return { shouldAlert: true, summary: summarizeContentChangesPlain(contentChanges!) }
-    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones) }
+    if (textOnly) return { shouldAlert: true, summary: summarizeContentChangesPlain(contentChanges!), changeType: 'other' }
+    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones), changeType: 'other' }
   }
 }
 
