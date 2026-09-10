@@ -2,36 +2,145 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM TOKENS — see docs/DESIGN_SYSTEM.md.
+   Dark-first: the dark palette lives under `.dark` and is the product
+   default (next-themes defaultTheme="dark"); `:root` carries the light
+   palette. Colours are space-separated channel triplets so Tailwind's
+   opacity modifiers work: `rgb(var(--accent) / <alpha-value>)` lets
+   `bg-accent/10` etc. resolve correctly — never write a raw hex here.
+   ══════════════════════════════════════════════════════════════════ */
+
 html, body, :root {
   height: 100%;
 }
 
-/* ─── Design tokens (light theme only) ─── */
 :root {
-  --bg-page:      #F6F7F9;
-  --bg-sidebar:   #FFFFFF;
-  --bg-card:      #FFFFFF;
-  --bg-card-alt:  #F8FAFC;
-  --border:       #E5E7EB;
-  --border-light: #F3F4F6;
-  --text-primary: #111827;
-  --text-muted:   #6B7280;
-  --text-dim:     #9CA3AF;
-  --text-faint:   #D1D5DB;
-  --accent:         #2563EB;
-  --accent-bg:      rgba(37,99,235,0.06);
-  --accent-border:  rgba(37,99,235,0.2);
-  --accent-cyan:    #06B6D4;
-  --accent-cyan-bg: rgba(6,182,212,0.07);
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg:             250 250 251;
+  --bg-subtle:      244 245 247;
+  --panel:          255 255 255;
+  --panel-raised:   255 255 255;
+  --border:         230 232 236;
+  --border-strong:  210 214 221;
+
+  /* Text */
+  --text:           20 22 26;
+  --text-muted:     90 98 112;
+  --text-faint:     135 142 154;
+
+  /* Accent */
+  --accent:         91 75 224;
+  --accent-hover:   76 61 208;
+  --accent-fg:      255 255 255;
+  --accent-subtle:  rgb(91 75 224 / .10);
+
+  /* Change overlays — exclusively for diff regions, never a button/badge/link */
+  --diff:           224 23 110;
+  --diff-subtle:    rgb(224 23 110 / .10);
+
+  /* Semantic */
+  --critical:         217 45 59;
+  --critical-subtle:  rgb(217 45 59 / .12);
+  --warn:              184 119 8;
+  --warn-subtle:       rgb(184 119 8 / .12);
+  --ok:                14 138 95;
+  --ok-subtle:         rgb(14 138 95 / .12);
+  --info:              30 127 212;
+  --info-subtle:       rgb(30 127 212 / .12);
+
+  /* Radii */
+  --radius-sm:   4px;
+  --radius:      6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 999px;
+
+  /* Elevation */
+  --shadow-card:    0 1px 2px rgb(16 20 28 / .05);
+  --shadow-popover: 0 8px 24px rgb(16 20 28 / .12);
 }
 
-body {
-  @apply bg-[#F6F7F9] text-[#111827] antialiased;
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg:             11 12 14;
+  --bg-subtle:      15 17 19;
+  --panel:          19 21 24;
+  --panel-raised:   25 28 33;
+  --border:         35 38 44;
+  --border-strong:  49 53 61;
+
+  /* Text */
+  --text:           233 235 238;
+  --text-muted:     154 161 172;
+  --text-faint:     108 116 128;
+
+  /* Accent */
+  --accent:         124 107 245;
+  --accent-hover:   142 128 247;
+  --accent-fg:      255 255 255;
+  --accent-subtle:  rgb(124 107 245 / .14);
+
+  /* Change overlays */
+  --diff:           255 61 138;
+  --diff-subtle:    rgb(255 61 138 / .16);
+
+  /* Semantic */
+  --critical:         242 85 90;
+  --critical-subtle:  rgb(242 85 90 / .12);
+  --warn:              240 169 59;
+  --warn-subtle:       rgb(240 169 59 / .12);
+  --ok:                53 199 147;
+  --ok-subtle:         rgb(53 199 147 / .12);
+  --info:              72 169 248;
+  --info-subtle:       rgb(72 169 248 / .12);
+
+  /* Elevation — no shadows on cards in dark, only floating layers */
+  --shadow-card:    none;
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / .5);
 }
 
-* {
-  @apply border-border;
+@layer base {
+  * {
+    border-color: rgb(var(--border));
+  }
+
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: rgb(var(--accent) / .35);
+    color: rgb(var(--text));
+  }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LEGACY — pre-redesign dashboard styles.
+   Superseded by the token system above. Delete each block as its
+   screen is rebuilt; do not add anything new here.
+   ══════════════════════════════════════════════════════════════════ */
 
 /* ─── Landing page: grid background ─── */
 .grid-bg {

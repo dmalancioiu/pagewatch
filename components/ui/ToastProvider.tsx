@@ -1,19 +1,37 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { CheckCircle2, X } from 'lucide-react'
+import Link from 'next/link'
+import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
+/**
+ * `type` is the original API (`success | error | info`) — kept working so
+ * existing `useToast().error(...)` etc. callers don't break. `tone` is the
+ * preferred alias going forward; when both are given, `tone` wins.
+ */
 type ToastType = 'success' | 'error' | 'info'
+
+type ToastAction = {
+  label: string
+  href: string
+}
 
 type ToastInput = {
   title: string
   description?: string
   type?: ToastType
+  tone?: ToastType
+  /**
+   * An inline link-button — e.g. an `EntitlementError`'s `upgradeTo` turned
+   * into "Pro raises this to 15 monitors — Upgrade" instead of a dead end.
+   */
+  action?: ToastAction
 }
 
 type Toast = ToastInput & {
   id: string
-  type: ToastType
+  resolvedTone: ToastType
 }
 
 type ToastContextValue = {
@@ -24,7 +42,18 @@ type ToastContextValue = {
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
-const BLUE = '#2563EB'
+
+const TONE_ICON: Record<ToastType, typeof CheckCircle2> = {
+  success: CheckCircle2,
+  error: AlertTriangle,
+  info: Info,
+}
+
+const TONE_CLASSES: Record<ToastType, { icon: string; bar: string }> = {
+  success: { icon: 'bg-ok-subtle text-ok', bar: 'bg-ok' },
+  error: { icon: 'bg-critical-subtle text-critical', bar: 'bg-critical' },
+  info: { icon: 'bg-accent-subtle text-accent', bar: 'bg-accent' },
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -35,9 +64,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const toast = useCallback((input: ToastInput) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const next: Toast = { ...input, id, type: input.type ?? 'info' }
+    const resolvedTone = input.tone ?? input.type ?? 'info'
+    const next: Toast = { ...input, id, resolvedTone }
     setToasts(prev => [next, ...prev].slice(0, 4))
-    window.setTimeout(() => dismiss(id), 3800)
+    window.setTimeout(() => dismiss(id), 5200)
   }, [dismiss])
 
   const value = useMemo<ToastContextValue>(() => ({
@@ -59,21 +89,54 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           from { transform: scaleX(1); }
           to { transform: scaleX(0); }
         }
+        @media (prefers-reduced-motion: reduce) {
+          .pw-toast { animation-duration: 0.01ms !important; }
+          .pw-toast-bar { animation-duration: 0.01ms !important; }
+        }
       ` }} />
-      <div style={{ position: 'fixed', right: 18, bottom: 18, zIndex: 10000, display: 'flex', flexDirection: 'column', gap: 10, width: 'min(390px, calc(100vw - 36px))', pointerEvents: 'none' }}>
-        {toasts.map(item => (
-          <div key={item.id} style={{ pointerEvents: 'auto', position: 'relative', overflow: 'hidden', display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 15px', borderRadius: 16, background: 'rgba(255,255,255,0.96)', border: '1px solid rgba(37,99,235,0.16)', boxShadow: '0 22px 60px rgba(15,23,42,0.16), 0 1px 2px rgba(15,23,42,0.04)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', animation: 'pw-toast-in 260ms cubic-bezier(0.16, 1, 0.3, 1)' }}>
-            <div style={{ width: 31, height: 31, borderRadius: 11, background: 'rgba(37,99,235,0.08)', color: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: 'inset 0 0 0 1px rgba(37,99,235,0.10)' }}>
-              <CheckCircle2 size={16} />
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[10000] flex w-[min(380px,calc(100vw-32px))] flex-col gap-2.5">
+        {toasts.map(item => {
+          const Icon = TONE_ICON[item.resolvedTone]
+          const tone = TONE_CLASSES[item.resolvedTone]
+          return (
+            <div
+              key={item.id}
+              className="pw-toast pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-md border border-border bg-panel-raised p-3.5 shadow-popover"
+              style={{ animation: 'pw-toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+              role="status"
+            >
+              <div className={cn('flex size-7 shrink-0 items-center justify-center rounded', tone.icon)}>
+                <Icon className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <p className="text-ui-medium text-text">{item.title}</p>
+                {item.description && (
+                  <p className="mt-0.5 text-meta text-text-muted">{item.description}</p>
+                )}
+                {item.action && (
+                  <Link
+                    href={item.action.href}
+                    className="mt-1.5 inline-block text-meta font-medium text-accent hover:underline"
+                    onClick={() => dismiss(item.id)}
+                  >
+                    {item.action.label}
+                  </Link>
+                )}
+              </div>
+              <button
+                onClick={() => dismiss(item.id)}
+                aria-label="Dismiss notification"
+                className="flex size-6 shrink-0 items-center justify-center rounded-sm text-text-faint transition-colors hover:bg-bg-subtle hover:text-text"
+              >
+                <X className="size-3.5" />
+              </button>
+              <span
+                className={cn('pw-toast-bar absolute inset-x-0 bottom-0 h-0.5 origin-left', tone.bar)}
+                style={{ animation: 'pw-toast-bar 5200ms linear forwards' }}
+              />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.25, fontWeight: 760, color: '#0F172A', letterSpacing: '-0.015em' }}>{item.title}</p>
-              {item.description && <p style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.45, fontWeight: 450, color: '#64748B' }}>{item.description}</p>}
-            </div>
-            <button onClick={() => dismiss(item.id)} aria-label="Dismiss notification" style={{ width: 24, height: 24, borderRadius: 8, border: 'none', background: 'rgba(15,23,42,0.04)', color: '#94A3B8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={13} /></button>
-            <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'linear-gradient(90deg, rgba(37,99,235,0.85), rgba(59,130,246,0.24))', transformOrigin: 'left center', animation: 'pw-toast-bar 3800ms linear forwards' }} />
-          </div>
-        ))}
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )
