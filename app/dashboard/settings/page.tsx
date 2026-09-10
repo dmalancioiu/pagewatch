@@ -6,6 +6,7 @@ import { getEntitlements, toClientEntitlements } from '@/lib/entitlements'
 import { createServerClient } from '@/lib/supabase/server'
 import { parseSlackConfig } from '@/lib/slack'
 import { cheapestPlanWith } from '@/lib/plans'
+import { ManageBillingButton } from './ManageBillingButton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Meter } from '@/components/ui/meter'
@@ -49,6 +50,11 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const emailAddr = emailConfig.email ?? user?.email ?? '—'
   const emailFreq = emailConfig.frequency ?? 'daily'
   const client = entitlements ? toClientEntitlements(entitlements) : null
+
+  // Whether there is anything for the Stripe portal to manage. Read as a
+  // boolean here so the customer id itself never crosses into a client
+  // component — it is not a secret, but it has no business in the browser.
+  const hasBilling = Boolean((workspace as { stripe_customer_id?: string | null })?.stripe_customer_id)
 
   const slackConfig = slackRow ? parseSlackConfig(slackRow.config) : null
   const slackConnection: SlackConnectionView = slackConfig
@@ -140,11 +146,16 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 {client ? `${client.limits.maxMonitors} monitors · ${client.limits.maxChecksPerMonth.toLocaleString()} checks/mo` : '—'}
               </p>
             </div>
-            <Button asChild size="sm">
-              <Link href="/#pricing">
-                Upgrade <ArrowUpRight className="size-3.5" />
-              </Link>
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              {/* Only shown once there is a Stripe customer to manage —
+                  a button that always errors is worse than no button. */}
+              {hasBilling && <ManageBillingButton />}
+              <Button asChild size="sm">
+                <Link href="/#pricing">
+                  Upgrade <ArrowUpRight className="size-3.5" />
+                </Link>
+              </Button>
+            </div>
           </div>
           <Separator />
           {client && (
