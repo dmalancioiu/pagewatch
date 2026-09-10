@@ -98,6 +98,14 @@ export interface ScreenshotSnapshot {
   storage_path: string
   taken_at: string
   metadata: Record<string, unknown>
+  // Structured extraction (migration 008). `PageExtract` itself lives in
+  // lib/content-diff.ts, which must stay dependency-free of this file's
+  // Supabase-adjacent neighbours — imported here only as a type.
+  extract: import('../content-diff').PageExtract | null
+  // Hash of the normalized visible text alone (not the whole extract) — lets
+  // "did anything a person would describe change" be a single indexed
+  // equality check. See migration 008 for why it excludes prices/headings.
+  content_hash: string | null
   created_at: string
 }
 
@@ -126,6 +134,11 @@ export interface Alert {
   diff_storage_path: string | null
   current_snapshot_id: string | null
   previous_snapshot_id: string | null
+  // Loosely typed on purpose — this row already carries pixel-diff fields
+  // (alert_score, zone_scores, ...) that predate this type. When present,
+  // `content_changes` holds `ContentChange[]` (lib/content-diff.ts) — the
+  // structured changes `diffExtracts` found, so the UI can render them
+  // without re-deriving them from the raw extracts.
   metadata: Record<string, unknown> | null
   triggered_at: string
   created_at: string

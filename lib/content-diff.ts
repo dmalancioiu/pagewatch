@@ -179,6 +179,24 @@ export function currencyCodeFromSymbol(symbol: string): string | null {
   return CURRENCY_SYMBOL_TO_CODE[symbol] ?? null
 }
 
+/**
+ * Hash of the normalized visible text ALONE - not headings, prices, or
+ * links, which move independently of body copy and would make the hash
+ * change on every capture even when nothing a person would describe
+ * actually did. Stored as `screenshot_snapshots.content_hash` (migration
+ * 008) so "did anything change at all" is one indexed equality check
+ * instead of downloading and diffing the previous extract on every capture.
+ *
+ * djb2 - cheap and deterministic; this only needs to be a stable
+ * fingerprint, not a cryptographic hash.
+ */
+export function contentTextHash(text: string): string {
+  const normalized = normalizeForCompare(text ?? '')
+  let hash = 5381
+  for (let i = 0; i < normalized.length; i++) hash = ((hash << 5) + hash + normalized.charCodeAt(i)) | 0
+  return String(hash >>> 0)
+}
+
 // ─── Diff engine ─────────────────────────────────────────────────────────────
 
 function diffMeta(before: PageExtract, after: PageExtract, changes: ContentChange[]): void {
@@ -325,14 +343,18 @@ function diffText(before: PageExtract, after: PageExtract, changes: ContentChang
   const beforeUnits = splitIntoUnits(before.text ?? '')
   const afterUnits = splitIntoUnits(after.text ?? '')
 
-  const beforeSet = new Set(beforeUnits)
-  const afterSet = new Set(afterUnits)
+  // Key on the punctuation-trimmed form so "Contact us now" vs "Contact us
+  // now!" is recognized as the same unit (see isEquivalentText) while the
+  // reported text keeps the original, untrimmed wording.
+  const keyOf = (u: string) => u.replace(TRAILING_PUNCT_RE, '')
+  const beforeKeys = new Set(beforeUnits.map(keyOf))
+  const afterKeys = new Set(afterUnits.map(keyOf))
 
   const removed: string[] = []
   const added: string[] = []
 
-  for (const u of beforeUnits) if (!afterSet.has(u)) removed.push(u)
-  for (const u of afterUnits) if (!beforeSet.has(u)) added.push(u)
+  for (const u of beforeUnits) if (!afterKeys.has(keyOf(u))) removed.push(u)
+  for (const u of afterUnits) if (!beforeKeys.has(keyOf(u))) added.push(u)
 
   const combined = [
     ...removed.map((text) => ({ kind: 'text_removed' as const, text })),

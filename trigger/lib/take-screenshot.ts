@@ -3,12 +3,14 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { chromium, type Page } from 'playwright'
 import pixelmatch from 'pixelmatch'
 import { analyzeWithAI, type ZoneCrop } from './analyze-diff-with-ai'
+import { extractContent } from './extract-content'
 import { recordUsage } from './entitlements'
 import { triggerInstantAlert } from './notify'
 import { PLANS, type Plan } from '../../lib/plans'
 import { normalizeUrl } from '../../lib/url'
 import type { Zone } from '../../lib/types/database.types'
 import { decodeToRaw, encodeCaptureWebp, encodeRawWebp, makeThumbnail, cropZoneWebp, type RawImage } from './image'
+import { diffExtracts, contentTextHash, type PageExtract } from '../../lib/content-diff'
 
 interface ZoneDiffScore {
   label: string
@@ -375,6 +377,19 @@ export async function processUrl(
 
   const browser = await chromium.launch()
   let screenshotBuffer: Buffer
+  // Extraction runs on EVERY plan, deliberately.
+  //
+  // It is one in-page evaluate: no network, no model, and a jsonb blob a
+  // fraction of the size of the screenshot beside it. What it buys is the
+  // opposite of a cost - it is how we decide to skip the model entirely, and
+  // how we send a text diff instead of two full-page images when we do call
+  // it. Gating that behind a paid tier would mean the cheapest customers are
+  // the most expensive ones to serve, which is backwards.
+  //
+  // `structuredExtraction` still gates what a workspace can SEE - charts over
+  // price history, structured alert rules, the change data over the API. That
+  // is the thing being sold; this is plumbing.
+  let extract: PageExtract | null = null
 
   try {
     const context = await browser.newContext({
@@ -402,6 +417,12 @@ export async function processUrl(
     await page.waitForTimeout(1000)
     await preparePageForScreenshot(page)
     screenshotBuffer = await page.screenshot({ fullPage, type: 'png' })
+
+    // Must run before the page/context closes below - extractContent reads
+    // the live DOM via page.evaluate. It never throws (see its own doc
+    // comment): a failed extraction still leaves the screenshot intact.
+    extract = await extractContent(page)
+
     await context.close()
   } finally {
     await browser.close()
@@ -453,6 +474,10 @@ export async function processUrl(
       storage_path: screenshotPath,
       taken_at: now.toISOString(),
       file_size_bytes: screenshotWebp.length,
+      // Both null when extraction is off-plan or failed - see the D1 hard
+      // constraint that this degrade to today's behaviour exactly.
+      extract,
+      content_hash: extract ? contentTextHash(extract.text) : null,
       metadata: {
         viewport_width: 1280,
         manual_run: monUrl._manual ?? false,
@@ -495,6 +520,14 @@ export async function processUrl(
     logger.info('First snapshot recorded', { url: monUrl.url })
     return { diffPct: null, alerted: false }
   }
+
+  // Loaded from the same row the pixel-diff path already fetched (`select
+  // ('*')` above), so this costs nothing extra. `diffExtracts` degrades to
+  // "no changes" on its own when either side is null - a first-ever extract,
+  // an extraction failure this run, or a previous snapshot that predates
+  // this feature all land here identically.
+  const prevExtract: PageExtract | null = (prevSnapshot.extract as PageExtract | null | undefined) ?? null
+  const contentDiff = diffExtracts(prevExtract, extract)
 
   const { data: prevBlob, error: prevDlErr } = await supabase.storage.from('screenshots').download(prevSnapshot.storage_path)
 
@@ -663,12 +696,37 @@ export async function processUrl(
   const passesFloor = zoneCrops
     ? passedZones.length > 0
     : diffPct >= AI_FLOOR && !isBandedNoise
+
+  // ─── Content-diff gating (D1) ─────────────────────────────────────────────
+  // Only meaningful for whole-page monitors - zones already have their own
+  // per-zone sensitivity floor and their own image-based model call above,
+  // and neither is touched here (hard constraint: zone scoring stays exactly
+  // as it is). `contentDiff` was computed from full extracts regardless of
+  // zones, but only APPLIED when there are no zones on this monitor.
+  const contentGateApplies = !zoneCrops
+  // Two signals agreeing nothing happened: no describable content change,
+  // and the raw pixel delta hasn't even crossed the user's own threshold.
+  // Nothing changed that anyone could put into words - the model call is
+  // pure cost with no chance of a useful summary.
+  const skipModelForEmptyContent =
+    contentGateApplies && contentDiff.isEmpty && diffPct < (monUrl.threshold_pct ?? 5)
+  // A layout-only change (only `structure_changed`, no text/price/heading/meta
+  // difference) can't be put into words from the extract alone - fall back to
+  // full-page images exactly as this pipeline always has. Same fallback when
+  // there's nothing to describe at all (extraction failed, or no previous
+  // extract to diff against) - `contentDiff.changes` is already empty in
+  // that case, which routes to the same image path in `analyzeWithAI` on its
+  // own, but this is spelled out for clarity.
+  const isLayoutOnlyChange =
+    contentGateApplies && contentDiff.changes.length === 1 && contentDiff.changes[0].kind === 'structure_changed'
+  const forceImages = !contentGateApplies || extract === null || prevExtract === null || isLayoutOnlyChange
+
   // Without the model pass there is no relevance judgement to make, so the
   // pixel threshold the user configured becomes the alert decision on its own.
   // Edge-band noise is still suppressed on that path: it is a free pixel-level
   // filter, not a paid capability, and letting it through would mean a plan
   // WITHOUT AI summaries produces noisier alerts than one with them.
-  const shouldRunAI = passesFloor && plan.features.aiSummaries
+  const shouldRunAI = passesFloor && plan.features.aiSummaries && !skipModelForEmptyContent
   const shouldConsiderAlert = plan.features.aiSummaries
     ? passesFloor
     : diffPct >= (monUrl.threshold_pct ?? 5) && !isBandedNoise
@@ -694,6 +752,11 @@ export async function processUrl(
           watchDescription: monUrl.watch_description ?? null,
           thresholdPct: monUrl.threshold_pct ?? undefined,
           zoneCrops,
+          // Text-first path (D1): non-null + non-empty routes this call to
+          // text only, skipping images entirely, unless forceImages says the
+          // change can't be described in words.
+          contentChanges: contentGateApplies ? contentDiff.changes : null,
+          forceImages,
         })
         shouldAlert = aiResult.shouldAlert
         aiSummary = aiResult.summary
@@ -706,6 +769,8 @@ export async function processUrl(
           zoneCount: zoneCrops?.length ?? 0,
           passedZoneCount: passedZones.length,
           zoneDiffPct: zoneDiffPct != null ? zoneDiffPct.toFixed(3) : null,
+          contentChangeCount: contentGateApplies ? contentDiff.changes.length : null,
+          textOnly: contentGateApplies && !forceImages && contentDiff.changes.length > 0,
         })
       } catch (aiErr) {
         logger.warn('AI analysis error. Defaulting to semantic threshold-based alert', { url: monUrl.url, err: aiErr })
@@ -739,6 +804,11 @@ export async function processUrl(
           zone_diff_pct: zoneDiffPct != null ? Number(zoneDiffPct.toFixed(4)) : null,
           passed_zone_count: passedZones.length,
           zone_scores: zoneScores,
+          // Structured changes from diffExtracts (D1), so the UI can render
+          // "Pro moved $29 -> $39" instead of a pixel percentage. Null when
+          // the content-diff gate doesn't apply to this monitor (zones) -
+          // matches `contentChanges` passed to analyzeWithAI above.
+          content_changes: contentGateApplies ? contentDiff.changes : null,
         },
         triggered_at: now.toISOString(),
       })
