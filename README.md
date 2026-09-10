@@ -1,115 +1,97 @@
 # PageWatch
 
-**Visual change alerts for websites — get notified the moment a page looks different.**
+**Visual change monitoring for websites.** Screenshot a page on a schedule, diff it
+against the last capture, and let Claude decide whether the change is worth an alert.
 
-No dashboard babysitting. No waiting for user complaints. Alerts fire the instant a screenshot diff exceeds your threshold.
+The last part is the product. Pixel diffing is a commodity; *suppressing* the
+thousand irrelevant changes — a rotating hero, a cookie banner, a relative timestamp —
+is what makes the alerts trustworthy.
 
-## Tech Stack
+## Stack
 
-- **Next.js 14+** with App Router (TypeScript)
-- **Tailwind CSS** for styling
-- **Supabase** — Auth, Postgres, Storage, Row Level Security
-- **Trigger.dev v4** — background screenshot tasks (scheduled, hourly)
-- **Playwright** — headless Chromium for full-page screenshots
-- **pixelmatch** — pixel-level image diffing
-- **Resend** — email alert digests
-- **Stripe** — billing (trial / starter / agency plans)
+| Layer | Choice |
+|---|---|
+| App | Next.js 14 App Router, React 18, TypeScript |
+| Data / auth / storage | Supabase (Postgres + RLS, SSR cookie auth, Storage) |
+| Background jobs | Trigger.dev v4 |
+| Capture | Playwright (Chromium) |
+| Diffing | pixelmatch on raw RGBA, sharp for encode/decode |
+| Change analysis | Claude via `@anthropic-ai/sdk` |
+| Email | Resend |
+| Billing | Stripe |
+| UI | Tailwind + Radix primitives, Geist, dark-first |
 
-## Prerequisites
-
-- Node.js 18+
-- A Supabase project
-- A Resend account (https://resend.com)
-- A Trigger.dev project (https://trigger.dev)
-- A Stripe account (for billing)
-
-## Local Setup
+## Setup
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Copy environment variables
-cp .env.example .env.local
-# Fill in all values in .env.local
-
-# 3. Run the app + Trigger.dev worker in parallel
-npm run dev:full
+cp .env.example .env.local     # fill in every value
+npm run dev:full               # Next.js + the Trigger.dev worker together
 ```
 
-## Running Migrations
+### Database
 
-Log into your Supabase project dashboard, open the SQL Editor, and run the migrations in order:
+Run the migrations in `supabase/migrations/` **in numeric order** against a fresh
+Supabase project — SQL Editor, or `supabase db push` if you use the CLI.
+`pagewatch_init.sql` is the base schema and also creates the private `screenshots`
+storage bucket with its RLS policies. Do not create the bucket by hand.
 
-```
-supabase/migrations/001_keyword_threat_monitor.sql   ← base schema
-supabase/migrations/002_...sql                        ← any intermediate migrations
-supabase/migrations/20260418_003_screenshot_monitor.sql  ← PageWatch schema
-```
+### Trigger.dev
 
-Migration 003 drops all legacy SEO tables and creates the screenshot monitoring schema:
-`monitored_urls`, `screenshot_snapshots`, `screenshot_diffs`, `alerts`, `notification_events`.
-
-## Supabase Storage
-
-Create a public bucket named **`screenshots`** in your Supabase project:
-
-1. Go to Storage → New bucket
-2. Name: `screenshots`
-3. Public: yes (or configure signed URLs if you prefer private)
-
-Screenshots are stored at:
-- `screenshots/{workspace_id}/{url_id}/{timestamp}.png`
-- `diffs/{workspace_id}/{url_id}/{timestamp}.png`
-
-## How Background Tasks Work
-
-Two Trigger.dev scheduled tasks run automatically:
-
-### `screenshot-monitor` (every hour)
-1. Fetches all active monitored URLs from the database
-2. Filters by check frequency — only processes URLs due for a check
-3. Launches headless Chromium via Playwright, captures a full-page PNG
-4. Uploads the screenshot to Supabase Storage
-5. Downloads the previous screenshot and runs pixelmatch comparison
-6. If `diff_pct >= threshold_pct`, creates an alert and stores a diff image
-
-### `send-alert-digest` (daily at 8am UTC)
-1. Fetches all open alerts from the past 24 hours
-2. Groups by workspace
-3. Sends a branded HTML digest email via Resend
-
-## Trigger.dev Setup
-
-1. Create a project at https://trigger.dev
-2. Copy your project ref and secret key to `.env.local`
-3. Update `trigger.config.ts` with your project ref if different
-4. Run `npm run trigger:dev` to connect the local worker
-5. Run `npm run trigger:deploy` to deploy tasks to production
-
-The `trigger.config.ts` includes the `playwright()` build extension which bundles the Chromium binary into the Trigger.dev deployment automatically.
-
-## Deployment
-
-### Vercel (recommended)
-1. Push to GitHub
-2. Import project in Vercel
-3. Add all environment variables from `.env.example`
-4. Deploy
-
-### Trigger.dev Tasks
-After deploying Next.js, run:
 ```bash
-npm run trigger:deploy
+npm run trigger:dev       # connect a local worker
+npm run trigger:deploy    # deploy tasks
 ```
 
-This deploys the screenshot tasks to Trigger.dev's infrastructure. The `screenshot-monitor` task runs every hour automatically.
+`trigger.config.ts` includes the `playwright()` build extension, which bundles
+Chromium into the deployment. Set the `project` field to your own project ref.
 
-## User Flow
+## How it works
 
-1. User signs up via `/login`
-2. Redirected to `/onboarding` — 5-step wizard to set workspace, URLs, monitoring preferences, and alert settings
-3. `createWorkspace` is called, creating the workspace + member + onboarding steps
-4. User lands on `/dashboard` — overview of open alerts and monitoring stats
-5. `screenshot-monitor` task runs hourly, taking screenshots and creating alerts when pages change
-6. User receives email digest and can acknowledge/dismiss alerts from the dashboard
+**`screenshot-monitor`** (hourly) is a dispatcher, not a worker. It selects the
+monitors due this hour and `batchTrigger`s one `run-single-url` run per monitor, with
+a per-workspace concurrency key. Each capture therefore gets its own timeout and its
+own retries, and one hanging site cannot delay anyone else's checks.
+
+**`run-single-url`** resolves the workspace's plan, checks the metered quota, and runs
+the capture pipeline:
+
+1. Launch Chromium with locale, timezone and colour-scheme pinned, so the same page
+   renders identically every run.
+2. Block known ad and analytics domains at the network layer; dismiss consent
+   banners; hide chat widgets and popups; freeze animations.
+3. Capture, convert to WebP, upload, and write a `screenshot_snapshots` row.
+4. Decode both sides to raw RGBA and diff with pixelmatch — whole-page, or per
+   tracking zone with per-zone sensitivity.
+5. If the change clears the prefilter, ask Claude what changed and whether it matters
+   given the user's watch instructions. Claude can veto the alert outright.
+6. Raise an alert with a plain-English summary, and meter the usage.
+
+**`enforce-retention`** (nightly) deletes captures past the plan's retention window —
+storage objects first, then rows — keeping anything an alert references.
+
+**`send-instant-alert`** fires immediately for high and critical severities;
+**`send-alert-digest`** sends everything else once a day.
+
+## Plans and limits
+
+`lib/plans.ts` is the single source of truth for tiers, limits and feature flags. It
+is pure and isomorphic: the app, the worker and the pricing page all read the same
+object, so what the UI shows and what the server enforces cannot drift apart.
+
+Limits are asserted in the server action, never only in the UI. See
+`lib/entitlements.ts`.
+
+## Deploying
+
+Push to GitHub, import in Vercel, add every variable from `.env.example`, deploy.
+Then `npm run trigger:deploy` for the worker. The Stripe webhook needs its endpoint
+registered at `/api/stripe/webhook`.
+
+## Documentation
+
+- `docs/DESIGN_SYSTEM.md` — the UI specification. Read before touching any screen.
+- `docs/UI_PRIMITIVES.md` — component API reference.
+- `docs/file-structure.md` — where everything lives and why.
+- `docs/LAUNCH_STRATEGY.md` — product assessment and positioning.
+- `docs/BACKLOG.md` — prioritised work, with file references.
