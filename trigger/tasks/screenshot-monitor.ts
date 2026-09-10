@@ -1,81 +1,168 @@
 import { schedules, logger } from '@trigger.dev/sdk/v3'
-import { createClient } from '@supabase/supabase-js'
-import { processUrl } from '../lib/take-screenshot'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { runSingleUrlTask } from './run-single-url'
 
 /**
- * Runs every hour. Checks every active monitored_url that is "due" based on
- * check_frequency + check_hour (UTC). Takes a screenshot, diffs it, alerts if needed.
+ * Hourly dispatcher.
+ *
+ * Selects the monitors due this hour and fans them out — one `run-single-url`
+ * run per monitor — instead of capturing them in a loop.
+ *
+ * This used to be a sequential for-loop inside a single 600-second task, which
+ * capped the entire product at roughly 30 monitors per hour: past that the task
+ * hit `maxDuration` and the tail of the list was dropped with nothing recorded.
+ * Fanning out hands scheduling to Trigger.dev, which gives each monitor its own
+ * timeout, its own retries, and isolation from a hanging site.
+ *
+ * The dispatcher itself now only does queries and enqueues, so it finishes in
+ * seconds regardless of how many monitors are due.
  */
+
+/** Enqueue in chunks so one oversized batch can't be rejected wholesale. */
+const BATCH_SIZE = 100
+
+/** Safety valve: refuse to enqueue an implausible number of runs in one hour. */
+const MAX_RUNS_PER_DISPATCH = 10_000
+
 export const screenshotMonitorTask = schedules.task({
   id: 'screenshot-monitor',
   cron: '0 * * * *',
-  maxDuration: 600,
+  maxDuration: 300,
   run: async () => {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    logger.info('Screenshot monitor started')
+    const now = new Date()
+    const due = await loadDueMonitors(supabase, now)
 
-    const { data: urls, error } = await supabase
-      .from('monitored_urls')
-      .select('*')
-      .eq('is_active', true)
+    if (!due.length) {
+      logger.info('No monitors due this hour')
+      return { dispatched: 0 }
+    }
 
-    if (error) throw new Error(`Failed to load monitored URLs: ${error.message}`)
-    if (!urls?.length) { logger.info('No active URLs found'); return }
+    const toDispatch = due.slice(0, MAX_RUNS_PER_DISPATCH)
+    if (due.length > toDispatch.length) {
+      logger.warn('Dispatch capped', { due: due.length, cap: MAX_RUNS_PER_DISPATCH })
+    }
 
-    const now         = new Date()
-    const currentHour = now.getUTCHours()
+    logger.info('Dispatching captures', { count: toDispatch.length })
 
-    const dueUrls = urls.filter((u: any) => {
-      // Hourly: always run each hour, ignore check_hour
-      if (u.check_frequency === 'hourly') {
-        if (!u.last_checked_at) return true
-        return now.getTime() - new Date(u.last_checked_at).getTime() >= 60 * 60 * 1000
-      }
+    let dispatched = 0
 
-      // Daily / weekly with a preferred hour: only run during that hour
-      if (u.check_hour != null) {
-        if (currentHour !== u.check_hour) return false
-        // Also make sure we haven't already run this URL this hour
-        if (u.last_checked_at) {
-          const last = new Date(u.last_checked_at)
-          const sameHour =
-            last.getUTCFullYear() === now.getUTCFullYear() &&
-            last.getUTCMonth()    === now.getUTCMonth()    &&
-            last.getUTCDate()     === now.getUTCDate()     &&
-            last.getUTCHours()    === now.getUTCHours()
-          if (sameHour) return false
-        }
-        // For weekly: additionally check that 7 days have passed since last run
-        if (u.check_frequency === 'weekly' && u.last_checked_at) {
-          return now.getTime() - new Date(u.last_checked_at).getTime() >= 7 * 24 * 60 * 60 * 1000
-        }
-        return true
-      }
+    for (let i = 0; i < toDispatch.length; i += BATCH_SIZE) {
+      const batch = toDispatch.slice(i, i + BATCH_SIZE)
 
-      // No preferred hour — fall back to elapsed-time logic
-      if (!u.last_checked_at) return true
-      const elapsed = now.getTime() - new Date(u.last_checked_at).getTime()
-      if (u.check_frequency === 'daily')  return elapsed >= 24 * 60 * 60 * 1000
-      if (u.check_frequency === 'weekly') return elapsed >= 7 * 24 * 60 * 60 * 1000
-      return false
-    })
-
-    if (!dueUrls.length) { logger.info('No URLs due for checking this hour'); return }
-
-    logger.info(`${dueUrls.length} URL(s) due for screenshots`)
-
-    for (const monUrl of dueUrls) {
       try {
-        await processUrl(monUrl, supabase, now)
+        await runSingleUrlTask.batchTrigger(
+          batch.map((monitor) => ({
+            payload: { urlId: monitor.id, trigger: 'scheduled' as const },
+            options: {
+              // Keeps one workspace with hundreds of monitors from starving
+              // everyone else's checks for the hour.
+              concurrencyKey: monitor.workspace_id,
+              // Deduplicates if the dispatcher is retried within the same hour.
+              idempotencyKey: `${monitor.id}:${hourKey(now)}`,
+            },
+          }))
+        )
+        dispatched += batch.length
       } catch (err) {
-        logger.error('Unhandled error processing URL', { url: monUrl.url, err })
+        logger.error('Batch dispatch failed', {
+          offset: i,
+          size: batch.length,
+          err,
+        })
       }
     }
 
-    logger.info('Screenshot monitor complete')
+    logger.info('Dispatch complete', { dispatched, due: due.length })
+    return { dispatched }
   },
 })
+
+// ─── Due selection ───────────────────────────────────────────────────────────
+
+interface DueMonitor {
+  id: string
+  workspace_id: string
+}
+
+/**
+ * Monitors that should be captured during the current hour.
+ *
+ * Selection stays in the dispatcher (rather than in each run) so the fan-out
+ * width is known up front and a single query answers "how much work is there".
+ */
+async function loadDueMonitors(
+  supabase: SupabaseClient,
+  now: Date
+): Promise<DueMonitor[]> {
+  const { data, error } = await supabase
+    .from('monitored_urls')
+    .select('id, workspace_id, check_frequency, check_hour, last_checked_at')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+
+  if (error) throw new Error(`Failed to load monitors: ${error.message}`)
+  if (!data?.length) return []
+
+  return data.filter((monitor) => isDue(monitor, now))
+}
+
+/**
+ * Whether a monitor is due right now.
+ *
+ * Two scheduling modes coexist:
+ *   - `check_hour` set   → run during that UTC hour, at most once per hour.
+ *   - `check_hour` null  → run whenever enough time has elapsed.
+ *
+ * Hourly monitors ignore `check_hour` entirely.
+ */
+export function isDue(
+  monitor: {
+    check_frequency: string
+    check_hour: number | null
+    last_checked_at: string | null
+  },
+  now: Date
+): boolean {
+  const lastChecked = monitor.last_checked_at ? new Date(monitor.last_checked_at) : null
+  const elapsed = lastChecked ? now.getTime() - lastChecked.getTime() : Infinity
+
+  const HOUR = 60 * 60 * 1000
+  const DAY = 24 * HOUR
+  const WEEK = 7 * DAY
+
+  if (monitor.check_frequency === 'hourly') {
+    return elapsed >= HOUR
+  }
+
+  if (monitor.check_hour != null) {
+    if (now.getUTCHours() !== monitor.check_hour) return false
+    // Guard against running twice inside the same preferred hour.
+    if (lastChecked && sameUtcHour(lastChecked, now)) return false
+    if (monitor.check_frequency === 'weekly') return elapsed >= WEEK
+    return true
+  }
+
+  if (monitor.check_frequency === 'daily') return elapsed >= DAY
+  if (monitor.check_frequency === 'weekly') return elapsed >= WEEK
+
+  return false
+}
+
+function sameUtcHour(a: Date, b: Date): boolean {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate() &&
+    a.getUTCHours() === b.getUTCHours()
+  )
+}
+
+/** Stable per-hour token used to build idempotency keys. */
+function hourKey(now: Date): string {
+  return now.toISOString().slice(0, 13) // YYYY-MM-DDTHH
+}

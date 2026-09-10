@@ -40,3 +40,5 @@ coverage/
 
 # trigger runtime (only if it's generated, NOT config)
 .trigger/
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo

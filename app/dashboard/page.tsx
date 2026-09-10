@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrls } from '@/lib/actions/websites'
 import { createServerClient } from '@/lib/supabase/server'
+import { flattenToOne } from '@/lib/supabase/relations'
 import { FeedPageClient } from '@/components/dashboard/FeedPageClient'
 
 export const metadata = { title: 'Feed — PageWatch' }
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
 
   return (
     <FeedPageClient
-      alerts={alertsResult.data ?? []}
+      alerts={flattenToOne(alertsResult.data, 'monitored_urls')}
       monitors={monitors ?? []}
       checksToday={checksResult.count ?? 0}
     />

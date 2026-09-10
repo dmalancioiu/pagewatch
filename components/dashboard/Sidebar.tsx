@@ -25,10 +25,6 @@ const WORKSPACE = [
 interface SidebarProps {
   domain: string
   userEmail: string
-  plan?: 'free' | 'pro' | 'agency'
-  activeMonitorCount?: number
-  totalMonitorCount?: number
-  monitorLimit?: number
 }
 
 function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
@@ -57,16 +53,15 @@ function NavItem({ href, label, icon: Icon, active, badge, badgeTone }: {
   )
 }
 
-export function Sidebar({
-  domain,
-  userEmail,
-  plan = 'free',
-  activeMonitorCount = 0,
-  totalMonitorCount = 0,
-  monitorLimit = 3,
-}: SidebarProps) {
+export function Sidebar({ domain, userEmail }: SidebarProps) {
   const pathname = usePathname()
-  const { openAddUrl } = useDashboard()
+  const { openAddUrl, entitlements, atMonitorLimit } = useDashboard()
+
+  const { usage, limits, planName, planId } = entitlements
+  const activeMonitorCount = usage.activeMonitors
+  const totalMonitorCount = usage.monitors
+  const monitorLimit = limits.maxMonitors
+
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'
   const displayEmail = userEmail || 'Account'
   const activeLabel = `${activeMonitorCount} monitor${activeMonitorCount === 1 ? '' : 's'} active`
@@ -89,7 +84,18 @@ export function Sidebar({
       </div>
 
       <div className="pw-side-cta">
-        <button className="pw-side-primary" onClick={openAddUrl}><Plus size={13} strokeWidth={2.4} /> Add monitor</button>
+        <button
+          className="pw-side-primary"
+          onClick={openAddUrl}
+          disabled={atMonitorLimit}
+          title={
+            atMonitorLimit
+              ? `${planName} includes ${monitorLimit} monitors. Upgrade to add more.`
+              : undefined
+          }
+        >
+          <Plus size={13} strokeWidth={2.4} /> Add monitor
+        </button>
       </div>
 
       <nav className="pw-side-nav">
@@ -110,10 +116,10 @@ export function Sidebar({
         <div className="pw-side-account">
           <div className="pw-side-avatar">{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 11.5, fontWeight: 550, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{plan === 'free' ? 'Free plan' : `${plan} plan`}</p>
-            <p style={{ fontSize: 9.5, color: '#9CA3AF', margin: 0 }}>{totalMonitorCount} / {monitorLimit} monitors used</p>
+            <p style={{ fontSize: 11.5, fontWeight: 550, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{planName} plan</p>
+            <p style={{ fontSize: 9.5, color: atMonitorLimit ? '#DC2626' : '#9CA3AF', margin: 0 }}>{totalMonitorCount} / {monitorLimit} monitors used</p>
           </div>
-          {plan === 'free' ? <Link href="/dashboard/settings#billing" className="pw-side-upgrade">Upgrade</Link> : null}
+          {planId !== 'agency' ? <Link href="/dashboard/settings#billing" className="pw-side-upgrade">Upgrade</Link> : null}
           <form action="/api/auth/signout" method="post" style={{ flexShrink: 0 }}>
             <button type="submit" className="pw-side-signout" title="Sign out"><LogOut size={12} /></button>
           </form>

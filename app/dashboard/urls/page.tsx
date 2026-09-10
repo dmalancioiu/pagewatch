@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getMonitoredUrls } from '@/lib/actions/websites'
 import { createServerClient } from '@/lib/supabase/server'
+import { flattenToOne } from '@/lib/supabase/relations'
 import { MonitorsPageClient } from '@/components/dashboard/MonitorsPageClient'
 
 export const metadata = { title: 'Monitors — PageWatch' }
@@ -62,5 +63,10 @@ export default async function UrlsPage() {
     }
   })
 
-  return <MonitorsPageClient monitors={monitors} alerts={openAlerts ?? []} />
+  return (
+    <MonitorsPageClient
+      monitors={monitors}
+      alerts={flattenToOne(openAlerts, 'monitored_urls')}
+    />
+  )
 }

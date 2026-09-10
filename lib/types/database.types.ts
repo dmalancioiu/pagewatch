@@ -16,12 +16,22 @@ export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type AlertStatus   = 'open' | 'acknowledged' | 'dismissed'
 export type CheckFrequency = 'hourly' | 'daily' | 'weekly'
 
+/**
+ * Subscription tier. The catalog of what each tier allows lives in
+ * `lib/plans.ts` — this is only the stored identifier.
+ */
+export type PlanId = 'free' | 'pro' | 'business' | 'agency'
+
+/** Lifecycle of the subscription, independent of which plan it points at. */
+export type PlanStatus = 'trialing' | 'active' | 'past_due' | 'canceled'
+
 export interface Profile {
   id: string
   full_name: string | null
   email: string | null
   avatar_url: string | null
-  plan: 'trial' | 'starter' | 'agency'
+  /** @deprecated Plans live on the workspace. Kept only for backfill. */
+  plan: PlanId
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   created_at: string
@@ -33,7 +43,24 @@ export interface Workspace {
   owner_user_id: string
   name: string
   domain: string
+  plan: PlanId
+  plan_status: PlanStatus
+  trial_ends_at: string | null
+  current_period_end: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
   created_at: string
+  updated_at: string
+}
+
+/** Metered consumption for one workspace in one billing period. */
+export interface WorkspaceUsage {
+  id: string
+  workspace_id: string
+  period_start: string
+  checks_used: number
+  ai_calls_used: number
+  bytes_stored: number
   updated_at: string
 }
 
@@ -54,6 +81,7 @@ export interface MonitoredUrl {
   full_page: boolean                // full-page vs visible-area screenshot
   mode: MonitoredUrlMode            // 'watch' | 'archive'
   zones: Zone[] | null              // tracked regions; null = whole page
+  deleted_at: string | null         // soft delete; non-null rows are hidden
   created_at: string
   updated_at: string
 }

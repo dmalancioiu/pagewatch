@@ -4,6 +4,9 @@ import { chromium, type Page } from 'playwright'
 import pixelmatch from 'pixelmatch'
 import { PNG } from 'pngjs'
 import { analyzeWithAI, type ZoneCrop } from './analyze-diff-with-ai'
+import { recordUsage } from './entitlements'
+import { PLANS, type Plan } from '../../lib/plans'
+import { normalizeUrl } from '../../lib/url'
 import type { Zone } from '../../lib/types/database.types'
 
 interface ZoneDiffScore {
@@ -293,14 +296,29 @@ async function preparePageForScreenshot(page: Page): Promise<void> {
   await page.waitForTimeout(500)
 }
 
+/**
+ * Captures a monitor, diffs it against the previous snapshot, and raises an
+ * alert when the change is judged relevant.
+ *
+ * @param plan Entitlements that apply to the owning workspace. Gates the model
+ *   pass and tracking zones — a downgraded workspace keeps its zone
+ *   configuration on the row but stops having it applied, so an upgrade
+ *   restores it exactly.
+ */
 export async function processUrl(
   monUrl: any,
   supabase: SupabaseClient,
-  now: Date = new Date()
+  now: Date = new Date(),
+  plan: Plan = PLANS.free
 ): Promise<{ diffPct: number | null; alerted: boolean }> {
   const ts = now.toISOString().replace(/[:.]/g, '-')
   const fullPage = monUrl.full_page !== false
   const mode = monUrl.mode ?? 'watch'
+
+  // Re-validate at capture time, not just at creation. A monitor may have been
+  // saved before the host rules tightened, and this worker can reach addresses
+  // the browser that created it never could.
+  const targetUrl = normalizeUrl(monUrl.url)
 
   const browser = await chromium.launch()
   let screenshotBuffer: Buffer
@@ -321,7 +339,7 @@ export async function processUrl(
 
     const page = await context.newPage()
     await page.setViewportSize({ width: 1280, height: 800 })
-    await page.goto(monUrl.url, { waitUntil: 'networkidle', timeout: 30_000 })
+    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30_000 })
     await page.waitForTimeout(1000)
     await preparePageForScreenshot(page)
     screenshotBuffer = await page.screenshot({ fullPage, type: 'png' })
@@ -355,6 +373,13 @@ export async function processUrl(
     .single()
 
   if (snapErr || !snapshot) throw new Error(`Failed to save snapshot: ${snapErr?.message}`)
+
+  // Meter the capture the moment it is durable. Doing this after the diff would
+  // let a monitor that always fails comparison run for free.
+  await recordUsage(supabase, monUrl.workspace_id, {
+    checks: 1,
+    bytes: screenshotBuffer.length,
+  })
 
   if (mode === 'archive') {
     await supabase.from('monitored_urls').update({ last_checked_at: now.toISOString() }).eq('id', monUrl.id)
@@ -394,7 +419,21 @@ export async function processUrl(
   let zoneCrops: ZoneCrop[] | undefined
   let zoneScores: ZoneDiffScore[] = []
 
-  const zones: Zone[] = Array.isArray(monUrl.zones) ? monUrl.zones : []
+  // Zones stay on the row through a downgrade so an upgrade restores them
+  // untouched — they are simply not applied while the plan excludes them.
+  const configuredZones: Zone[] = Array.isArray(monUrl.zones) ? monUrl.zones : []
+  const zones: Zone[] = plan.features.zones
+    ? configuredZones.slice(0, plan.limits.maxZonesPerMonitor)
+    : []
+
+  if (configuredZones.length > zones.length) {
+    logger.info('Some zones not applied on the current plan', {
+      url: monUrl.url,
+      plan: plan.id,
+      configured: configuredZones.length,
+      applied: zones.length,
+    })
+  }
 
   try {
     prevBuffer = Buffer.from(await prevBlob.arrayBuffer())
@@ -503,14 +542,20 @@ export async function processUrl(
 
   const passedZones = zoneScores.filter(z => z.passes_threshold)
   const AI_FLOOR = zoneCrops ? 0 : 0.05
-  const shouldRunAI = zoneCrops ? passedZones.length > 0 : diffPct >= AI_FLOOR
+  const passesFloor = zoneCrops ? passedZones.length > 0 : diffPct >= AI_FLOOR
+  // Without the model pass there is no relevance judgement to make, so the
+  // pixel threshold the user configured becomes the alert decision on its own.
+  const shouldRunAI = passesFloor && plan.features.aiSummaries
+  const shouldConsiderAlert = plan.features.aiSummaries
+    ? passesFloor
+    : diffPct >= (monUrl.threshold_pct ?? 5)
   let alerted = false
 
-  if (shouldRunAI) {
+  if (shouldConsiderAlert) {
     let shouldAlert = true
     let aiSummary = ''
 
-    if (prevBuffer) {
+    if (shouldRunAI && prevBuffer) {
       try {
         const aiResult = await analyzeWithAI({
           beforeBuffer: prevBuffer,
@@ -522,6 +567,7 @@ export async function processUrl(
         })
         shouldAlert = aiResult.shouldAlert
         aiSummary = aiResult.summary
+        await recordUsage(supabase, monUrl.workspace_id, { aiCalls: 1 })
         logger.info('AI analysis complete', {
           url: monUrl.url,
           shouldAlert,
