@@ -82,11 +82,31 @@ function isPrivateIpv6(hostname: string): boolean {
   // Unique-local (fc00::/7) and link-local (fe80::/10).
   if (/^f[cd][0-9a-f]{2}:/.test(address)) return true
   if (/^fe[89ab][0-9a-f]:/.test(address)) return true
-  // IPv4-mapped — unwrap and re-check against the v4 rules.
-  const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
-  if (mapped) return isPrivateIpv4(mapped[1])
+
+  // IPv4-mapped (::ffff:0:0/96) — unwrap and re-check against the v4 rules.
+  //
+  // Two spellings reach us. A hand-written URL may carry the dotted tail
+  // (`::ffff:169.254.169.254`), but `new URL()` normalizes that to two hex
+  // groups (`::ffff:a9fe:a9fe`) before we ever see it — so matching only the
+  // dotted form silently never fires, which is exactly the hole that let
+  // mapped cloud-metadata addresses through this check.
+  const mappedDotted = address.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+  if (mappedDotted) return isPrivateIpv4(mappedDotted[1])
+
+  const mappedHex = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (mappedHex) {
+    const high = parseInt(mappedHex[1], 16)
+    const low = parseInt(mappedHex[2], 16)
+    const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.')
+    return isPrivateIpv4(dotted)
+  }
 
   return false
+}
+
+/** True for a hostname the URL parser rendered as an IPv6 literal. */
+function isIpv6Literal(hostname: string): boolean {
+  return hostname.startsWith('[') && hostname.endsWith(']')
 }
 
 /**
@@ -116,8 +136,10 @@ export function assertPublicUrl(parsed: URL): void {
   }
 
   // A bare hostname with no dot is either a local machine name or a search
-  // term someone typed by mistake.
-  if (!hostname.includes('.')) {
+  // term someone typed by mistake. IPv6 literals are exempt: no IPv6 address
+  // rendered by the URL parser contains a dot, so applying this check to them
+  // would reject every public IPv6 target as malformed.
+  if (!isIpv6Literal(hostname) && !hostname.includes('.')) {
     throw new UrlValidationError('malformed', `"${parsed.hostname}" is not a valid domain.`)
   }
 }
@@ -139,6 +161,16 @@ export function normalizeUrl(raw: string): string {
 
   if (trimmed.length > MAX_URL_LENGTH) {
     throw new UrlValidationError('too_long', 'That URL is too long to monitor.')
+  }
+
+  // Schemes that must be refused as protocols rather than mangled into a
+  // hostname. Checked explicitly, because a generic `scheme:` test cannot tell
+  // `javascript:alert(1)` from `example.com:8080` — both match it.
+  if (/^(javascript|data|file|blob|about|vbscript|mailto|tel|ftp|wss?):/i.test(trimmed)) {
+    throw new UrlValidationError(
+      'unsupported_protocol',
+      'Only http and https pages can be monitored.'
+    )
   }
 
   const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)

@@ -82,6 +82,11 @@ export interface MonitoredUrl {
   mode: MonitoredUrlMode            // 'watch' | 'archive'
   zones: Zone[] | null              // tracked regions; null = whole page
   deleted_at: string | null         // soft delete; non-null rows are hidden
+  // Monitor health (migration 006)
+  consecutive_failures: number      // resets to 0 on the next successful capture
+  last_error: string | null         // sanitised, human-readable — never a stack trace
+  last_error_at: string | null
+  last_success_at: string | null
   created_at: string
   updated_at: string
 }

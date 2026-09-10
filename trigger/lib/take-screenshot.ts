@@ -2,12 +2,13 @@ import { logger } from '@trigger.dev/sdk/v3'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { chromium, type Page } from 'playwright'
 import pixelmatch from 'pixelmatch'
-import { PNG } from 'pngjs'
 import { analyzeWithAI, type ZoneCrop } from './analyze-diff-with-ai'
 import { recordUsage } from './entitlements'
+import { triggerInstantAlert } from './notify'
 import { PLANS, type Plan } from '../../lib/plans'
 import { normalizeUrl } from '../../lib/url'
 import type { Zone } from '../../lib/types/database.types'
+import { decodeToRaw, encodeCaptureWebp, encodeRawWebp, makeThumbnail, cropZoneWebp, type RawImage } from './image'
 
 interface ZoneDiffScore {
   label: string
@@ -149,24 +150,11 @@ function aggregateAlertScore(zoneScores: ZoneDiffScore[], fallbackDiffPct: numbe
   return Math.max(0, Math.min(100, Number((maxZoneScore * 0.78 + avgPassedScore * 0.22 + multiZoneLift).toFixed(1))))
 }
 
-function cropZone(png: PNG, zone: Zone): Buffer | null {
-  const srcX = Math.max(0, Math.floor(zone.x * png.width))
-  const srcY = Math.max(0, Math.floor(zone.y * png.height))
-  const srcW = Math.min(png.width - srcX, Math.ceil(zone.width * png.width))
-  const srcH = Math.min(png.height - srcY, Math.ceil(zone.height * png.height))
-
-  if (srcW <= 0 || srcH <= 0) return null
-
-  const out = new PNG({ width: srcW, height: srcH })
-  PNG.bitblt(png, out, srcX, srcY, srcW, srcH, 0, 0)
-  return PNG.sync.write(out)
-}
-
-function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: number; totalPixels: number; diffPct: number } | null {
-  const srcX = Math.max(0, Math.floor(zone.x * Math.min(prevPng.width, currPng.width)))
-  const srcY = Math.max(0, Math.floor(zone.y * Math.min(prevPng.height, currPng.height)))
-  const srcW = Math.min(prevPng.width - srcX, currPng.width - srcX, Math.ceil(zone.width * Math.min(prevPng.width, currPng.width)))
-  const srcH = Math.min(prevPng.height - srcY, currPng.height - srcY, Math.ceil(zone.height * Math.min(prevPng.height, currPng.height)))
+function diffZone(prevRaw: RawImage, currRaw: RawImage, zone: Zone): { changedPixels: number; totalPixels: number; diffPct: number } | null {
+  const srcX = Math.max(0, Math.floor(zone.x * Math.min(prevRaw.width, currRaw.width)))
+  const srcY = Math.max(0, Math.floor(zone.y * Math.min(prevRaw.height, currRaw.height)))
+  const srcW = Math.min(prevRaw.width - srcX, currRaw.width - srcX, Math.ceil(zone.width * Math.min(prevRaw.width, currRaw.width)))
+  const srcH = Math.min(prevRaw.height - srcY, currRaw.height - srcY, Math.ceil(zone.height * Math.min(prevRaw.height, currRaw.height)))
 
   if (srcW <= 0 || srcH <= 0) return null
 
@@ -176,22 +164,25 @@ function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: numb
   for (let row = 0; row < srcH; row++) {
     for (let col = 0; col < srcW; col++) {
       const dst = (row * srcW + col) * 4
-      const sp = ((srcY + row) * prevPng.width + (srcX + col)) * 4
-      const sc = ((srcY + row) * currPng.width + (srcX + col)) * 4
+      const sp = ((srcY + row) * prevRaw.width + (srcX + col)) * 4
+      const sc = ((srcY + row) * currRaw.width + (srcX + col)) * 4
 
-      prevSlice[dst] = prevPng.data[sp]
-      prevSlice[dst + 1] = prevPng.data[sp + 1]
-      prevSlice[dst + 2] = prevPng.data[sp + 2]
-      prevSlice[dst + 3] = prevPng.data[sp + 3]
-      currSlice[dst] = currPng.data[sc]
-      currSlice[dst + 1] = currPng.data[sc + 1]
-      currSlice[dst + 2] = currPng.data[sc + 2]
-      currSlice[dst + 3] = currPng.data[sc + 3]
+      prevSlice[dst] = prevRaw.data[sp]
+      prevSlice[dst + 1] = prevRaw.data[sp + 1]
+      prevSlice[dst + 2] = prevRaw.data[sp + 2]
+      prevSlice[dst + 3] = prevRaw.data[sp + 3]
+      currSlice[dst] = currRaw.data[sc]
+      currSlice[dst + 1] = currRaw.data[sc + 1]
+      currSlice[dst + 2] = currRaw.data[sc + 2]
+      currSlice[dst + 3] = currRaw.data[sc + 3]
     }
   }
 
-  const diffImg = new PNG({ width: srcW, height: srcH })
-  const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, srcW, srcH, { threshold: 0.1 })
+  // pixelmatch requires an output buffer but we only need the changed-pixel
+  // count here - the visualisation image is built once, for the whole page,
+  // not per zone.
+  const discardOutput = new Uint8Array(srcW * srcH * 4)
+  const changedPixels = pixelmatch(prevSlice, currSlice, discardOutput, srcW, srcH, { threshold: 0.1 })
   const totalPixels = srcW * srcH
 
   return {
@@ -199,6 +190,49 @@ function diffZone(prevPng: PNG, currPng: PNG, zone: Zone): { changedPixels: numb
     totalPixels,
     diffPct: totalPixels > 0 ? (changedPixels / totalPixels) * 100 : 0,
   }
+}
+
+/**
+ * Cheap prefilter for whether a diff confined to a single edge band is
+ * "chrome noise" (sticky header clock, footer year, a re-rendered cookie
+ * banner remnant) rather than a real content change.
+ *
+ * Splits the full-page comparison into 10 equal horizontal bands. Real
+ * content changes are essentially never confined to only the very top or
+ * very bottom band - so if every changed pixel sits in band 0 or band 9 (and
+ * nowhere in between), and the overall diff is small, it's treated as noise.
+ * `prevSlice`/`currSlice` are the same row-major RGBA buffers already built
+ * for the whole-page pixelmatch pass, sliced by row range per band (a
+ * contiguous view - no copy needed).
+ */
+function isBandedEdgeNoise(prevSlice: Uint8Array, currSlice: Uint8Array, width: number, height: number, pageDiffPct: number): boolean {
+  // A diff this large is never just header/footer noise, regardless of where
+  // it sits - skip the banding work entirely.
+  if (pageDiffPct >= 2 || height < 10) return false
+
+  const bandCount = 10
+  const bandHeight = Math.ceil(height / bandCount)
+  let sawEdgeChange = false
+  let sawMiddleChange = false
+
+  for (let b = 0; b < bandCount; b++) {
+    const rowStart = b * bandHeight
+    const rowEnd = Math.min(height, rowStart + bandHeight)
+    const bandRows = rowEnd - rowStart
+    if (bandRows <= 0) continue
+
+    const bandPrev = prevSlice.subarray(rowStart * width * 4, rowEnd * width * 4)
+    const bandCurr = currSlice.subarray(rowStart * width * 4, rowEnd * width * 4)
+    const discardOutput = new Uint8Array(bandPrev.length)
+    const changed = pixelmatch(bandPrev, bandCurr, discardOutput, width, bandRows, { threshold: 0.1 })
+
+    if (changed > 0) {
+      if (b === 0 || b === bandCount - 1) sawEdgeChange = true
+      else sawMiddleChange = true
+    }
+  }
+
+  return sawEdgeChange && !sawMiddleChange
 }
 
 function semanticFallbackSummary(hasZones: boolean): string {
@@ -218,15 +252,34 @@ function semanticAlertTitle(monUrl: any, passedZones: ZoneDiffScore[]): string {
 }
 
 async function preparePageForScreenshot(page: Page): Promise<void> {
-  for (const selector of CLICK_SELECTORS) {
-    try {
-      const el = page.locator(selector).first()
-      if (await el.isVisible({ timeout: 400 })) {
-        await el.click({ timeout: 800 })
-        await page.waitForTimeout(250)
-      }
-    } catch {}
-  }
+  // All CLICK_SELECTORS are resolved in a single browser-side pass instead of
+  // round-tripping Playwright's isVisible() (which polls up to 400ms) once
+  // per selector - that was up to ~5.2s of pure protocol overhead per capture
+  // on pages where none of them matched. Behaviour is preserved: every
+  // selector that is currently visible still gets clicked, in the same order.
+  const clickedAny = await page.evaluate((selectors: string[]) => {
+    function isVisible(el: Element): boolean {
+      const style = window.getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false
+      const rect = el.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }
+
+    let clicked = false
+    for (const selector of selectors) {
+      try {
+        const el = document.querySelector(selector) as HTMLElement | null
+        if (el && isVisible(el)) {
+          el.click()
+          clicked = true
+        }
+      } catch {}
+    }
+    return clicked
+  }, CLICK_SELECTORS).catch(() => false)
+
+  // Only pay the settle-time wait when a click actually happened.
+  if (clickedAny) await page.waitForTimeout(250)
 
   await page.evaluate(() => {
     const ACCEPT_RE = /^(accept all|accept cookies?|allow all|allow cookies?|i accept|i agree|agree|got it|ok)$/i
@@ -339,7 +392,13 @@ export async function processUrl(
 
     const page = await context.newPage()
     await page.setViewportSize({ width: 1280, height: 800 })
-    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30_000 })
+    // `networkidle` never settles on pages with polling, live chat, or video
+    // embeds - it used to burn the full 30s timeout on those every check.
+    // `domcontentloaded` is fast and reliable; give the page a short, bounded
+    // chance to also reach networkidle (most pages do, quickly), then move on
+    // regardless and rely on the existing fixed wait below.
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {})
     await page.waitForTimeout(1000)
     await preparePageForScreenshot(page)
     screenshotBuffer = await page.screenshot({ fullPage, type: 'png' })
@@ -348,15 +407,42 @@ export async function processUrl(
     await browser.close()
   }
 
-  const screenshotPath = `screenshots/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
+  // Playwright only emits PNG reliably, but nothing downstream of this point
+  // needs to store PNG - re-encode to WebP (quality 80) before it ever
+  // touches storage. `screenshotBuffer` (the original PNG) is kept around for
+  // the pixel-diff pipeline below, which wants the highest-fidelity source.
+  const screenshotWebp = await encodeCaptureWebp(screenshotBuffer)
+  const screenshotPath = `screenshots/${monUrl.workspace_id}/${monUrl.id}/${ts}.webp`
 
   const { error: uploadErr } = await supabase.storage
     .from('screenshots')
-    .upload(screenshotPath, screenshotBuffer, { contentType: 'image/png', upsert: false })
+    .upload(screenshotPath, screenshotWebp, { contentType: 'image/webp', upsert: false })
 
   if (uploadErr) {
     logger.error('Upload failed', { url: monUrl.url, error: uploadErr.message })
     throw new Error(`Upload failed: ${uploadErr.message}`)
+  }
+
+  // Best-effort thumbnail for the dashboard's screenshot history grid, which
+  // otherwise loads the full multi-MB capture per grid cell. A thumbnail
+  // failure should never fail the capture itself.
+  let thumbPath: string | null = null
+  let thumbBuffer: Buffer | null = null
+  try {
+    thumbBuffer = await makeThumbnail(screenshotBuffer)
+    const candidatePath = `thumbs/${monUrl.workspace_id}/${monUrl.id}/${ts}.webp`
+    const { error: thumbErr } = await supabase.storage
+      .from('screenshots')
+      .upload(candidatePath, thumbBuffer, { contentType: 'image/webp', upsert: false })
+    if (thumbErr) {
+      logger.warn('Thumbnail upload failed. Continuing without one', { url: monUrl.url, error: thumbErr.message })
+      thumbBuffer = null
+    } else {
+      thumbPath = candidatePath
+    }
+  } catch (thumbErr) {
+    logger.warn('Thumbnail generation failed. Continuing without one', { url: monUrl.url, err: thumbErr })
+    thumbBuffer = null
   }
 
   const { data: snapshot, error: snapErr } = await supabase
@@ -366,8 +452,13 @@ export async function processUrl(
       monitored_url_id: monUrl.id,
       storage_path: screenshotPath,
       taken_at: now.toISOString(),
-      file_size_bytes: screenshotBuffer.length,
-      metadata: { viewport_width: 1280, manual_run: monUrl._manual ?? false, full_page: fullPage },
+      file_size_bytes: screenshotWebp.length,
+      metadata: {
+        viewport_width: 1280,
+        manual_run: monUrl._manual ?? false,
+        full_page: fullPage,
+        ...(thumbPath ? { thumb_path: thumbPath } : {}),
+      },
     })
     .select()
     .single()
@@ -375,10 +466,12 @@ export async function processUrl(
   if (snapErr || !snapshot) throw new Error(`Failed to save snapshot: ${snapErr?.message}`)
 
   // Meter the capture the moment it is durable. Doing this after the diff would
-  // let a monitor that always fails comparison run for free.
+  // let a monitor that always fails comparison run for free. Bytes reflect
+  // what actually landed in storage (WebP capture + thumbnail), not the
+  // in-memory PNG Playwright produced.
   await recordUsage(supabase, monUrl.workspace_id, {
     checks: 1,
-    bytes: screenshotBuffer.length,
+    bytes: screenshotWebp.length + (thumbBuffer?.length ?? 0),
   })
 
   if (mode === 'archive') {
@@ -418,6 +511,7 @@ export async function processUrl(
   let prevBuffer: Buffer | null = null
   let zoneCrops: ZoneCrop[] | undefined
   let zoneScores: ZoneDiffScore[] = []
+  let isBandedNoise = false
 
   // Zones stay on the row through a downgrade so an upgrade restores them
   // untouched — they are simply not applied while the plan excludes them.
@@ -437,12 +531,17 @@ export async function processUrl(
 
   try {
     prevBuffer = Buffer.from(await prevBlob.arrayBuffer())
-    const prevPng = PNG.sync.read(prevBuffer)
-    const currPng = PNG.sync.read(screenshotBuffer)
+    // sharp sniffs the format from the buffer itself - prevBuffer may be PNG
+    // (an older snapshot) or WebP (a snapshot taken after this pipeline
+    // switched formats). screenshotBuffer is always the fresh PNG Playwright
+    // just captured, decoded straight from memory rather than re-downloading
+    // the WebP we just uploaded.
+    const prevRaw = await decodeToRaw(prevBuffer)
+    const currRaw = await decodeToRaw(screenshotBuffer)
 
-    const width = Math.min(prevPng.width, currPng.width)
-    const minH = Math.min(prevPng.height, currPng.height)
-    const maxH = Math.max(prevPng.height, currPng.height)
+    const width = Math.min(prevRaw.width, currRaw.width)
+    const minH = Math.min(prevRaw.height, currRaw.height)
+    const maxH = Math.max(prevRaw.height, currRaw.height)
     const totalPixels = width * maxH
 
     const prevSlice = new Uint8Array(width * minH * 4)
@@ -451,24 +550,29 @@ export async function processUrl(
     for (let row = 0; row < minH; row++) {
       for (let col = 0; col < width; col++) {
         const dst = (row * width + col) * 4
-        const sp = (row * prevPng.width + col) * 4
-        const sc = (row * currPng.width + col) * 4
+        const sp = (row * prevRaw.width + col) * 4
+        const sc = (row * currRaw.width + col) * 4
 
-        prevSlice[dst] = prevPng.data[sp]
-        prevSlice[dst + 1] = prevPng.data[sp + 1]
-        prevSlice[dst + 2] = prevPng.data[sp + 2]
-        prevSlice[dst + 3] = prevPng.data[sp + 3]
-        currSlice[dst] = currPng.data[sc]
-        currSlice[dst + 1] = currPng.data[sc + 1]
-        currSlice[dst + 2] = currPng.data[sc + 2]
-        currSlice[dst + 3] = currPng.data[sc + 3]
+        prevSlice[dst] = prevRaw.data[sp]
+        prevSlice[dst + 1] = prevRaw.data[sp + 1]
+        prevSlice[dst + 2] = prevRaw.data[sp + 2]
+        prevSlice[dst + 3] = prevRaw.data[sp + 3]
+        currSlice[dst] = currRaw.data[sc]
+        currSlice[dst + 1] = currRaw.data[sc + 1]
+        currSlice[dst + 2] = currRaw.data[sc + 2]
+        currSlice[dst + 3] = currRaw.data[sc + 3]
       }
     }
 
-    const diffImg = new PNG({ width, height: minH })
-    const changedPixels = pixelmatch(prevSlice, currSlice, diffImg.data, width, minH, { threshold: 0.1 })
+    const diffOutput = new Uint8Array(width * minH * 4)
+    const changedPixels = pixelmatch(prevSlice, currSlice, diffOutput, width, minH, { threshold: 0.1 })
     const extraPixels = width * (maxH - minH)
     pageDiffPct = ((changedPixels + extraPixels) / totalPixels) * 100
+
+    // Banding is only a meaningful signal for whole-page comparisons - a
+    // monitor with zones already has a much more targeted filter (each
+    // zone's own sensitivity threshold), left untouched below.
+    isBandedNoise = isBandedEdgeNoise(prevSlice, currSlice, width, minH, pageDiffPct)
 
     if (zones.length > 0) {
       zoneCrops = []
@@ -478,9 +582,9 @@ export async function processUrl(
       for (let i = 0; i < zones.length; i++) {
         const zone = zones[i]
         const label = zone.label?.trim() || `Zone ${i + 1}`
-        const beforeCrop = cropZone(prevPng, zone)
-        const afterCrop = cropZone(currPng, zone)
-        const score = diffZone(prevPng, currPng, zone)
+        const beforeCrop = await cropZoneWebp(prevRaw, zone)
+        const afterCrop = await cropZoneWebp(currRaw, zone)
+        const score = diffZone(prevRaw, currRaw, zone)
         const sensitivity = zone.sensitivity ?? 'normal'
         const config = sensitivityConfig(sensitivity)
 
@@ -522,9 +626,9 @@ export async function processUrl(
     }
 
     if (pageDiffPct > 0) {
-      const diffBuffer = PNG.sync.write(diffImg)
-      const diffPath = `diffs/${monUrl.workspace_id}/${monUrl.id}/${ts}.png`
-      const { error: diffUploadErr } = await supabase.storage.from('screenshots').upload(diffPath, diffBuffer, { contentType: 'image/png' })
+      const diffBuffer = await encodeRawWebp(diffOutput, width, minH)
+      const diffPath = `diffs/${monUrl.workspace_id}/${monUrl.id}/${ts}.webp`
+      const { error: diffUploadErr } = await supabase.storage.from('screenshots').upload(diffPath, diffBuffer, { contentType: 'image/webp' })
       if (!diffUploadErr) diffStoragePath = diffPath
     }
   } catch (diffErr) {
@@ -541,15 +645,41 @@ export async function processUrl(
   })
 
   const passedZones = zoneScores.filter(z => z.passes_threshold)
-  const AI_FLOOR = zoneCrops ? 0 : 0.05
-  const passesFloor = zoneCrops ? passedZones.length > 0 : diffPct >= AI_FLOOR
+  // The no-zone floor used to be a flat 0.05% - five hundredths of one
+  // percent - which any real page with a rotating hero, a relative
+  // timestamp, or a variable-height element clears on essentially every
+  // check. The floor is now the monitor's own `threshold_pct` (what the user
+  // already told us they consider a meaningful change), with a hard 0.5%
+  // minimum so a monitor saved with an unrealistically low threshold can't
+  // reopen the near-every-check AI floor this replaces. Zone-based monitors
+  // are unaffected - their per-zone sensitivity thresholds are a real filter
+  // already and stay exactly as they were.
+  const noZoneFloor = Math.max(monUrl.threshold_pct ?? 5, 0.5)
+  const AI_FLOOR = zoneCrops ? 0 : noZoneFloor
+  // isBandedNoise folds into the same floor: a diff confined to a single edge
+  // band under 2% is chrome noise (sticky header clock, footer year, a
+  // re-rendered cookie banner remnant), not a real change worth a model call
+  // or an alert - so it's treated the same as "didn't pass the floor".
+  const passesFloor = zoneCrops
+    ? passedZones.length > 0
+    : diffPct >= AI_FLOOR && !isBandedNoise
   // Without the model pass there is no relevance judgement to make, so the
   // pixel threshold the user configured becomes the alert decision on its own.
+  // Edge-band noise is still suppressed on that path: it is a free pixel-level
+  // filter, not a paid capability, and letting it through would mean a plan
+  // WITHOUT AI summaries produces noisier alerts than one with them.
   const shouldRunAI = passesFloor && plan.features.aiSummaries
   const shouldConsiderAlert = plan.features.aiSummaries
     ? passesFloor
-    : diffPct >= (monUrl.threshold_pct ?? 5)
+    : diffPct >= (monUrl.threshold_pct ?? 5) && !isBandedNoise
   let alerted = false
+
+  if (isBandedNoise) {
+    logger.info('Diff confined to a single edge band under 2%. Treating as chrome noise', {
+      url: monUrl.url,
+      diffPct: diffPct.toFixed(3),
+    })
+  }
 
   if (shouldConsiderAlert) {
     let shouldAlert = true
@@ -588,7 +718,7 @@ export async function processUrl(
       const severity =
         alertScore >= 85 ? 'critical' : alertScore >= 65 ? 'high' : alertScore >= 35 ? 'medium' : 'low'
 
-      await supabase.from('alerts').insert({
+      const { data: createdAlert, error: alertErr } = await supabase.from('alerts').insert({
         workspace_id: monUrl.workspace_id,
         monitored_url_id: monUrl.id,
         alert_type: 'visual_change',
@@ -612,8 +742,22 @@ export async function processUrl(
         },
         triggered_at: now.toISOString(),
       })
+        .select('id')
+        .single()
+
+      if (alertErr) throw new Error(`Failed to create alert: ${alertErr.message}`)
+
       alerted = true
       logger.info('Alert created', { url: monUrl.url, diffPct: diffPct.toFixed(1), alertScore, aiSuppressed: false })
+
+      // High and critical changes go out immediately; everything else waits for
+      // the daily digest. The task itself re-checks severity, the workspace's
+      // plan and whether a notification was already sent, so enqueueing here is
+      // safe and never double-sends. Fire-and-forget: a delivery problem must
+      // not fail a capture that already succeeded.
+      if (createdAlert && (severity === 'critical' || severity === 'high')) {
+        await triggerInstantAlert(createdAlert.id)
+      }
     } else {
       logger.info('Alert suppressed by AI. Change not relevant to watch instructions', {
         url: monUrl.url,

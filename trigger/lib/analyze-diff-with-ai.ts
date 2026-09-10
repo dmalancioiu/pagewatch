@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import sharp from 'sharp'
 
 const NO_ALERT_MARKER = 'NO_ALERT'
 
@@ -13,6 +14,20 @@ export interface ZoneCrop {
 export interface AiAnalysisResult {
   shouldAlert: boolean
   summary: string   // Always populated: either Claude's description or a generic fallback
+}
+
+/**
+ * Downscale + re-encode an image before it goes to the model. A full-page
+ * capture can be 1280x6000; sending it at full size is pure waste since the
+ * model downsamples internally anyway. Zone crops are already small, but are
+ * still passed through this so nothing ever exceeds the cap.
+ */
+async function toModelImage(buf: Buffer): Promise<string> {
+  const resized = await sharp(buf)
+    .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer()
+  return resized.toString('base64')
 }
 
 /**
@@ -50,37 +65,42 @@ export async function analyzeWithAI(params: {
 
   const content: Anthropic.ContentBlockParam[] = []
 
-  if (hasZones) {
-    // Send before/after crops for each zone as image pairs
-    for (const crop of zoneCrops) {
-      const instruction = crop.instruction?.trim()
-      const sensitivity = crop.sensitivity ?? 'normal'
-      const meta = instruction
-        ? `${crop.label} - watch instruction: "${instruction}". Sensitivity: ${sensitivity}.`
-        : `${crop.label} - no custom watch instruction. Sensitivity: ${sensitivity}.`
+  try {
+    if (hasZones) {
+      // Send before/after crops for each zone as image pairs
+      for (const crop of zoneCrops) {
+        const instruction = crop.instruction?.trim()
+        const sensitivity = crop.sensitivity ?? 'normal'
+        const meta = instruction
+          ? `${crop.label} - watch instruction: "${instruction}". Sensitivity: ${sensitivity}.`
+          : `${crop.label} - no custom watch instruction. Sensitivity: ${sensitivity}.`
 
-      content.push({ type: 'text', text: meta })
-      content.push({ type: 'text', text: `${crop.label} - before:` })
+        content.push({ type: 'text', text: meta })
+        content.push({ type: 'text', text: `${crop.label} - before:` })
+        content.push({
+          type:   'image',
+          source: { type: 'base64', media_type: 'image/webp', data: await toModelImage(crop.before) },
+        })
+        content.push({ type: 'text', text: `${crop.label} - after:` })
+        content.push({
+          type:   'image',
+          source: { type: 'base64', media_type: 'image/webp', data: await toModelImage(crop.after) },
+        })
+      }
+    } else {
+      // Full-page comparison
       content.push({
         type:   'image',
-        source: { type: 'base64', media_type: 'image/png', data: crop.before.toString('base64') },
+        source: { type: 'base64', media_type: 'image/webp', data: await toModelImage(beforeBuffer) },
       })
-      content.push({ type: 'text', text: `${crop.label} - after:` })
       content.push({
         type:   'image',
-        source: { type: 'base64', media_type: 'image/png', data: crop.after.toString('base64') },
+        source: { type: 'base64', media_type: 'image/webp', data: await toModelImage(afterBuffer) },
       })
     }
-  } else {
-    // Full-page comparison
-    content.push({
-      type:   'image',
-      source: { type: 'base64', media_type: 'image/png', data: beforeBuffer.toString('base64') },
-    })
-    content.push({
-      type:   'image',
-      source: { type: 'base64', media_type: 'image/png', data: afterBuffer.toString('base64') },
-    })
+  } catch (encodeErr) {
+    console.error('[analyzeWithAI] Image resize/encode failed, falling back to generic alert:', encodeErr)
+    return { shouldAlert: true, summary: genericSummary(diffPct, hasZones) }
   }
 
   // Build prompt

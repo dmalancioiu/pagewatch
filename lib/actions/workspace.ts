@@ -41,6 +41,24 @@ export async function createWorkspace(name: string, domain: string) {
     role:         'owner',
   })
 
+  // The daily digest (and instant alerts) only ever email a workspace that
+  // has an active `notification_channels` row — and until now, the only code
+  // that wrote one was `saveNotificationChannel`, reached solely by finishing
+  // the onboarding wizard. Anyone who skipped or abandoned onboarding got a
+  // fully working monitor and silence forever after, with nothing in the UI
+  // to say so. Seeding a default channel here means every workspace can be
+  // notified from the moment it exists; `saveNotificationChannel` upserts on
+  // `(workspace_id, channel_type)`, so the wizard still overwrites this with
+  // whatever the user actually chooses.
+  if (user.email) {
+    await supabase.from('notification_channels').insert({
+      workspace_id: workspace.id,
+      channel_type: 'email',
+      config:       { email: user.email, frequency: 'daily' },
+      is_active:    true,
+    })
+  }
+
   // Onboarding steps for the screenshot-monitoring wizard
   const steps = ['domain', 'business_context', 'urls', 'monitoring_prefs', 'alert_preferences', 'review']
   await supabase.from('onboarding_state').insert(
