@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   Monitor,
@@ -12,12 +13,16 @@ import { Badge } from '@/components/ui/badge'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PricingSection } from '@/components/landing/PricingSection'
 import { ScrollReveal } from '@/components/landing/ScrollReveal'
+import { buildMetadata, jsonLdScriptProps, softwareApplicationJsonLd } from '@/lib/marketing/seo'
 
-export const metadata = {
+export const metadata: Metadata = buildMetadata({
   title: 'PageWatch — Know the moment anything changes',
   description:
     'PageWatch monitors your pages on a schedule, compares screenshots pixel by pixel, and has Claude decide whether the change is worth telling you about.',
-}
+  path: '',
+})
+
+const SOFTWARE_APPLICATION_JSON_LD = softwareApplicationJsonLd()
 
 const NAV_LINKS = [
   { href: '#how-it-works', label: 'How it works' },
@@ -211,6 +216,7 @@ export default function LandingPage() {
 
   return (
     <main className="bg-bg">
+      <script {...jsonLdScriptProps(SOFTWARE_APPLICATION_JSON_LD)} />
       <ScrollReveal />
       <LandingNav />
 
@@ -370,6 +376,7 @@ export default function LandingPage() {
                 { href: '#how-it-works', label: 'How it works' },
                 { href: '#pricing', label: 'Pricing' },
                 { href: '#faq', label: 'FAQ' },
+                { href: '/compare', label: 'Compare' },
                 { href: '/login', label: 'Sign in' },
               ]}
             />
@@ -381,6 +388,10 @@ export default function LandingPage() {
                 { href: '/competitor-website-monitoring', label: 'Competitor tracking' },
                 { href: '/website-change-history', label: 'Change history' },
                 { href: '/website-monitoring-for-agencies', label: 'For agencies' },
+                { href: '/for/competitor-price-tracking', label: 'Competitor price tracking' },
+                { href: '/for/agencies', label: 'Agency client monitoring' },
+                { href: '/for/compliance-monitoring', label: 'Compliance monitoring' },
+                { href: '/for/deploy-qa', label: 'Release & deploy QA' },
               ]}
             />
             <FooterCol

@@ -1,14 +1,49 @@
 import type { Metadata } from 'next'
 import { SeoPage } from '@/components/landing/SeoPage'
+import {
+    breadcrumbJsonLd,
+    buildMetadata,
+    faqPageJsonLd,
+    jsonLdScriptProps,
+} from '@/lib/marketing/seo'
 
-export const metadata: Metadata = {
+const PATH = '/visual-website-monitoring'
+const EYEBROW = 'Visual website monitoring'
+
+export const metadata: Metadata = buildMetadata({
     title: 'Visual Website Monitoring Software | Pixel Diff Alerts | PageWatch',
     description:
         'Visual website monitoring for teams that care about what users actually see. Monitor pages with screenshots, pixel diffs, and AI summaries.',
-}
+    path: PATH,
+    ogEyebrow: EYEBROW,
+})
+
+const FAQS = [
+    {
+        question: 'What makes visual monitoring different?',
+        answer: 'It focuses on the rendered page instead of only server health or raw HTML changes.',
+    },
+    {
+        question: 'Does PageWatch keep screenshot history?',
+        answer: 'Yes. The product stores snapshots over time and uses them for diffs and review.',
+    },
+    {
+        question: 'Can PageWatch explain what changed?',
+        answer: 'Yes. The product includes AI-written summaries alongside visual diff detection.',
+    },
+]
+
+const BREADCRUMB_JSON_LD = breadcrumbJsonLd([
+    { name: 'PageWatch', path: '' },
+    { name: EYEBROW, path: PATH },
+])
+const FAQ_JSON_LD = faqPageJsonLd(FAQS)
 
 export default function VisualWebsiteMonitoringPage() {
     return (
+        <>
+        <script {...jsonLdScriptProps(BREADCRUMB_JSON_LD)} />
+        <script {...jsonLdScriptProps(FAQ_JSON_LD)} />
         <SeoPage
             eyebrow="Visual website monitoring"
             title="Visual website monitoring built for real page changes, not just server checks"
@@ -38,22 +73,10 @@ export default function VisualWebsiteMonitoringPage() {
                     body: 'Use it for pricing pages, feature pages, product launches, forms, onboarding pages, client websites, and regulated pages where visual proof matters. It is also useful when marketing, product, engineering, and operations all touch the same public surface area.',
                 },
             ]}
-            faqs={[
-                {
-                    question: 'What makes visual monitoring different?',
-                    answer: 'It focuses on the rendered page instead of only server health or raw HTML changes.',
-                },
-                {
-                    question: 'Does PageWatch keep screenshot history?',
-                    answer: 'Yes. The product stores snapshots over time and uses them for diffs and review.',
-                },
-                {
-                    question: 'Can PageWatch explain what changed?',
-                    answer: 'Yes. The product includes AI-written summaries alongside visual diff detection.',
-                },
-            ]}
+            faqs={FAQS}
             ctaTitle="See changes the way your visitors do"
             ctaBody="Monitor public pages visually, review diffs over time, and turn page changes into something your team can act on fast."
         />
+        </>
     )
 }

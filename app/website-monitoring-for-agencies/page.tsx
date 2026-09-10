@@ -1,14 +1,49 @@
 import type { Metadata } from 'next'
 import { SeoPage } from '@/components/landing/SeoPage'
+import {
+    breadcrumbJsonLd,
+    buildMetadata,
+    faqPageJsonLd,
+    jsonLdScriptProps,
+} from '@/lib/marketing/seo'
 
-export const metadata: Metadata = {
+const PATH = '/website-monitoring-for-agencies'
+const EYEBROW = 'Website monitoring for agencies'
+
+export const metadata: Metadata = buildMetadata({
     title: 'Website Monitoring for Agencies | Client Site Change Tracking | PageWatch',
     description:
         'Website monitoring for agencies that manage multiple client sites. Track page changes, catch issues early, and keep screenshot history for proof and reporting.',
-}
+    path: PATH,
+    ogEyebrow: EYEBROW,
+})
+
+const FAQS = [
+    {
+        question: 'Is PageWatch a good fit for agencies managing multiple sites?',
+        answer: 'Yes. The product is well aligned with agency workflows because it monitors URLs on schedules and keeps visual history over time.',
+    },
+    {
+        question: 'Can this reduce support surprises?',
+        answer: 'Yes. It helps agencies catch visible issues earlier instead of learning about them from end users or clients.',
+    },
+    {
+        question: 'What pages should agencies monitor first?',
+        answer: 'Start with high-impact pages like homepages, pricing pages, forms, landing pages, and checkout or sign-up flows.',
+    },
+]
+
+const BREADCRUMB_JSON_LD = breadcrumbJsonLd([
+    { name: 'PageWatch', path: '' },
+    { name: EYEBROW, path: PATH },
+])
+const FAQ_JSON_LD = faqPageJsonLd(FAQS)
 
 export default function WebsiteMonitoringForAgenciesPage() {
     return (
+        <>
+        <script {...jsonLdScriptProps(BREADCRUMB_JSON_LD)} />
+        <script {...jsonLdScriptProps(FAQ_JSON_LD)} />
         <SeoPage
             eyebrow="Website monitoring for agencies"
             title="Website monitoring for agencies that need to know before the client does"
@@ -38,22 +73,10 @@ export default function WebsiteMonitoringForAgenciesPage() {
                     body: 'Clients want clarity. A screenshot history lets you show what changed and when. That makes issue review faster and gives account managers, developers, and clients a shared reference point instead of subjective recollection.',
                 },
             ]}
-            faqs={[
-                {
-                    question: 'Is PageWatch a good fit for agencies managing multiple sites?',
-                    answer: 'Yes. The product is well aligned with agency workflows because it monitors URLs on schedules and keeps visual history over time.',
-                },
-                {
-                    question: 'Can this reduce support surprises?',
-                    answer: 'Yes. It helps agencies catch visible issues earlier instead of learning about them from end users or clients.',
-                },
-                {
-                    question: 'What pages should agencies monitor first?',
-                    answer: 'Start with high-impact pages like homepages, pricing pages, forms, landing pages, and checkout or sign-up flows.',
-                },
-            ]}
+            faqs={FAQS}
             ctaTitle="Stay ahead of client-side website issues"
             ctaBody="Monitor the pages clients care about most, keep proof of what changed, and spot visual regressions before they become awkward calls."
         />
+        </>
     )
 }

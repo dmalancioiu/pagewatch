@@ -1,14 +1,49 @@
 import type { Metadata } from 'next'
 import { SeoPage } from '@/components/landing/SeoPage'
+import {
+    breadcrumbJsonLd,
+    buildMetadata,
+    faqPageJsonLd,
+    jsonLdScriptProps,
+} from '@/lib/marketing/seo'
 
-export const metadata: Metadata = {
+const PATH = '/website-change-detection'
+const EYEBROW = 'Website change detection'
+
+export const metadata: Metadata = buildMetadata({
     title: 'Website Change Detection Tool | Screenshot-Based Alerts | PageWatch',
     description:
         'Detect website changes automatically with scheduled screenshots, pixel-by-pixel diffs, and instant alerts. PageWatch helps teams catch visual changes before customers do.',
-}
+    path: PATH,
+    ogEyebrow: EYEBROW,
+})
+
+const FAQS = [
+    {
+        question: 'Is website change detection the same as uptime monitoring?',
+        answer: 'No. Uptime monitoring tells you if a page responds. Website change detection tells you if the page looks different from before. Both matter, but they solve different problems.',
+    },
+    {
+        question: 'Can I control how sensitive alerts are?',
+        answer: 'Yes. PageWatch uses thresholds so you can decide whether to catch subtle changes or only major visual updates.',
+    },
+    {
+        question: 'Does PageWatch work for public URLs only?',
+        answer: 'Based on the current product description, the core flow is built around adding public URLs and monitoring them on a schedule.',
+    },
+]
+
+const BREADCRUMB_JSON_LD = breadcrumbJsonLd([
+    { name: 'PageWatch', path: '' },
+    { name: EYEBROW, path: PATH },
+])
+const FAQ_JSON_LD = faqPageJsonLd(FAQS)
 
 export default function WebsiteChangeDetectionPage() {
     return (
+        <>
+        <script {...jsonLdScriptProps(BREADCRUMB_JSON_LD)} />
+        <script {...jsonLdScriptProps(FAQ_JSON_LD)} />
         <SeoPage
             eyebrow="Website change detection"
             title="Website change detection that catches the changes humans actually notice"
@@ -38,22 +73,10 @@ export default function WebsiteChangeDetectionPage() {
                     body: 'Teams use PageWatch to watch pricing pages, homepage hero sections, product detail pages, legal pages, forms, sign-up pages, and checkout steps. It is especially useful when multiple people can publish changes, when external tools inject content, or when client sites change without warning.',
                 },
             ]}
-            faqs={[
-                {
-                    question: 'Is website change detection the same as uptime monitoring?',
-                    answer: 'No. Uptime monitoring tells you if a page responds. Website change detection tells you if the page looks different from before. Both matter, but they solve different problems.',
-                },
-                {
-                    question: 'Can I control how sensitive alerts are?',
-                    answer: 'Yes. PageWatch uses thresholds so you can decide whether to catch subtle changes or only major visual updates.',
-                },
-                {
-                    question: 'Does PageWatch work for public URLs only?',
-                    answer: 'Based on the current product description, the core flow is built around adding public URLs and monitoring them on a schedule.',
-                },
-            ]}
+            faqs={FAQS}
             ctaTitle="Catch website changes before your users do"
             ctaBody="Set up monitoring in minutes, keep a visual record of every important page, and get alerted when something shifts."
         />
+        </>
     )
 }

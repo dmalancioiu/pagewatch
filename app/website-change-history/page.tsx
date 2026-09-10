@@ -1,14 +1,49 @@
 import type { Metadata } from 'next'
 import { SeoPage } from '@/components/landing/SeoPage'
+import {
+    breadcrumbJsonLd,
+    buildMetadata,
+    faqPageJsonLd,
+    jsonLdScriptProps,
+} from '@/lib/marketing/seo'
 
-export const metadata: Metadata = {
+const PATH = '/website-change-history'
+const EYEBROW = 'Website change history'
+
+export const metadata: Metadata = buildMetadata({
     title: 'Website Change History and Visual Audit Trail | PageWatch',
     description:
         'Keep a visual history of website changes with scheduled screenshots and searchable records. Build an audit trail for client work, compliance, and internal review.',
-}
+    path: PATH,
+    ogEyebrow: EYEBROW,
+})
+
+const FAQS = [
+    {
+        question: 'Does PageWatch support screenshot history without alerts?',
+        answer: 'Yes. The product includes an archive mode intended for screenshot collection without alerting.',
+    },
+    {
+        question: 'Is this useful for compliance and audits?',
+        answer: 'Yes. A visual record of public pages can be useful whenever teams need proof of what was live at a given time.',
+    },
+    {
+        question: 'Can I compare snapshots over time?',
+        answer: 'Yes. Snapshot history is part of the product workflow and is used for diffs and review.',
+    },
+]
+
+const BREADCRUMB_JSON_LD = breadcrumbJsonLd([
+    { name: 'PageWatch', path: '' },
+    { name: EYEBROW, path: PATH },
+])
+const FAQ_JSON_LD = faqPageJsonLd(FAQS)
 
 export default function WebsiteChangeHistoryPage() {
     return (
+        <>
+        <script {...jsonLdScriptProps(BREADCRUMB_JSON_LD)} />
+        <script {...jsonLdScriptProps(FAQ_JSON_LD)} />
         <SeoPage
             eyebrow="Website change history"
             title="A visual website change history for teams that need proof, not guesses"
@@ -38,22 +73,10 @@ export default function WebsiteChangeHistoryPage() {
                     body: 'Ad hoc screenshots are inconsistent and easy to lose. A scheduled screenshot archive creates a repeatable historical record. That makes it much easier to answer client questions, support investigations, legal reviews, or launch postmortems.',
                 },
             ]}
-            faqs={[
-                {
-                    question: 'Does PageWatch support screenshot history without alerts?',
-                    answer: 'Yes. The product includes an archive mode intended for screenshot collection without alerting.',
-                },
-                {
-                    question: 'Is this useful for compliance and audits?',
-                    answer: 'Yes. A visual record of public pages can be useful whenever teams need proof of what was live at a given time.',
-                },
-                {
-                    question: 'Can I compare snapshots over time?',
-                    answer: 'Yes. Snapshot history is part of the product workflow and is used for diffs and review.',
-                },
-            ]}
+            faqs={FAQS}
             ctaTitle="Build a visual audit trail for your important pages"
             ctaBody="Track page history over time, keep a cleaner record of what changed, and stop relying on scattered screenshots or memory."
         />
+        </>
     )
 }
