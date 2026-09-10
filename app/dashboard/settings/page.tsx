@@ -1,11 +1,13 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Bell, Building2, CreditCard, Mail, User } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Bell, Building2, CreditCard, Mail, Terminal, User } from 'lucide-react'
 import { getWorkspace } from '@/lib/actions/workspace'
 import { getEntitlements, toClientEntitlements } from '@/lib/entitlements'
 import { createServerClient } from '@/lib/supabase/server'
 import { parseSlackConfig } from '@/lib/slack'
 import { cheapestPlanWith } from '@/lib/plans'
+import { getApiKeys } from '@/lib/actions/api-keys'
+import { getRecentWebhookDeliveries, getWebhookEndpoints } from '@/lib/actions/webhooks'
 import { ManageBillingButton } from './ManageBillingButton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +15,8 @@ import { Meter } from '@/components/ui/meter'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SlackIntegrationCard, type SlackConnectionView } from './SlackIntegrationCard'
+import { ApiKeysCard } from './ApiKeysCard'
+import { WebhooksCard } from './WebhooksCard'
 
 export const metadata = { title: 'Settings — PageWatch' }
 
@@ -27,7 +31,15 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const { slack: slackStatusParam } = await searchParams
 
   const supabase = await createServerClient()
-  const [{ data: channels }, { data: slackRow }, { data: { user } }, entitlements] = await Promise.all([
+  const [
+    { data: channels },
+    { data: slackRow },
+    { data: { user } },
+    entitlements,
+    apiKeys,
+    webhookEndpoints,
+    webhookDeliveries,
+  ] = await Promise.all([
     supabase.from('notification_channels').select('*').eq('workspace_id', workspace.id).eq('channel_type', 'email'),
     // Selected separately, and narrowly, from the email channel above: this
     // is the one query in the app that ever reads a Slack row's `config`
@@ -43,6 +55,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       .maybeSingle(),
     supabase.auth.getUser(),
     getEntitlements(),
+    getApiKeys(workspace.id),
+    getWebhookEndpoints(workspace.id),
+    getRecentWebhookDeliveries(workspace.id),
   ])
 
   const emailChannel = channels?.find((c) => c.channel_type === 'email')
@@ -50,6 +65,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const emailAddr = emailConfig.email ?? user?.email ?? '—'
   const emailFreq = emailConfig.frequency ?? 'daily'
   const client = entitlements ? toClientEntitlements(entitlements) : null
+  const apiUpgradePlanName = cheapestPlanWith('api')?.name ?? 'Business'
 
   // Whether there is anything for the Stripe portal to manage. Read as a
   // boolean here so the customer id itself never crosses into a client
@@ -170,6 +186,26 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               <Meter label="Seats" value={client.usage.seats} max={client.limits.maxSeats} />
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Terminal className="size-4 text-text-faint" />
+            <CardTitle>Developer</CardTitle>
+          </div>
+          <CardDescription>REST API keys and outbound webhooks for alert events.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <ApiKeysCard apiKeys={apiKeys} apiEnabled={!!client?.features.api} upgradePlanName={apiUpgradePlanName} />
+          <Separator />
+          <WebhooksCard
+            endpoints={webhookEndpoints}
+            deliveries={webhookDeliveries}
+            apiEnabled={!!client?.features.api}
+            upgradePlanName={apiUpgradePlanName}
+          />
         </CardContent>
       </Card>
 

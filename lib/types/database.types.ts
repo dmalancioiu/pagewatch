@@ -175,3 +175,56 @@ export interface OnboardingState {
   data: Record<string, unknown> | null
   updated_at: string
 }
+
+// ─── API access ──────────────────────────────────────────────────────────────
+
+export type ApiKeyScope = 'read' | 'read_write'
+
+/**
+ * An API key row.
+ *
+ * Note what is NOT here: the plaintext key. Only a SHA-256 `key_hash` and a
+ * short non-secret `key_prefix` for display are stored, and the plaintext is
+ * returned exactly once at creation. There is deliberately no reveal path.
+ */
+export interface ApiKey {
+  id: string
+  workspace_id: string
+  name: string
+  /** First few characters, for identifying a key in a list. Not a secret. */
+  key_prefix: string
+  scope: ApiKeyScope
+  created_by: string | null
+  last_used_at: string | null
+  /** Non-null once revoked. Rows are kept so the audit trail survives. */
+  revoked_at: string | null
+  created_at: string
+}
+
+export interface WebhookEndpoint {
+  id: string
+  workspace_id: string
+  url: string
+  description: string | null
+  /** Signing secret. Server-side only — never send this to a browser. */
+  secret: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type WebhookDeliveryStatus = 'success' | 'failed'
+
+/** One delivery attempt, recorded so the UI can show failures. */
+export interface WebhookDelivery {
+  id: string
+  workspace_id: string
+  endpoint_id: string
+  event_type: string
+  alert_id: string | null
+  attempt_number: number
+  status: WebhookDeliveryStatus
+  response_status: number | null
+  error: string | null
+  created_at: string
+}
