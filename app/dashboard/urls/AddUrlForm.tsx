@@ -41,12 +41,13 @@ export function AddUrlForm({ workspaceId }: AddUrlFormProps) {
 
     startTransition(async () => {
       try {
-        await addMonitoredUrls(workspaceId, [{
+        const res = await addMonitoredUrls({ urls: [{
           url,
           name: name || deriveNameFromUrl(url),
           check_frequency: freq,
           threshold_pct: threshold,
-        }])
+        }] })
+        if (!res.ok) throw new Error(res.message)
         setUrl('')
         setName('')
         setFreq('daily')

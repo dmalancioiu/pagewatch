@@ -198,7 +198,7 @@ export function MonitorDetailDesignClientResponsive({ monitor, openAlert, snapsh
 
   function saveZones() {
     startSavingZones(async () => {
-      await updateMonitoredUrl(monitor.id, { zones: localZones })
+      await updateMonitoredUrl({ id: monitor.id, zones: localZones })
     })
   }
 

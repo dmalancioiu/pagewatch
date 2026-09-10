@@ -117,13 +117,13 @@ export function MonitorSettingsRailSync({
     setLoadingAction(action)
     startTransition(async () => {
       try {
-        await updateMonitoredUrl(monitorId, updates ?? {
+        await updateMonitoredUrl({ id: monitorId, ...(updates ?? {
           check_frequency: payload.checkFrequency,
           check_hour: payload.checkHour,
           full_page: payload.fullPage,
           watch_description: payload.watchDescription,
           zones: payload.zones,
-        })
+        }) })
         toast.success(success)
         router.refresh()
       } catch (error) {
@@ -184,7 +184,7 @@ export function MonitorSettingsRailSync({
         toast.info('Manual check queued', 'PageWatch will capture and compare this monitor shortly.')
         startTransition(async () => {
           try {
-            await triggerManualRun(monitorId)
+            await triggerManualRun({ id: monitorId })
             toast.success('Manual check started', 'Refresh in a moment to see the latest capture and any relevant alert.')
             router.refresh()
           } catch (error) {
@@ -214,7 +214,7 @@ export function MonitorSettingsRailSync({
         setLoadingAction('pause-resume')
         startTransition(async () => {
           try {
-            await updateMonitoredUrl(monitorId, { is_active: next } as any)
+            await updateMonitoredUrl({ id: monitorId, is_active: next })
             setIsActive(next)
             toast.success(next ? 'Monitor resumed' : 'Monitor paused')
             router.refresh()

@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '../supabase/server'
 import {
-  requireEntitlements,
   assertCanAddMonitors,
   assertFrequencyAllowed,
   assertZoneCount,
-  type Entitlements,
 } from '../entitlements'
+import { z } from 'zod'
+import { action } from './action'
 import { normalizeUrl, deriveMonitorName, UrlValidationError } from '../url'
 import type { CheckFrequency, MonitoredUrlMode, Zone } from '../types/database.types'
 
@@ -60,56 +60,70 @@ type MonitorUpdate = Partial<
  * is inserted. Partial success here would leave the user over quota with no
  * clear way back.
  */
-export async function addMonitoredUrls(
-  workspaceId: string,
-  urls: UrlInput[]
-): Promise<{ id: string }[]> {
-  const entitlements = await requireEntitlements()
-  assertWorkspaceMatches(entitlements, workspaceId)
+export const addMonitoredUrls = action
+  .input(
+    z.object({
+      urls: z
+        .array(
+          z.object({
+            url: z.string().min(1),
+            name: z.string().max(200).optional(),
+            check_frequency: z.enum(['hourly', 'daily', 'weekly']).optional(),
+            check_hour: z.number().int().min(0).max(23).nullable().optional(),
+            threshold_pct: z.number().min(0).max(100).optional(),
+            watch_description: z.string().max(2000).nullable().optional(),
+            full_page: z.boolean().optional(),
+            mode: z.enum(['watch', 'archive']).optional(),
+            zones: z.array(z.any()).nullable().optional(),
+          })
+        )
+        .min(1),
+    })
+  )
+  .handler(async ({ input, ctx }) => {
+    const { entitlements, workspaceId, supabase } = ctx
 
-  // Normalize first so invalid entries are rejected before they count toward
-  // the quota check.
-  const candidates = urls
-    .map((input) => ({ input, url: safeNormalize(input.url) }))
-    .filter((candidate): candidate is { input: UrlInput; url: string } =>
-      Boolean(candidate.url)
-    )
+    // Normalize first so invalid entries are rejected before they count toward
+    // the quota check.
+    const candidates = (input.urls as UrlInput[])
+      .map((raw) => ({ raw, url: safeNormalize(raw.url) }))
+      .filter((c): c is { raw: UrlInput; url: string } => Boolean(c.url))
 
-  if (!candidates.length) return []
-
-  assertCanAddMonitors(entitlements, candidates.length)
-
-  const rows = candidates.map(({ input, url }) => {
-    const frequency = input.check_frequency ?? 'daily'
-    const zones = input.zones ?? []
-
-    assertFrequencyAllowed(entitlements, frequency)
-    assertZoneCount(entitlements, zones.length)
-
-    return {
-      workspace_id: workspaceId,
-      url,
-      name: input.name?.trim() || deriveMonitorName(url),
-      check_frequency: frequency,
-      check_hour: input.check_hour ?? null,
-      threshold_pct: input.threshold_pct ?? 5,
-      is_active: true,
-      watch_description: input.watch_description ?? null,
-      full_page: input.full_page ?? true,
-      mode: input.mode ?? 'watch',
-      zones: zones.length ? zones : null,
+    if (!candidates.length) {
+      throw new Error('None of those look like URLs we can monitor.')
     }
+
+    assertCanAddMonitors(entitlements, candidates.length)
+
+    const rows = candidates.map(({ raw, url }) => {
+      const frequency = raw.check_frequency ?? 'daily'
+      const zones = raw.zones ?? []
+
+      assertFrequencyAllowed(entitlements, frequency)
+      assertZoneCount(entitlements, zones.length)
+
+      return {
+        workspace_id: workspaceId,
+        url,
+        name: raw.name?.trim() || deriveMonitorName(url),
+        check_frequency: frequency,
+        check_hour: raw.check_hour ?? null,
+        threshold_pct: raw.threshold_pct ?? 5,
+        is_active: true,
+        watch_description: raw.watch_description ?? null,
+        full_page: raw.full_page ?? true,
+        mode: raw.mode ?? 'watch',
+        zones: zones.length ? zones : null,
+      }
+    })
+
+    const { data, error } = await supabase.from('monitored_urls').insert(rows).select('id')
+    if (error) throw new Error(error.message)
+
+    revalidatePath('/dashboard/urls')
+    revalidatePath('/dashboard')
+    return (data ?? []) as { id: string }[]
   })
-
-  const supabase = await createServerClient()
-  const { data, error } = await supabase.from('monitored_urls').insert(rows).select('id')
-
-  if (error) throw new Error(error.message)
-
-  revalidatePath('/dashboard/urls')
-  revalidatePath('/dashboard')
-  return data ?? []
-}
 
 // ─── Read ────────────────────────────────────────────────────────────────────
 
@@ -187,50 +201,61 @@ export async function getLatestSnapshot(monitoredUrlId: string) {
 
 // ─── Update ──────────────────────────────────────────────────────────────────
 
-export async function updateMonitoredUrl(
-  urlId: string,
-  updates: MonitorUpdate
-): Promise<void> {
-  const entitlements = await requireEntitlements()
+export const updateMonitoredUrl = action
+  .input(
+    z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1).max(200).optional(),
+      check_frequency: z.enum(['hourly', 'daily', 'weekly']).optional(),
+      check_hour: z.number().int().min(0).max(23).nullable().optional(),
+      threshold_pct: z.number().min(0).max(100).optional(),
+      watch_description: z.string().max(2000).nullable().optional(),
+      full_page: z.boolean().optional(),
+      mode: z.enum(['watch', 'archive']).optional(),
+      zones: z.array(z.any()).nullable().optional(),
+      is_active: z.boolean().optional(),
+    })
+  )
+  .handler(async ({ input, ctx }) => {
+    const { id, ...updates } = input
 
-  // Only re-check the limits the caller is actually changing. Someone on a
-  // downgraded plan should still be able to rename a monitor whose cadence is
-  // now above their tier.
-  if (updates.check_frequency) {
-    assertFrequencyAllowed(entitlements, updates.check_frequency)
-  }
-  if (updates.zones !== undefined) {
-    assertZoneCount(entitlements, updates.zones?.length ?? 0)
-  }
+    // Only re-check the limits the caller is actually changing. Someone on a
+    // downgraded plan should still be able to rename a monitor whose cadence is
+    // now above their tier.
+    if (updates.check_frequency) {
+      assertFrequencyAllowed(ctx.entitlements, updates.check_frequency)
+    }
+    if (updates.zones !== undefined) {
+      assertZoneCount(ctx.entitlements, updates.zones?.length ?? 0)
+    }
 
-  const supabase = await createServerClient()
-  const { error } = await supabase
-    .from('monitored_urls')
-    .update(updates)
-    .eq('id', urlId)
-    .is('deleted_at', null)
+    const { error } = await ctx.supabase
+      .from('monitored_urls')
+      .update(updates)
+      .eq('id', id)
+      .is('deleted_at', null)
 
-  if (error) throw new Error(error.message)
+    if (error) throw new Error(error.message)
 
-  revalidatePath('/dashboard/urls')
-  revalidatePath(`/dashboard/urls/${urlId}`)
-}
+    revalidatePath('/dashboard/urls')
+    revalidatePath(`/dashboard/urls/${id}`)
+  })
 
 /** Pauses or resumes capture without affecting history. */
-export async function pauseMonitoredUrl(urlId: string, paused: boolean): Promise<void> {
-  const supabase = await createServerClient()
+export const pauseMonitoredUrl = action
+  .input(z.object({ id: z.string().uuid(), paused: z.boolean() }))
+  .handler(async ({ input, ctx }) => {
+    const { error } = await ctx.supabase
+      .from('monitored_urls')
+      .update({ is_active: !input.paused })
+      .eq('id', input.id)
+      .is('deleted_at', null)
 
-  const { error } = await supabase
-    .from('monitored_urls')
-    .update({ is_active: !paused })
-    .eq('id', urlId)
-    .is('deleted_at', null)
+    if (error) throw new Error(error.message)
 
-  if (error) throw new Error(error.message)
-
-  revalidatePath('/dashboard/urls')
-  revalidatePath(`/dashboard/urls/${urlId}`)
-}
+    revalidatePath('/dashboard/urls')
+    revalidatePath(`/dashboard/urls/${input.id}`)
+  })
 
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
@@ -238,58 +263,46 @@ export async function pauseMonitoredUrl(urlId: string, paused: boolean): Promise
  * Soft-deletes a monitor.
  *
  * Hard deletion would cascade through `screenshot_snapshots`, `screenshot_diffs`
- * and `alerts` while leaving the PNG objects orphaned in storage forever. The
+ * and `alerts` while leaving the image objects orphaned in storage forever. The
  * retention job reclaims both, on the plan's schedule.
  *
  * Freed quota is immediate: `getMonitoredUrls` and the usage count both filter
  * on `deleted_at`.
  */
-export async function deleteMonitoredUrl(urlId: string): Promise<void> {
-  const supabase = await createServerClient()
+export const deleteMonitoredUrl = action
+  .input(z.object({ id: z.string().uuid() }))
+  .handler(async ({ input, ctx }) => {
+    const { error } = await ctx.supabase
+      .from('monitored_urls')
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .eq('id', input.id)
+      .is('deleted_at', null)
 
-  const { error } = await supabase
-    .from('monitored_urls')
-    .update({ deleted_at: new Date().toISOString(), is_active: false })
-    .eq('id', urlId)
-    .is('deleted_at', null)
+    if (error) throw new Error(error.message)
 
-  if (error) throw new Error(error.message)
-
-  revalidatePath('/dashboard/urls')
-  revalidatePath('/dashboard')
-}
+    revalidatePath('/dashboard/urls')
+    revalidatePath('/dashboard')
+  })
 
 /**
  * Restores a soft-deleted monitor, provided the plan still has room. Only
  * possible until the retention job purges the underlying history.
  */
-export async function restoreMonitoredUrl(urlId: string): Promise<void> {
-  const entitlements = await requireEntitlements()
-  assertCanAddMonitors(entitlements, 1)
+export const restoreMonitoredUrl = action
+  .input(z.object({ id: z.string().uuid() }))
+  .handler(async ({ input, ctx }) => {
+    assertCanAddMonitors(ctx.entitlements, 1)
 
-  const supabase = await createServerClient()
-  const { error } = await supabase
-    .from('monitored_urls')
-    .update({ deleted_at: null, is_active: true })
-    .eq('id', urlId)
+    const { error } = await ctx.supabase
+      .from('monitored_urls')
+      .update({ deleted_at: null, is_active: true })
+      .eq('id', input.id)
 
-  if (error) throw new Error(error.message)
-
-  revalidatePath('/dashboard/urls')
-}
+    if (error) throw new Error(error.message)
+    revalidatePath('/dashboard/urls')
+  })
 
 // ─── Internals ───────────────────────────────────────────────────────────────
-
-/**
- * Guards against a client passing someone else's workspace id. RLS would reject
- * the insert anyway, but failing here gives a clear error instead of an opaque
- * policy violation.
- */
-function assertWorkspaceMatches(entitlements: Entitlements, workspaceId: string): void {
-  if (entitlements.workspaceId !== workspaceId) {
-    throw new Error('Workspace mismatch')
-  }
-}
 
 /** Returns null for anything that fails validation, so a bad row is skipped. */
 function safeNormalize(raw: string): string | null {

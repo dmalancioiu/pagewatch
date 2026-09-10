@@ -66,7 +66,7 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
     setError(null)
     start(async () => {
       try {
-        const results = await addMonitoredUrls(workspaceId, [{
+        const res = await addMonitoredUrls({ urls: [{
           url,
           name: derivedName,
           check_frequency: freq,
@@ -75,8 +75,9 @@ export function AddUrlModal({ workspaceId, onClose, onCreated }: AddUrlModalProp
           watch_description: isWatch && description.trim() ? description.trim() : null,
           full_page: fullPage,
           mode,
-        }])
-        const newId = results[0]?.id
+        }] })
+        if (!res.ok) throw new Error(res.message)
+        const newId = res.data[0]?.id
         if (newId && onCreated) onCreated(newId)
         else onClose()
       } catch (err: any) {

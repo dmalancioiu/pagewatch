@@ -44,7 +44,7 @@ export function MonitorPauseResumeSync({ monitorId, initialIsActive, hasOpenAler
       event.stopPropagation()
       const nextIsActive = !isActive
       startTransition(async () => {
-        await updateMonitoredUrl(monitorId, { is_active: nextIsActive } as any)
+        await updateMonitoredUrl({ id: monitorId, is_active: nextIsActive })
         setIsActive(nextIsActive)
       })
     }

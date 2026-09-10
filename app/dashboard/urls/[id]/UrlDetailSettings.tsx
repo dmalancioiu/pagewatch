@@ -49,7 +49,8 @@ export function UrlDetailSettings({ url, latestSnapshotUrl }: { url: any; latest
 
   function handleSave() {
     startSave(async () => {
-      await updateMonitoredUrl(url.id, {
+      await updateMonitoredUrl({
+        id: url.id,
         check_frequency: freq,
         check_hour: freq !== 'hourly' ? checkHour : null,
         full_page: fullPage,
@@ -66,7 +67,7 @@ export function UrlDetailSettings({ url, latestSnapshotUrl }: { url: any; latest
       return
     }
     startSave(async () => {
-      await deleteMonitoredUrl(url.id)
+      await deleteMonitoredUrl({ id: url.id })
       router.push('/dashboard')
     })
   }

@@ -31,8 +31,11 @@ export async function getOnboardingState(workspaceId: string) {
   return data ?? []
 }
 
-export async function addUrlsToMonitor(workspaceId: string, urls: UrlInput[]) {
-  return addMonitoredUrls(workspaceId, urls)
+export async function addUrlsToMonitor(_workspaceId: string, urls: UrlInput[]) {
+  // The workspace now comes from the session inside the action itself, so the
+  // caller can no longer nominate one. The parameter is kept so existing call
+  // sites keep compiling until the onboarding flow is rebuilt.
+  return addMonitoredUrls({ urls })
 }
 
 export async function saveNotificationChannel(

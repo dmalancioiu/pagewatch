@@ -51,7 +51,7 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
   const [isSaving,  startSave]    = useTransition()
 
   useEffect(() => {
-    triggerManualRun(urlId).catch((err) => {
+    triggerManualRun({ id: urlId }).catch((err) => {
       setErrorMsg(err?.message ?? 'Failed to trigger screenshot.')
       setPhase('error')
     })
@@ -90,7 +90,7 @@ export function FirstScreenshotModal({ urlId, urlName, onClose, onAdjust }: Firs
 
   function handleSaveZones() {
     startSave(async () => {
-      await updateMonitoredUrl(urlId, { zones: zones.length > 0 ? zones : null })
+      await updateMonitoredUrl({ id: urlId, zones: zones.length > 0 ? zones : null })
       navigateToUrl()
     })
   }

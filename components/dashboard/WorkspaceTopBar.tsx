@@ -42,14 +42,14 @@ export function WorkspaceTopBar({
 
   function handleRunNow() {
     startRun(async () => {
-      await triggerManualRun(urlId)
+      await triggerManualRun({ id: urlId })
       router.refresh()
     })
   }
 
   function handlePauseToggle() {
     startPause(async () => {
-      await pauseMonitoredUrl(urlId, !isPaused)
+      await pauseMonitoredUrl({ id: urlId, paused: !isPaused })
       router.refresh()
     })
   }
