@@ -24,9 +24,21 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   })
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // Without credentials there is no session to refresh. Returning the response
+  // untouched degrades to "nobody is signed in" — the auth guard in the
+  // dashboard layout still redirects. Constructing the client anyway throws,
+  // and because middleware runs on every route that turned a misconfigured
+  // deploy into a 500 on the marketing site too.
+  if (!supabaseUrl || !supabaseKey) {
+    return response
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
