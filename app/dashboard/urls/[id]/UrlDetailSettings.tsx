@@ -36,6 +36,7 @@ import {
 import { useToast } from '@/components/ui/ToastProvider'
 import { useDashboard } from '@/components/dashboard/DashboardShell'
 import { ZoneSelectorModal } from '@/components/dashboard/ZoneSelectorModal'
+import { contentChangesOf, describeChange, iconFor } from '@/components/dashboard/ChangeTimeline'
 import { updateMonitoredUrl, deleteMonitoredUrl } from '@/lib/actions/websites'
 import type { CheckFrequency, Zone } from '@/lib/types/database.types'
 import type { AlertWithUrls } from './UrlDetailClient'
@@ -210,6 +211,7 @@ export function UrlDetailSettings({
   }
 
   const triggeredZone = selectedAlert?.metadata?.zone_scores?.find((z: any) => z.passes_threshold)?.label
+  const selectedCaptureChanges = selectedAlert ? contentChangesOf(selectedAlert) : []
 
   return (
     <div className="flex h-full flex-col">
@@ -247,6 +249,19 @@ export function UrlDetailSettings({
                 </span>
                 {triggeredZone && <Badge size="sm">{triggeredZone}</Badge>}
               </div>
+              {selectedCaptureChanges.length > 0 && (
+                <ul className="mt-1 flex flex-col gap-1.5 border-t border-border pt-2">
+                  {selectedCaptureChanges.map((change, i) => {
+                    const Icon = iconFor(change.kind)
+                    return (
+                      <li key={i} className="flex items-start gap-2 text-ui text-text">
+                        <Icon className="mt-0.5 size-3.5 shrink-0 text-text-faint" aria-hidden />
+                        <span className="min-w-0">{describeChange(change)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
           ) : (
             <p className="text-ui text-text-muted">No change detected on this capture.</p>

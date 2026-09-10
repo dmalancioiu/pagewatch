@@ -2,22 +2,26 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useOptimistic, useState, useTransition } from 'react'
+import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import { AlertTriangle, ArrowLeft, ChevronRight, ExternalLink, Maximize2, Pause, Play } from 'lucide-react'
 import { StatusDot } from '@/components/ui/status-dot'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/ToastProvider'
 import { pauseMonitoredUrl } from '@/lib/actions/websites'
 import { triggerManualRun } from '@/lib/actions/run-now'
 import { acknowledgeAlert } from '@/lib/actions/alerts'
+import { buildPriceSeries } from '@/lib/history'
 import type { Zone } from '@/lib/types/database.types'
 import { ResizableInspectorLayout } from '@/app/dashboard/urls/[id]/ResizableInspectorLayout'
 import { UrlDetailClient, type AlertWithUrls, type SnapshotWithUrl } from '@/app/dashboard/urls/[id]/UrlDetailClient'
 import { UrlDetailSettings } from '@/app/dashboard/urls/[id]/UrlDetailSettings'
 import { FullscreenMonitorViewer } from '@/components/dashboard/FullscreenMonitorViewer'
 import { DiffViewerModal } from '@/components/dashboard/DiffViewerModal'
+import { ChangeChart } from '@/components/dashboard/ChangeChart'
+import { ChangeTimeline } from '@/components/dashboard/ChangeTimeline'
 
 interface MonitorFields {
   id: string
@@ -106,6 +110,11 @@ export function MonitorDetailDesignClientResponsive({
   const triggeredRegion = (selectedAlert?.metadata?.zone_scores as any[] | undefined)?.find((z) => z.passes_threshold)?.label
 
   const statusKind: StatusKind = !isActive ? 'paused' : monitor.consecutive_failures > 0 ? 'failing' : activeAlert ? 'alert' : 'healthy'
+
+  // Price history — pure transform, recomputed only when the underlying
+  // captures or alerts change. See lib/history.ts for the label-matching and
+  // gap-handling rules.
+  const priceSeries = useMemo(() => buildPriceSeries(snapshots, alertBySnapshotId), [snapshots, alertBySnapshotId])
 
   function handleTogglePause() {
     const next = !isActive
@@ -234,6 +243,31 @@ export function MonitorDetailDesignClientResponsive({
           <span className="min-w-0 truncate">{monitor.last_error}</span>
         </div>
       )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Price history</CardTitle>
+            <CardDescription>
+              Prices PageWatch has detected on this page over time — the single most useful
+              thing to screenshot into a team chat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangeChart series={priceSeries} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>What changed</CardTitle>
+            <CardDescription>Every structured change PageWatch found, newest first.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangeTimeline alerts={alerts} />
+          </CardContent>
+        </Card>
+      </div>
 
       <ResizableInspectorLayout
         main={

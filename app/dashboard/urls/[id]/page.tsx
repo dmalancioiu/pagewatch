@@ -113,6 +113,9 @@ export default async function UrlDetailPage({ params }: { params: Promise<{ id: 
     storage_path: snapshot.storage_path,
     taken_at: snapshot.taken_at,
     file_size_bytes: snapshot.file_size_bytes,
+    // Structured extraction (prices, headings, ...) — the chart's data source.
+    // See lib/history.ts, which turns this into chart series.
+    extract: snapshot.extract ?? null,
     signedUrl: signedUrlMap.get(snapshot.storage_path) ?? null,
     thumbUrl:
       (thumbPath(snapshot) ? signedUrlMap.get(thumbPath(snapshot)!) : null) ??

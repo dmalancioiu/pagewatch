@@ -163,7 +163,8 @@ export async function getMonitoredUrlById(urlId: string) {
         id,
         storage_path,
         taken_at,
-        file_size_bytes
+        file_size_bytes,
+        extract
       ),
       alerts (
         id,
@@ -171,6 +172,8 @@ export async function getMonitoredUrlById(urlId: string) {
         severity,
         status,
         created_at,
+        ai_summary,
+        metadata,
         diff_storage_path,
         current_snapshot_id,
         previous_snapshot_id
